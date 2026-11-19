@@ -36,6 +36,14 @@
 // the game's clamp line (clamp 3), all beside the material, owned by the n5u_ name and git-ignored in data\files
 // (files.js motionCopies): its edge pixels stretch where a shrinking breath would show the next repeat.
 //
+// DC (SHP-8; the owner, 2026-11-19: "Go"): a still shape (its part doesn't move) whose library texture's TXI says decal -
+// the game draws such a mesh unlit, so its Colour never shows - or is a flipbook on a mesh whose v stays within one repeat
+// (its frame wraps at the rim: a thin line) names a copy instead, n5l_<12 hex digits> (its texture and the clamp: one copy
+// per texture and clamp, never per colour): the texture's picture copied under that name with a TXI of its lines minus
+// decal, plus clamp 2 (v) within one repeat, beside what names it - owned by the n5l_ name, git-ignored in data\files
+// (files.js copyTextures). A still Soft shape within one repeat names its clamped soft texture (its own n5s_ name, a TXI
+// saying clamp 2: files.js shapeTextures). A game part's and your own file's textures are never copied.
+//
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
 // own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo. The files are written by its files.js,
 // under the same ownership rule.
@@ -189,11 +197,17 @@ function main() {
   // then beside the file).
   const ship = W.shipTextures([].concat(...placed.map((b) => b.parts)), rd, baked);  // texture name -> its copies beside a file
 
+  // DC (SHP-8): a still shape's library texture the game must have copied - its TXI says decal (drawn unlit: its Colour
+  // never shows), or a flipbook on a mesh whose v stays within one repeat (its frame wraps at the rim) - renamed for its
+  // copy, n5l_<12 hex digits>, whose picture and TXI (its lines minus decal, + clamp 2 within one repeat) go beside it
+  // (files.js copyTextures).
+  const copied = new Map();  // a copy's name -> { texture, clamp, decal, ext, bytes, txi, label } (files.js's copyTextures)
   // A moving part's textured meshes (M2): each bitmap renamed for its material, n5u_ and 12 hex digits (files.js's
   // motionMaterials, after the bakes and the textures shipped: its texture0 is the real texture). Then each variant's
   // meshes lowered by the guide's height, named unique.
   const moved = new Map();  // a material's name -> { texture, motion, pivot, clamp?, text, label, copy? } (files.js's motionMaterials)
   const built = placed.map(({ v, parts }) => {
+    W.copyTextures(parts, copied, { rd, shaped, baked, ship });
     W.motionMaterials(parts, moved);
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
     for (const x of parts) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], x.lo[k]); hi[k] = Math.max(hi[k], x.hi[k]); }
@@ -226,6 +240,7 @@ function main() {
   for (const [texture, copies] of ship) say(`  texture ${texture}: not in the game - shipped from ${copies.join(", ")}`);
   W.bakedLines(baked, placeable ? shown(FILES) : SAVED || "the --saved folder").forEach((l) => say(l));
   W.shapeLines(shaped, placeable ? shown(FILES) : SAVED || "the --saved folder").forEach((l) => say(l));
+  W.copyLines(copied, placeable ? shown(FILES) : SAVED || "the --saved folder").forEach((l) => say(l));
   W.motionLines(moved, placeable ? shown(FILES) : SAVED || "the --saved folder").forEach((l) => say(l));
 
   // The files.
@@ -263,6 +278,7 @@ function main() {
   }
   writes.push(...W.bakedWrites(baked, bakeDir));  // never in made.txt: whose they are, their names say
   writes.push(...W.shapeWrites(shaped, bakeDir));  // likewise: build output, git-ignored in data\files
+  writes.push(...W.copyWrites(copied, bakeDir));  // DC: a library texture's copies (the game's art: git-ignored in data\files)
   writes.push(...W.motionWrites(moved, bakeDir));  // a moving texture's materials (git-ignored in data\files) and the shader
 
   // The marked files this project made under another model name (its variants counted 1 and then 2, or back): listed,
@@ -292,7 +308,7 @@ function main() {
   }
 
   const result = { kind, check: CHECK, variants, files: [], unused, shipped: [...ship].map(([texture, copies]) => ({ texture, from: copies })),
-    baked: W.bakedJson(baked), shapes: W.shapeJson(shaped), materials: W.motionJson(moved), wouldWrite: writes.length };
+    baked: W.bakedJson(baked), shapes: W.shapeJson(shaped), copies: W.copyJson(copied), materials: W.motionJson(moved), wouldWrite: writes.length };
   const finish = () => {
     for (const f of unused) say(`no longer used: ${f} (made by this generator for ${name} under an earlier name) - delete it if nothing needs it`);
     if (JSON_OUT) console.log(JSON.stringify(result));

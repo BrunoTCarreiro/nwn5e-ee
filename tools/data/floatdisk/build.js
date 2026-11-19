@@ -18,7 +18,11 @@
 //   our vertex shader (vsn5uvmove.shd, committed in data\files and listed in made.txt) with the real texture as texture0
 //   (files.js's motionWrites), beside the models and the drafts alike - a clamped one (W1: it breathes, doesn't scroll,
 //   its mesh's UVs within one repeat) naming its copy instead, the texture's picture copied under the material's name with
-//   a TXI of its lines and the game's clamp line (files.js's motionCopies), git-ignored as the material.
+//   a TXI of its lines and the game's clamp line (files.js's motionCopies), git-ignored as the material; and (DC) a still
+//   shape's library texture whose TXI says decal, or a flipbook on a mesh whose v stays within one repeat, copied under
+//   its own name, n5l_<12 hex digits>, with a TXI of its lines minus decal (+ clamp 2 within one repeat), which the models
+//   name instead (files.js's copyTextures) - git-ignored, the game's art - and a still Soft shape within one repeat
+//   naming its clamped soft texture (its own n5s_ name, a TXI saying clamp 2).
 // - data\rows: appearance.floatdisk.txt (rows 14000-14003, each appearance 298's) and placeables.floatdisk.txt (14001-
 //   14003, each 189 TreasureSml's), floatdisk.js's ROWS.
 //
@@ -139,8 +143,12 @@ function main() {
   // A moving part's textured meshes (M2) renamed for their materials (files.js's motionMaterials: after the bakes and the
   // textures shipped, so texture0 is the real texture); then the creature's meshes and the pile's.
   const moved = new Map();  // a material's name -> { texture, motion, pivot, clamp?, text, label, copy? }
+  // DC (SHP-8): a still shape's library texture the game must have copied (its TXI says decal, or a flipbook within one
+  // repeat) renamed for its copy, n5l_<12 hex digits>, its picture and TXI beside it (files.js copyTextures).
+  const copied = new Map();  // a copy's name -> { texture, clamp, decal, ext, bytes, txi, label }
   for (const stage of F.STAGES) {
     const parts = placed[stage];
+    W.copyTextures(parts, copied, { rd, shaped, baked, ship });
     W.motionMaterials(parts, moved);
     const junk = [].concat(...parts.map((x) => x.meshes));
     const creature = F.uniqueNames([...junk, diskMesh], taken);
@@ -179,6 +187,7 @@ function main() {
   for (const [name, copies] of ship) say(`  texture ${name}: not in the game - shipped from ${copies.join(", ")}`);
   W.bakedLines(baked, W.shown(REPO, FILES)).forEach((l) => say(l));
   W.shapeLines(shaped, W.shown(REPO, FILES)).forEach((l) => say(l));
+  W.copyLines(copied, W.shown(REPO, FILES)).forEach((l) => say(l));
   W.motionLines(moved, W.shown(REPO, FILES)).forEach((l) => say(l));
 
   // The files.
@@ -204,6 +213,7 @@ function main() {
   }
   writes.push(...W.bakedWrites(baked, FILES));  // beside the models that name them, git-ignored; never in made.txt
   writes.push(...W.shapeWrites(shaped, FILES));  // likewise: build output, git-ignored; never in made.txt
+  writes.push(...W.copyWrites(copied, FILES));  // DC: a library texture's copies (the game's art: git-ignored); never in made.txt
   writes.push(...W.motionWrites(moved, FILES));  // a moving texture's materials (git-ignored) and the shader (committed, in made.txt)
   const appearance = gameData.gameTable(GAME, "appearance"), placeables = gameData.gameTable(GAME, "placeables");
   text(path.join(ROWS_DIR, "appearance.floatdisk.txt"), F.rowsText(appearance, F.SOURCE_ROWS.appearance,
@@ -230,10 +240,11 @@ function main() {
     writes.push({ file: path.join(DRAFT_TEXTURES, disk.texture + ".tga"), bytes: F.diskTexture(disk, F.TEXTURE_MARK), kind: "library" });
     writes.push(...W.bakedWrites(baked, DRAFT_OUT));  // the drafts name them: beside them, where the game reads the bench's
     writes.push(...W.shapeWrites(shaped, DRAFT_OUT));
+    writes.push(...W.copyWrites(copied, DRAFT_OUT));
     writes.push(...W.motionWrites(moved, DRAFT_OUT));
   }
   const result = { check: CHECK, stages: summary, shipped: [...ship].map(([texture, from]) => ({ texture, from })), baked: W.bakedJson(baked),
-    shapes: W.shapeJson(shaped), materials: W.motionJson(moved), files: [], wouldWrite: writes.length, unused: [] };
+    shapes: W.shapeJson(shaped), copies: W.copyJson(copied), materials: W.motionJson(moved), files: [], wouldWrite: writes.length, unused: [] };
   const finish = () => { if (JSON_OUT) console.log(JSON.stringify(result)); };
   if (CHECK) {
     say(`--check: nothing written (${writes.length} files would be)`);

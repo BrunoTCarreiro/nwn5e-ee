@@ -12,7 +12,8 @@
 //   dyed part's baked texture (n5p_<12 hex digits>.tga, from the game's PLT and palettes) and a shape's soft texture
 //   (n5s_<12 hex digits>.tga, from its colour and blend - an Additive one's n5s_<...>.txi beside it, M1b; all git-ignored)
 //   and a moving texture's material (n5u_<12 hex digits>.mtr, M2, git-ignored; a clamped one's copy and TXI too, W1:
-//   n5u_<...>.tga / .dds / .txi, its texture's picture under its name) with the shader it names (vsn5uvmove.shd,
+//   n5u_<...>.tga / .dds / .txi, its texture's picture under its name) and a still shape's library texture's copy (DC:
+//   n5l_<12 hex digits>.tga / .dds and .txi, the game's picture with its TXI minus decal, git-ignored) with the shader it names (vsn5uvmove.shd,
 //   committed whole in data\files, which build.bat copies anyway) - with the models that name them - are then written
 //   into --out (build.bat: the build's data\files) - never into this repo's data\ (refused). Skipped, and said so: a
 //   spell mesh's project (its drafts live in the VFX Bench's saved folder, and the dev layer writes its models when the
@@ -218,11 +219,13 @@ function main() {
   // The files into --out, under the generators' ownership rule: a model or .pwk carrying its generator's mark, a texture
   // its made.txt lists in data\files, a baked texture by its name (files.js's "baked"), a shape's soft texture - or an
   // Additive one's TXI (M1b) - by its name (files.js's "shape"), a moving texture's material by its n5u_ name (M2:
-  // files.js's "material") and the shader it names by its first line (files.js's "shader"). Kind "texture", not files.js's
-  // "binary": nothing is noted in any made.txt.
+  // files.js's "material"), a library texture's copy (DC: its picture and TXI) by its n5l_ name (files.js's "copy") and
+  // the shader it names by its first line (files.js's "shader"). Kind "texture", not files.js's "binary": nothing is
+  // noted in any made.txt.
   const isBake = (name) => /\.tga$/i.test(name) && F.BAKED.test(name.replace(/\.tga$/i, ""));
   const isShape = (name) => /\.(tga|txi)$/i.test(name) && F.SHAPE_TEXTURE.test(name.replace(/\.(tga|txi)$/i, ""));
   const isMaterial = (name) => /\.(mtr|tga|dds|txi)$/i.test(name) && F.MOTION_TEXTURE.test(name.replace(/\.(mtr|tga|dds|txi)$/i, ""));
+  const isCopy = (name) => /\.(tga|dds|txi)$/i.test(name) && !!F.COPY_TEXTURE && F.COPY_TEXTURE.test(name.replace(/\.(tga|dds|txi)$/i, ""));
   const isShader = (name) => name.toLowerCase() === F.MOTION_SHADER + ".shd";
   const writes = [], byName = new Map();
   for (const { gen, files } of built) {
@@ -234,7 +237,7 @@ function main() {
         continue;
       }
       const kind = F.carriesMark(f.bytes, gen.mark) ? "text" : isBake(f.name) ? "baked" : isShape(f.name) ? "shape" : isMaterial(f.name) ? "material"
-        : isShader(f.name) ? "shader" : "texture";
+        : isCopy(f.name) ? "copy" : isShader(f.name) ? "shader" : "texture";
       const w = { file: path.join(OUT, f.name), bytes: f.bytes, kind, owned, gen };
       byName.set(f.name.toLowerCase(), w);
       writes.push(w);

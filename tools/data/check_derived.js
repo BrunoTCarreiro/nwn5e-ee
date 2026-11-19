@@ -529,8 +529,10 @@ try {
     // A 1 m dome in gold: a shape part (no game model), its soft texture n5s_a3caa0709dda generated from its colour -
     // beside the model in data\files, git-ignored and owned by its name as a bake is.
     const GOLD = "n5s_a3caa0709dda", colour = [1, 0.85, 0.4];
+    // (DC: Repeat up 2 - its v tiles, so its soft texture is its colour's own, no TXI, as before DC; a still dome within
+    // one repeat is clamped: DC's check below.)
     const file = project("chkdome", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14153, parts: [
-      { shape: { type: "dome", radius: 1, colour }, at: [0, 0, 0] }] }] });
+      { shape: { type: "dome", radius: 1, colour, repeat_up: 2 }, at: [0, 0, 0] }] }] });
     const own = ["plc_n5chkdome.mdl", "plc_n5chkdome.pwk", GOLD + ".tga"];
     try {
       // "Committed": the Composer's build.js into the copy's data\files and data\rows, as the VFX Bench's Save does - its
@@ -574,7 +576,7 @@ try {
     const ADD = "n5s_438a32a94ebf", colour = [1, 0.85, 0.4];
     assert.strictEqual(F.shapeTextureName({ colour, blend: "additive" }), ADD);
     const file = project("chkdomea", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14154, parts: [
-      { shape: { type: "dome", radius: 1, colour, alpha: 0.1, blend: "additive" }, at: [0, 0, 0] }] }] });
+      { shape: { type: "dome", radius: 1, colour, alpha: 0.1, blend: "additive", repeat_up: 2 }, at: [0, 0, 0] }] }] });  // (DC: Repeat up 2, as above)
     const own = ["plc_n5chkdomea.mdl", "plc_n5chkdomea.pwk", ADD + ".tga", ADD + ".txi"];
     try {
       const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
@@ -681,6 +683,46 @@ try {
     } finally {
       fs.rmSync(file, { force: true });
       fs.rmSync(path.join(ROWS, "placeables.chkclmp.txt"), { force: true });
+      for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
+    }
+  });
+
+  check("DC: a placeable project's still glyph dome (fxpa_symbl_003 From above: decal) and Soft dome come out into --out - the glyph's copy (n5l_: the game's picture, its TXI minus decal + clamp 2), the clamped soft texture and its TXI (clamp 2), owned by their names; a second build the same", () => {
+    // TIN-1's glyph, orange, still: its model names the copy - the game's picture under our own name with its TXI's lines
+    // but decal, + clamp 2 - git-ignored build output (the game's art: never committed); a Soft dome beside it names its
+    // clamped soft texture (its own n5s_ name, its TXI clamp 2).
+    const SYM = "fxpa_symbl_003", COPY = F.copyName(SYM, 2), colour = [1, 0.85, 0.4], SOFT = F.shapeTextureName({ colour, clamp: true });
+    const file = project("chkdc", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14163, parts: [
+      { shape: { type: "dome", radius: 1, mapping: "above", texture: SYM, colour: [1, 0.502, 0] }, at: [0, 0, 0] },
+      { shape: { type: "dome", radius: 0.5, colour }, at: [2, 0, 0] }] }] });
+    const own = ["plc_n5chkdc.mdl", "plc_n5chkdc.pwk", COPY + ".tga", COPY + ".txi", SOFT + ".tga", SOFT + ".txi"];
+    try {
+      const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
+        { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+      assert.strictEqual(g.status, 0, "composer build.js: " + (g.stdout + g.stderr).trim());
+      for (const f of own) assert.ok(fs.existsSync(path.join(FILES, f)), f + " isn't in the copy's data\\files");
+      for (const f of [COPY + ".tga", COPY + ".txi", SOFT + ".txi"]) assert.ok(ignored(f), f + " isn't git-ignored");
+      const r = derive(["--out", OUT]);
+      done(r);
+      assert.deepStrictEqual(Object.entries(states(r)).filter(([, s]) => s !== "unchanged").sort(), own.map((f) => [f, "written"]).sort());
+      assert.match(r.out, /the Composer's project chkdc \(tools\/data\/composer\/chkdc\.json\): 6 files; its rows agree/);
+      const mdl = fs.readFileSync(path.join(OUT, "plc_n5chkdc.mdl"), "latin1");
+      assert.ok(mdl.includes(`\r\n  bitmap ${COPY}\r\n`) && mdl.includes(`\r\n  bitmap ${SOFT}\r\n`) && !mdl.includes(`\r\n  bitmap ${SYM}\r\n`), "plc_n5chkdc.mdl doesn't name " + COPY + " and " + SOFT);
+      const sym = RD.image(SYM, []);
+      assert.ok(fs.readFileSync(path.join(OUT, COPY + ".tga")).equals(sym.tga), COPY + ".tga isn't the game's " + SYM);
+      assert.strictEqual(fs.readFileSync(path.join(OUT, COPY + ".txi"), "latin1"), F.copiedTxi(sym.txi, 2));
+      assert.strictEqual(fs.readFileSync(path.join(OUT, SOFT + ".txi"), "latin1"), "clamp 2\n");
+      const s = derive(["--out", OUT]);
+      done(s);
+      assert.ok(Object.values(states(s)).every((x) => x === "unchanged"), JSON.stringify(states(s)));
+      // In --out, a copy or its TXI of its name is the generator's (the name fixes its bytes): rewritten.
+      fs.writeFileSync(path.join(OUT, COPY + ".txi"), "decal 1\r\n");
+      const w = derive(["--out", OUT]);
+      done(w);
+      assert.deepStrictEqual(Object.entries(states(w)).filter(([, x]) => x !== "unchanged"), [[COPY + ".txi", "written"]]);
+    } finally {
+      fs.rmSync(file, { force: true });
+      fs.rmSync(path.join(ROWS, "placeables.chkdc.txt"), { force: true });
       for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
     }
   });

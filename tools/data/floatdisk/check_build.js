@@ -309,7 +309,9 @@ try {
     // the mesh reader). --drafts into the copy's own folders, never the real build's.
     const GOLD = "n5s_a3caa0709dda", colour = [1, 0.85, 0.4];
     const file = withComposition("dome.json", (c) => {
-      c.stages.medium = [{ shape: { type: "dome", radius: 0.3, colour }, at: [0, 0, 0] }, { model: "ptm_lantern03", at: [0.2, 0, 0], scale: 0.2 }];
+      // (DC: Repeat up 2 - its v tiles, so its soft texture is its colour's own, as before DC; within one repeat a still
+      // dome's is clamped, its own name and TXI: DC's check, composer check_build.)
+      c.stages.medium = [{ shape: { type: "dome", radius: 0.3, colour, repeat_up: 2 }, at: [0, 0, 0] }, { model: "ptm_lantern03", at: [0.2, 0, 0], scale: 0.2 }];
     });
     const drafts = path.join(root, "build", "saved"), library = path.join(root, "build", "textures");
     const args = ["--composition", file, "--drafts", "--out", drafts, "--textures", library];
@@ -370,7 +372,9 @@ try {
     const GOLD = "n5s_a3caa0709dda", ADD = "n5s_438a32a94ebf", colour = [1, 0.85, 0.4];
     assert.strictEqual(F.shapeTextureName({ colour, blend: "additive" }), ADD);
     const file = withComposition("blend.json", (c) => {
-      c.stages.medium = [{ shape: { type: "dome", radius: 0.3, colour, blend: "additive" }, at: [0, 0, 0] }, { shape: { type: "dome", radius: 0.2, colour }, at: [0.4, 0, 0] }];
+      // (DC: both Repeat up 2, as the check above's.)
+      c.stages.medium = [{ shape: { type: "dome", radius: 0.3, colour, blend: "additive", repeat_up: 2 }, at: [0, 0, 0] },
+        { shape: { type: "dome", radius: 0.2, colour, repeat_up: 2 }, at: [0.4, 0, 0] }];
     });
     const drafts = path.join(root, "build", "saved"), library = path.join(root, "build", "textures");
     const args = ["--composition", file, "--drafts", "--out", drafts, "--textures", library];
@@ -482,6 +486,41 @@ try {
     }
     assert.ok(fs.readFileSync(path.join(folder, "made.txt")).equals(made), "made.txt changed");
     assert.ok(!/no longer used/.test(build(["--composition", file]).out), "a clamped build calls something unused");
+    const again = json(build([...args, "--json"]));
+    assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
+  });
+
+  // DC (#39; SHP-8, the owner, 2026-11-19: "Go"): a still shape's library texture whose TXI says decal (or a flipbook on a
+  // mesh within one repeat) is copied under its n5l_ name - its picture and a TXI of its lines minus decal, + clamp 2 within
+  // one repeat - beside the models in data\files and beside the drafts alike; made.txt doesn't list them.
+  check("DC: a still flame ring part (fxpa_flame02, Cylinder with a Top radius) names its copy - the game's TGA and a TXI minus decal + clamp 2 beside the models and the drafts; again unchanged", () => {
+    const FLAME = "fxpa_flame02", C2 = F.copyName(FLAME, 2);
+    const file = withComposition("copy.json", (c) => {
+      c.stages.medium = [{ shape: { type: "cylinder", radius: 0.3, height: 0.3, top: 0.35, texture: FLAME, colour: [0.137, 0.922, 0.314] }, at: [0, 0, 0] }];
+    });
+    const drafts = path.join(root, "build", "saved"), library = path.join(root, "build", "textures");
+    const args = ["--composition", file, "--drafts", "--out", drafts, "--textures", library];
+    const made = fs.readFileSync(path.join(folder, "made.txt"));
+    const r = build([...args, "--json"]);
+    assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
+    const j = json(r);
+    assert.deepStrictEqual(j.copies, [{ copy: C2, texture: FLAME, clamp: 2 }]);
+    const states = Object.fromEntries(j.files.filter((f) => f.file.includes(C2)).map((f) => [f.file, f.state]));
+    assert.deepStrictEqual(Object.keys(states).sort(), ["build/saved/", "data/files/"].flatMap((d) => [".tga", ".txi"].map((e) => d + C2 + e)).sort());
+    global.window = global.window || {};
+    const rd = R.create({ game: GAME, core: require(path.join(TOOLS, "vfx_bench", "public", "core.js")), gameData: require(path.join(TOOLS, "spell_bench", "game_data.js")), reader: null });
+    const flame = rd.image(FLAME, []);
+    assert.ok(flame && flame.tga && F.txiDecal(flame.txi), "the game's fxpa_flame02: a TGA, a decal TXI");
+    for (const dir of [FILES, drafts]) {
+      assert.ok(fs.readFileSync(path.join(dir, C2 + ".tga")).equals(flame.tga), dir + ": the copy isn't the game's fxpa_flame02.tga");
+      assert.strictEqual(fs.readFileSync(path.join(dir, C2 + ".txi"), "latin1"), F.copiedTxi(flame.txi, 2), dir);
+    }
+    for (const m of [F.creatureModel("medium"), F.pileModel("medium")].map((s) => s + ".mdl")) {
+      const t = fs.readFileSync(path.join(FILES, m), "latin1");
+      assert.ok(t.includes(`\r\n  bitmap ${C2}\r\n`) && !t.includes(`\r\n  bitmap ${FLAME}\r\n`), m + " doesn't name " + C2);
+    }
+    assert.ok(fs.readFileSync(path.join(folder, "made.txt")).equals(made), "made.txt changed");
+    assert.ok(!/no longer used/.test(build(["--composition", file]).out), "a copying build calls something unused");
     const again = json(build([...args, "--json"]));
     assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
   });

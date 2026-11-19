@@ -633,9 +633,12 @@ const softColour = (colour) => colour.map((c) => Math.round(c * 1000) / 1000);
 // A soft texture's name: n5s_ and 12 hex digits of its colour (softColour's) and its blend (M1b) - one per colour and
 // blend, the same in a page. Normal's (or no blend given) hashes its colour alone, as before M1b, so every name made
 // then stays; Additive's hashes ":additive" after it - its own name, so a blend changed never leaves the game a TXI
-// beside a texture that no longer wants one (or none beside one that does).
-function shapeTextureName({ colour, blend }) {
-  return "n5s_" + cyrb53("soft:" + softColour(colour).map(String).join(",") + (blend === "additive" ? ":additive" : "")).toString(16).padStart(14, "0").slice(-12);
+// beside a texture that no longer wants one (or none beside one that does). DC: a clamped one (`clamp`: its mesh's v
+// within one repeat, on a still shape - stillTextures) hashes ":clamp2" after that, its own name for the same reason
+// (its TXI says clamp 2: softTxi); an unclamped one is named as before DC.
+function shapeTextureName({ colour, blend, clamp }) {
+  return "n5s_" + cyrb53("soft:" + softColour(colour).map(String).join(",") + (blend === "additive" ? ":additive" : "") + (clamp ? ":clamp2" : ""))
+    .toString(16).padStart(14, "0").slice(-12);
 }
 // The soft texture, made for Wrapped: its colour (softColour's, as its name has it), brighter and more opaque at the
 // ground ring (v 0) and fading towards the top (v 1), with a faint shimmer of whole turns in u, so it wraps round
@@ -886,22 +889,19 @@ function motionClamps(motion, tverts) {
   return Array.from(t).every((v) => isNum(v) && v >= -UV_REPEAT_EPSILON && v <= 1 + UV_REPEAT_EPSILON);
 }
 // A TXI's text (a string or bytes; none: "") as written under a clamped material's name: the source texture's own lines
-// as they are - its blending, its procedure (proceduretype, numx, numy, fps), decal ... - in its own line ends (CRLF the
-// game's, LF ours), any clamp line of its own left out and its blank lines at the end dropped, then CLAMP_TXI and a line end.
+// as they are - its blending, its procedure (proceduretype, numx, numy, fps) ... - in its own line ends (CRLF the game's,
+// LF ours), any clamp line of its own left out and its blank lines at the end dropped, then CLAMP_TXI and a line end.
+// DC: through copiedTxi - its decal line dropped too (a decal mesh is drawn unlit, its material skipped, so our material
+// would read whatever the mesh before it left: the SHP-8 diagnosis), and the clamp the union of the source's own and 3
+// (the game's clamp TXIs say 1, 2 or 3: clamp 3 always, as before).
 const latin1 = (text) => (text === undefined || text === null ? "" : typeof text === "string" ? text
   : Array.from(text instanceof Uint8Array ? text : new Uint8Array(text), (c) => String.fromCharCode(c)).join(""));
 const CLAMP_LINE = /^[ \t]*clamp[ \t]+(\S+)/i;
-function clampedTxi(source) {
-  const s = latin1(source), eol = /\r\n/.test(s) ? "\r\n" : "\n";
-  const lines = s ? s.split(/\r?\n/).filter((l) => !CLAMP_LINE.test(l)) : [];
-  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
-  return [...lines, CLAMP_TXI, ""].join(eol);
-}
+const clampedTxi = (source) => copiedTxi(source, 3);
 // Whether a TXI (a string or bytes) clamps: a "clamp" line whose value isn't 0 (any case, spaces or tabs, either line
-// end). The bench's texture route says so of a clamped material's copy (its stage draws it clamped).
-function txiClamps(text) {
-  return latin1(text).split(/\r?\n/).some((l) => { const m = CLAMP_LINE.exec(l); return !!m && Number(m[1]) !== 0; });
-}
+// end; DC: its value as C's atoi reads it - txiClampBits). The bench's texture route says so of a clamped material's copy
+// (its stage draws it clamped).
+const txiClamps = (text) => txiClampBits(text) !== 0;
 // Its material, n5u_<...>.mtr ({ texture, motion, pivot, clamp? }: moveTextures' material): our vertex shader with the
 // game's lit fragment shader (the pair the game's vslit / fslit are), the real texture as texture0 - left out with
 // `copy`, the route where the texture is copied under the material's own name (TMO-1 passed 2026-11-18: route A,
@@ -980,6 +980,131 @@ function moveTextures(meshes, motion, { clamp = true } = {}) {
     return Object.assign({}, mesh, { bitmap: name });
   });
   return { meshes: out, materials };
+}
+
+// --- DC: a library texture copied without its decal mark; flipbooks and soft textures clamped in v (#39) --------------
+// SHP-8 (the owner, 2026-11-19): a flame ring (Cylinder (open), Top radius, fxpa_flame02, a green Colour) showed "a top very
+// thin color at the edge on the rim of the cylinder" (on the stage and in game), and "when played in game the tinting
+// doesn't show"; "Go" to the fix. The engine (nwmain, read in the SHP-8 diagnosis):
+// - a TXI's `decal` (Material::ParseField) makes the game draw the mesh unlit: PartTriMesh::Mat() sets its colour to (1, 1,
+//   1, alpha) and skips its material, RenderFlat turns lighting off, so the shader is vsvt / fst - texture x alpha - and a
+//   shape's Colour (its selfillum, ambient and diffuse) never shows. 21 of the game's 734 TXIs say it: fxpa_flame02,
+//   fxpa_symbl_003, fxpa_web, fxpa_fern, its 7 flipbooks, c_air_skin ...;
+// - a flipbook's frame is a texture of its own (CreateTexture -> ImageGetSubImage), drawn repeating both ways unless its TXI
+//   clamps (SetTextureParameters: clamp bit 1 WRAP_S, 2 WRAP_T, 4 WRAP_R), so a mesh whose v runs to 1 samples the frame's
+//   wrapped bottom row at its top rim: the thin line. Our soft textures (alpha 77 at the top row, 253 at the bottom) show
+//   it fainter.
+// So a Composer shape whose part doesn't move (a moving one's texture goes through its material: M2, W1 - clampedTxi drops
+// decal there) gives the game, under our own names:
+// - a library texture whose TXI says decal, or a flipbook (decal or not) on a mesh whose v stays within one repeat: a copy
+//   of its picture, n5l_<12 hex digits> (copyName: its texture and the clamp added - one copy per distinct result, never
+//   per colour), with a TXI of its own lines minus decal - its flipbook and blending kept - plus clamp 2 (v) when the
+//   mesh's v stays within [0, 1] (copiedTxi). U keeps repeating (round a ring, Repeat around);
+// - its soft texture, when its mesh's v stays within [0, 1]: a name of its own (shapeTextureName's clamp) with a TXI
+//   saying clamp 2 (softTxi).
+// A game part's or your own file's meshes are drawn as their models have them; the game's own effects are never copied.
+const CLAMP_V = 2;  // the game's clamp bits: 1 u (WRAP_S), 2 v (WRAP_T), 4 r (WRAP_R) - SetTextureParameters
+const COPY_TEXTURE = /^n5l_[0-9a-f]{12}$/;  // a library texture's copy: made, never picked
+// A TXI value as C's atoi reads it: its leading whole number (after spaces or tabs), else 0.
+const atoi = (v) => { const m = /^[ \t]*([+-]?\d+)/.exec(String(v === undefined ? "" : v)); return m ? parseInt(m[1], 10) : 0; };
+const DECAL_WORD = /^[ \t]*decal(?:[ \t]|$)/i;  // a decal line, its value or none: every one is dropped from a copy
+// Whether a TXI (a string or bytes) says decal: a "decal" line whose value isn't 0 as atoi reads it (any case, either
+// line end) - what the game draws unlit.
+function txiDecal(text) {
+  return latin1(text).split(/\r?\n/).some((l) => { const m = /^[ \t]*decal[ \t]+(\S+)/i.exec(l); return !!m && atoi(m[1]) !== 0; });
+}
+// A TXI's clamp bits: every "clamp" line's value (atoi) together (1 u, 2 v, 4 r); 0 when none clamps.
+function txiClampBits(text) {
+  let bits = 0;
+  for (const l of latin1(text).split(/\r?\n/)) { const m = CLAMP_LINE.exec(l); if (m) bits |= Math.max(0, atoi(m[1])); }
+  return bits;
+}
+// A TXI's words: each line's first word (lower-case) -> the word after it, the first line naming it (the bench's
+// composer_server.js txiWords, the same reading).
+function txiWords(text) {
+  const out = {};
+  for (const line of latin1(text).split(/\r?\n/)) {
+    const m = /^[ \t]*([A-Za-z_][A-Za-z0-9_]*)[ \t]+(\S+)/.exec(line);
+    if (m && !(m[1].toLowerCase() in out)) out[m[1].toLowerCase()] = m[2];
+  }
+  return out;
+}
+// A TXI's flipbook: "proceduretype cycle" with numx and numy (whole, 1 or more; 1 when left out) and fps (0 or more; 0
+// when left out) -> { numx, numy, fps }, or null (no cycle, or a sheet of one frame). The bench's texture route says it
+// (X-Cycle) by this rule.
+function txiCycle(text) {
+  const w = txiWords(text);
+  if (String(w.proceduretype || "").toLowerCase() !== "cycle") return null;
+  const whole = (v) => (v === undefined ? 1 : Number(v)), numx = whole(w.numx), numy = whole(w.numy), fps = w.fps === undefined ? 0 : Number(w.fps);
+  if (!Number.isInteger(numx) || !Number.isInteger(numy) || numx < 1 || numy < 1 || numx * numy < 2 || !Number.isFinite(fps) || fps < 0) return null;
+  return { numx, numy, fps };
+}
+// A copy's TXI (`source` its texture's TXI, a string or bytes; none: ""): the source's own lines as they are but every
+// decal line - its procedure (proceduretype, numx, numy, fps), its blending ... - in its own line ends (CRLF the game's,
+// LF ours), its clamp line left out and its blank lines at the end dropped; then one clamp line, the union of its own clamp
+// and `clamp` (CLAMP_V, W1's 3), when that isn't 0, and a line end. Nothing left: "".
+function copiedTxi(source, clamp = 0) {
+  const s = latin1(source), eol = /\r\n/.test(s) ? "\r\n" : "\n", bits = (clamp | txiClampBits(s)) >>> 0;
+  const lines = s ? s.split(/\r?\n/).filter((l) => !CLAMP_LINE.test(l) && !DECAL_WORD.test(l)) : [];
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  if (bits) lines.push("clamp " + bits);
+  return lines.length ? [...lines, ""].join(eol) : "";
+}
+// A soft texture's TXI ({ blend, clamp }): an Additive one's "blending additive" (SOFT_TXI), a clamped one's "clamp 2",
+// both lines for both, LF; null for a Normal unclamped one (no TXI, as before DC).
+function softTxi({ blend, clamp } = {}) {
+  const lines = [...(blend === "additive" ? ["blending additive"] : []), ...(clamp ? ["clamp " + CLAMP_V] : [])];
+  return lines.length ? lines.join("\n") + "\n" : null;
+}
+// Whether a mesh's v stays within one repeat: every v of its UVs (`tverts`: u v u v ...) within 0..1, UV_REPEAT_EPSILON
+// either side (its u may tile - round a ring, Repeat around). No UVs: no.
+function vClamps(tverts) {
+  const t = Array.from(tverts || []);
+  if (t.length < 2) return false;
+  for (let i = 1; i < t.length; i += 2) if (!isNum(t[i]) || t[i] < -UV_REPEAT_EPSILON || t[i] > 1 + UV_REPEAT_EPSILON) return false;
+  return true;
+}
+// A copy's name: n5l_ and 12 hex digits of its texture (lower-case) and the clamp added (0 or CLAMP_V) - its TXI is the
+// texture's own lines minus decal with that clamp, so the name fixes its bytes, and a shape's colour isn't in it.
+function copyName(texture, clamp) {
+  return "n5l_" + cyrb53(`copy:${String(texture).toLowerCase()}:${clamp ? clamp : 0}`).toString(16).padStart(14, "0").slice(-12);
+}
+// Whether the game must have a library texture copied: its TXI (`info`: { decal, cycle } - txiDecal, txiCycle - of it;
+// null when not known) says decal, or it's a flipbook on a mesh whose v stays within one repeat (`clampV`).
+const copied = (info, clampV) => !!info && (!!info.decal || (!!info.cycle && !!clampV));
+// What DC does with a shape's textured meshes (`shape` readShape's; `motion` its part's, read or as given): "soft" (its
+// soft texture), "library" (a library texture), or null - none (no texture), a part that moves (its material's route) or
+// no shape.
+function copyKind(shape, motion) {
+  if (!shape || typeof shape !== "object" || hasMotion(motion)) return null;
+  return shape.texture === "soft" ? "soft" : shape.texture && shape.texture !== "none" ? "library" : null;
+}
+// The rule, one place (the generators: files.js shapeTextures / copyTextures; the bench's Play in game: composer.js): a
+// shape part's meshes (`shape`, its part's `motion`, `meshes` placed) as the game must be given them, `info(texture)` ->
+// { decal, cycle } | null its library texture's TXI. -> { meshes (copies - the given ones untouched), softs: [{ name,
+// colour, blend, clamp: true }] (clamped soft textures to make), copies: [{ name, texture, clamp }] (library textures to
+// copy) }, each name once. A soft mesh whose v stays within one repeat names its soft texture clamped; a library one the
+// game must have copied (`copied`) names its copy, clamp CLAMP_V within one repeat, else 0. Anything else as it is.
+function stillTextures(shape, motion, meshes, info) {
+  const kind = copyKind(shape, motion), softs = [], copies = [], seen = new Set();
+  if (!kind) return { meshes, softs, copies };
+  const soft = kind === "soft" ? shapeTextureName(shape) : null;
+  const out = (meshes || []).map((m) => {
+    const t = String(m.bitmap || "").toLowerCase();
+    if (!t || t === "null") return m;
+    const clampV = vClamps(m.tverts);
+    if (kind === "soft") {
+      if (t !== soft || !clampV) return m;
+      const blend = shape.blend === "additive" ? "additive" : "normal", name = shapeTextureName({ colour: shape.colour, blend, clamp: true });
+      if (!seen.has(name)) { seen.add(name); softs.push({ name, colour: shape.colour.slice(), blend, clamp: true }); }
+      return Object.assign({}, m, { bitmap: name });
+    }
+    if (t !== String(shape.texture).toLowerCase() || !copied(typeof info === "function" ? info(t) : null, clampV)) return m;
+    const clamp = clampV ? CLAMP_V : 0, name = copyName(t, clamp);
+    if (!seen.has(name)) { seen.add(name); copies.push({ name, texture: t, clamp }); }
+    return Object.assign({}, m, { bitmap: name });
+  });
+  return { meshes: out, softs, copies };
 }
 
 // --- a compiled model's node tree ---------------------------------------------------------------------------------
@@ -1256,6 +1381,7 @@ const api = {
   MOTION_KEYS, MOTION_RATE, MOTION_INFO, MOTION_TEXTURE, MOTION_SHADER, MOTION_PARAMS, MOTION_SHADER_MARK, readMotion, hasMotion, cleanMotion,
   uvPivot, uvMotion, motionName, motionMaterialText, motionShaderText, isMotionShader, moveTextures,
   UV_REPEAT_EPSILON, CLAMP_TXI, motionClamps, clampedTxi, txiClamps,
+  CLAMP_V, COPY_TEXTURE, txiDecal, txiClampBits, txiCycle, copiedTxi, softTxi, vClamps, copyName, copied, copyKind, stillTextures,
 };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.FloatDisk = api;
