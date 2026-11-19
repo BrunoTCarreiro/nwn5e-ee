@@ -1968,6 +1968,19 @@ monster AC by CR.
       are not plot relevant (as they are not marked plot) and should absolutely be breakable". *Decided (owner,
       2026-11-19): "B, respect plot".* No change: what a module marks Plot never breaks, and anything else may.
       Static scenery isn't an object and stays as it is.
+      *Revised (owner, 2026-11-19), after "wait, what, no, decorative flags, plant pots, benches, etc... placeables
+      that are not marked "plot" should be breakable".* In the Prelude every non-clickable piece of dressing is Plot:
+      115 pieces, 113 of them with no script but the toolset's default trap one (`nw_t1_spikeminoc`, which runs only
+      if the object is trapped), and two lamps with `nw_02_onoff`. Asked "what about plot items that don't have any
+      scripts attached to them?". D′ was offered: a Plot placeable also breaks when it isn't clickable and has no
+      conversation, no inventory and no script but the default trap one. "items with traps, like chests, are
+      usually meant to be breakable as that's a viable way to overcome the traps": trapped or not doesn't matter,
+      and non-Plot chests already break. *Decided (owner, 2026-11-19): "D′, with the switch on by default".*
+      - Spells' and weapons' damage breaks such Plot dressing.
+      - Still protected: Plot chests, signs, levers, lamps and anything with a purpose.
+      - A house-rule switch, on by default, lets a module that breaks turn it off. NWN mode keeps NWN's.
+      - To build after #171 (its issue: Plot dressing breakable).
+
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
