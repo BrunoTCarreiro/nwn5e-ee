@@ -2085,7 +2085,14 @@ monster AC by CR.
         logged ("Shatter's Sphere, looked at again: ..."). Retest PD-4b.
       - *Asked:* the candelabra is a Plot lamp with the stock on/off script (nw_02_onoff), kept Plot by D′ (Shatter
         puts it out). And NWN selects only clickable placeables, so a weapon can't reach freed dressing (PD-4's
-        weapon step couldn't be done).
+        weapon step couldn't be done). Offered: 1A lamps stay Plot, 1B a Plot lamp whose only script is the stock
+        switch breaks like other dressing; 2A spells and area damage only, 2B solid furniture made clickable, 2C all
+        freed dressing clickable. *Decided (owner, 2026-11-19): "1B and 2A".*
+      - *Built 0.99.93:* rules::PlotDressingBreaks no longer keeps a light Plot; rules::DressingScriptCounts leaves a
+        light's stock switch in OnUsed (nw_02_onoff, or the expansion's x2_am_lampuse - the ones light_sources.cpp
+        takes over) out of the scripts counted, so a lamp with a module's own script stays Plot. Freed lamps are
+        logged. nwn5e's light rules make lamps clickable, so a freed lamp can be hit with a weapon too. Test
+        PlotDressingLampsBreakWithOnlyTheStockSwitch; 9 of 9 mutations caught; test.bat 642 ok. Test PD-5.
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
