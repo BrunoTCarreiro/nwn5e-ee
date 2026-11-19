@@ -2669,3 +2669,37 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       tests used is `data::BytePattern` / `BytesMatch` now (`AreaBytePatterns`, `AreaHiliteCallsChecked`);
     - **the placed copy's sound and flag** (M6): above. test.bat 636 -> 640; 49 mutants (19 of the rules, 30 of the
       anchors and constants), all caught.
+
+## The target-count marker (2026-11-19, #171; TC)
+
+  #171's target window, the game session's (B): the owner, 2026-11-19: "it should be a permanently visible indicator on
+  top of each enemy saying how many darts/bolts are assigned to them, not how many are left"; look, glow and size "A, A,
+  as you said" - a bold white number with a dark outline on a small dark-red disc, about 0.4 m, 0.35 m clear above the
+  head; the red glow (VFX_DUR_GLOW_LIGHT_RED, n5tw_mark) stays the "picked" mark. Then (the coordinator, same day) a hard
+  requirement: it must show **while paused** - the owner picks targets paused and the whole window runs paused.
+  - **The contract:** `int TargetCountMarkerVfx(int count)` (src/core/anim_target_counts.h, one inline line over
+    data::TargetCountRow): the visualeffects row for 1..11, -1 otherwise. The game session applies it as a temporary
+    duration effect tagged n5tw_count, swaps it as the count changes and removes it on OK / Cancel.
+  - **Rows** 2200-2210 (data/rows/visualeffects.tcount.txt; data::kTargetCountFirstRow, one source of truth - a test
+    reads the file): type D, the model on the head (Imp_HeadCon_Node), OrientWithObject 0. Past the looks' 2100-2199 and
+    the Detects' 2092-2099. New clash check, tests/data/anim_vfx_rows_test.cpp: no visualeffects row in two files (rows
+    and shipped looks), no rows file in the looks' range.
+  - **Paused (the TC diagnosis, the engine read):** pausing disables the scene's animation, and an emitter is ticked -
+    so its particles born - only while the scene animates (or its Gob is force-animated: the walk-to ring alone); an
+    emitter with no particle isn't drawn. A camera-facing sprite applied while paused would appear only on unpause. A
+    mesh is drawn as soon as the client attaches the effect, which happens the moment the message arrives, paused or
+    not; removing the effect detaches it at once. (The stealth and death-save markers, Single sprites, have the same
+    paused gap - not changed here.)
+  - **So the marker is geometry:** four one-sided discs facing out round the head (0.4 m, 0.2 m from its axis, centre
+    0.55 m over the head node). The game culls a back face, so a disc is only seen from the side it faces - never
+    mirrored; the head attach is position only, turned to the world's axes - upright, never upside down; one disc faces
+    the camera within 45 degrees, two at 45 degrees show the number twice at 71% width. Drawn unlit (`decal 1`). No keys
+    (a key waits for the clock). One inert emitter lists each model in the VFX Bench (its library takes models with an
+    emitter); it never makes a particle.
+  - **Art:** tools/data/tcount/build.js draws the 11 textures from its own digit shapes (lines and arcs, stroked; no font)
+    and writes the models; outputs committed in data/files (own, deterministic art, as the death-save marker's;
+    build_derived.js is for art made from the game's files). check.js: 11 distinct textures, clear outside the disc, an
+    outline round every white pixel, a white shape per digit, the same bytes twice, data/files in step (README there).
+  - Tests: 6 in test.bat (the mapping and bounds, the names, the rows file, the four discs as the bench reads them and
+    their draft round trip, the clash check), 6 mutations caught; check.js's 8 mutations caught. Rows TC-1 (in game,
+    paused) and TC-2 (the VFX Bench) with the game session's wiring.
