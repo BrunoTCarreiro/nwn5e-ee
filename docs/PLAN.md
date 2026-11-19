@@ -1950,10 +1950,13 @@ monster AC by CR.
       build 2a).
     - *0.99.82 (owner, 2026-11-18, on S2-5: "the only thing that wasn't confirmed was shatter breaking light sources
       (candelabra and wall tourches) or even putting them out. can break other placeables sometimes like doors,
-      tables or flags"):* lamps and candelabras are often plot, and wall torches are tiles' flames (nwn5e's
-      stand-ins), so Shatter's object damage skipped them. Shatter now puts out the lights in its Sphere as the
-      bombs' blast and the Thunderstone's bang do (light_sources.cpp's BlastPutsOutLights). The other S2 rows passed;
-      S2-5's retest is S2-16.
+      tables or flags"):* Shatter's object damage takes only non-plot doors and placeables it has line of sight to
+      from the Sphere's centre, and many wall torches are tiles' flames (no object; nwn5e's stand-ins). A light can
+      fail any of these, and the log didn't name what was skipped. The game's own light blueprints aren't plot
+      (plc_candelabra, plc_brazier, plc_lamppost, the torches and lanterns: Plot 0), so a plot one is a module's
+      placed instance. Shatter now also puts out the lights in its Sphere as the bombs' blast and the Thunderstone's
+      bang do (light_sources.cpp's BlastPutsOutLights: every lit placeable and tile-flame stand-in, no plot or
+      line-of-sight check). The other S2 rows passed; S2-5's retest is S2-16.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
