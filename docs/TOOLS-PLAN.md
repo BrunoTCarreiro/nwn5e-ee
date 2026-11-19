@@ -2327,3 +2327,11 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     - Checks: test.bat 628 -> 630 (2 new, both failing first; the three older synthetic compiled models given the
       model header's list, as the game lays it out); 11 deliberate breaks of the fix - 10 fail a test, the 11th (the mesh
       fade gate) is equivalent (a plane takes no keys from such a model, a node's fade is cleared).
+  - *Fix round 2* (the scoped re-review, 2026-11-19; nwn5e-tools only, no src change): the timeline's rows had become
+    seconds a redraw on big game effects (vff_hellball 4.4 s) - the spans sampled every 120th of a second, each sample
+    scanning every item's keys. sim.js emissionSpans now works them out from the key rows as the stage plays them (rows
+    out of time order too: vdr_irongreen's OmenEmitter05 has two of its model's lists under one name, read as one - what the
+    game does with two isn't traced), each emitter once a redraw: vff_hellball 10 ms (2 ms as the page asks), none of the
+    library's 437 over 16 ms (88 before); the spans of the helper's 732 own-emission emitters match the stage frame by
+    frame. Use this card's timing keeps first start to last end and serves opacity-only keyed emitters too (140 in 38
+    library effects); after Rate 0 the refusal names only Ctrl+Z and the Game tab, and the drop is off on keys all at 0.
