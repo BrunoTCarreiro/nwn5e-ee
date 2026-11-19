@@ -26,8 +26,14 @@ struct PlaceableFacts {
 bool PlotDressingBreaks(bool house_rule, bool spellcasting_faithful, const PlaceableFacts& placeable);
 
 // Does an event script count against a piece being dressing: any set script does, but a light's stock on/off switch
-// in OnUsed (nw_02_onoff, or the expansion's x2_am_lampuse - the ones light_sources.cpp takes over) doesn't.
+// in OnUsed (nw_02_onoff, or the expansion's x2_am_lampuse - the ones light_sources.cpp takes over) doesn't, nor
+// (0.99.94) nwn5e's own lamp scripts in their slots - n5_lamp_use, _hit, _atk, _spl, which a save made with nwn5e
+// running holds: light_sources.cpp puts each only where the stock switch or nothing was.
 bool DressingScriptCounts(const char* field, const char* script, bool is_light);
+
+// A light whose OnUsed is nwn5e's n5_lamp_use is clickable by nwn5e's light rules (its Snuff / Light), not the
+// module's: its clickability doesn't keep it Plot.
+bool ClickableByNwn5e(bool is_light, const char* on_used);
 
 // Is a placeable lit, as the engine's CNWSPlaceable::GetLightIsOn answers it: only an appearance with a LightColor
 // (placeables.2da) can be, and then its light flag says. The flag starts at 1 when a placeable is made and a load

@@ -57,6 +57,8 @@ bool PlotDressingFreed(void* gff, void* gff_struct, rules::PlaceableFacts facts)
   }
   if (!g_read_resref) return false;
   facts.has_conversation = !ResRefOf(gff, gff_struct, "Conversation").empty();
+  // 0.99.94: a lamp saved with nwn5e running is clickable by nwn5e's light rules, not the module.
+  if (rules::ClickableByNwn5e(facts.is_light, ResRefOf(gff, gff_struct, "OnUsed").c_str())) facts.useable = false;
   facts.scripts_besides_trap = 0;
   for (const char* field : kEventFields) {
     // 0.99.93 (owner: "1B"): a lamp's stock on/off switch doesn't count (rules::DressingScriptCounts).

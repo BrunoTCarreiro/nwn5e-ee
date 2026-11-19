@@ -24,11 +24,21 @@ bool PlotDressingBreaks(bool house_rule, bool spellcasting_faithful, const Place
 
 bool DressingScriptCounts(const char* field, const char* script, bool is_light) {
   if (!script || !*script) return false;
-  if (is_light && SameName(field, "OnUsed") &&
-      (SameName(script, "nw_02_onoff") || SameName(script, "x2_am_lampuse"))) {
-    return false;
+  if (!is_light) return true;
+  // A light's: the stock switch, or nwn5e's own (light_sources.cpp's kUseScript, kHitScript, kAttackScript,
+  // kSpellScript), each in its own slot.
+  static const char* const kLampScripts[][2] = {
+      {"OnUsed", "nw_02_onoff"},    {"OnUsed", "x2_am_lampuse"},          {"OnUsed", "n5_lamp_use"},
+      {"OnDamaged", "n5_lamp_hit"}, {"OnMeleeAttacked", "n5_lamp_atk"}, {"OnSpellCastAt", "n5_lamp_spl"},
+  };
+  for (const auto& one : kLampScripts) {
+    if (SameName(field, one[0]) && SameName(script, one[1])) return false;
   }
   return true;
+}
+
+bool ClickableByNwn5e(bool is_light, const char* on_used) {
+  return is_light && on_used && SameName(on_used, "n5_lamp_use");
 }
 
 bool PlaceableLit(bool appearance_has_light_colour, int light_flag) {

@@ -59,6 +59,31 @@ TEST(PlotDressingLampsBreakWithOnlyTheStockSwitch) {
   CHECK_EQ(DressingScriptCounts("OnDeath", "nw_o2_generalhig", false), true);
 }
 
+// 0.99.94 (owner, 2026-11-19: "can't break candelholders, benches or vases in this tiny room I'm in"): a save made
+// with nwn5e running holds its light rules' own lamp scripts, each put where the stock switch or nothing was, and the
+// lamp clickable for its Snuff / Light - nwn5e's, not a module's purpose.
+TEST(PlotDressingLampsSavedWithNwn5esScripts) {
+  CHECK_EQ(DressingScriptCounts("OnUsed", "n5_lamp_use", true), false);
+  CHECK_EQ(DressingScriptCounts("OnDamaged", "n5_lamp_hit", true), false);
+  CHECK_EQ(DressingScriptCounts("OnMeleeAttacked", "n5_lamp_atk", true), false);
+  CHECK_EQ(DressingScriptCounts("OnSpellCastAt", "n5_lamp_spl", true), false);
+  CHECK_EQ(DressingScriptCounts("OnDeath", "n5_lamp_hit", true), true);      // not where nwn5e puts it
+  CHECK_EQ(DressingScriptCounts("OnDamaged", "n5_lamp_hit", false), true);   // not a light
+  CHECK_EQ(DressingScriptCounts("OnUsed", "n5_flame_use", true), true);      // a tile flame's stand-in's: kept
+
+  CHECK_EQ(ClickableByNwn5e(true, "n5_lamp_use"), true);   // m0q1c's candelabras in the owner's save
+  CHECK_EQ(ClickableByNwn5e(true, "N5_LAMP_USE"), true);
+  CHECK_EQ(ClickableByNwn5e(true, "nw_02_onoff"), false);  // clickable in the module itself
+  CHECK_EQ(ClickableByNwn5e(false, "n5_lamp_use"), false);
+  CHECK_EQ(ClickableByNwn5e(true, ""), false);
+
+  PlaceableFacts lamp;  // as saved: Plot, clickable (nwn5e's), its scripts nwn5e's
+  lamp.plot = true;
+  lamp.is_light = true;
+  lamp.useable = !ClickableByNwn5e(true, "n5_lamp_use");
+  CHECK_EQ(PlotDressingBreaks(true, true, lamp), true);
+}
+
 // 0.99.89: the engine's light flag starts at 1 on every placeable; only an appearance with a LightColor is lit by it.
 TEST(PlaceableLitOnlyWithALightColour) {
   CHECK_EQ(PlaceableLit(false, 1), false);  // a bench or a flag: the flag's starting 1 means nothing
