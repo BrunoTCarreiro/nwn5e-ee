@@ -753,8 +753,4 @@ target_window.full | generated | nwn5e: {spell} - every row has a target; take o
 target_window.not_light | generated | nwn5e: {name} isn't an unlit fire light a ray can light.
 target_window.no_target | generated | nwn5e: {spell} - no target picked; nothing cast.
 target_window.cancelled | generated | nwn5e: {spell} cancelled - nothing spent.
-target_window.count_dart | generated | 1 dart
-target_window.count_darts | generated | {count} darts
-target_window.count_ray | generated | 1 ray
-target_window.count_rays | generated | {count} rays
 spells2024.scorching_ray_lights | generated | nwn5e: Scorching Ray lights the {name}.

@@ -37,7 +37,6 @@
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
-#include "floaty_text.h"
 #include "log.h"
 #include "nui.h"
 #include "player_text.h"
@@ -179,44 +178,16 @@ void SetRowTexts(uint32_t player, const Held& held) {
   NuiSetTexts(player, kWindow, binds);
 }
 
-// 0.99.88 (owner, 2026-11-19: "There isn't a way to see how many darts each of the targets will be getting as they
-// get a uniform red glow. is it possible to add some sort of floating texture on top?" - "A now, B later"): each
-// target's count floats over it ("2 darts", "1 ray") - at each change and every kCountsEveryMs while the window is
-// open (NWN's floating text fades). Only the caster sees it.
-// 0.99.89 (owner: "no text above the orcs"): FloatingTextStringOnCreature shows its text to the creature's own player
-// only, so over an NPC no one saw it; the engine's floaty message now goes to the caster's player (floaty_text.h).
-// 0.99.90 (owner: "it should be a permanently visible indicator on top of each enemy saying how many darts/bolts are
-// assigned to them, not how many are left"): the count is the rows assigned (rules::CountsByTarget). The permanent
-// marker is the animation session's numbered marker (B); until it lands, this floating text stands in.
-constexpr ULONGLONG kCountsEveryMs = 2500;
-std::unordered_map<uint32_t, ULONGLONG> g_counts_at;  // by player character: the counts last floated
-
-void ShowCounts(uint32_t player, const Held& held) {
-  g_counts_at[player] = GetTickCount64();
-  const bool rays = held.order.spell == rules::kScorchingRay;
-  int sent = 0;
-  std::string said;
-  for (const rules::TargetCount& one : rules::CountsByTarget(held.rows)) {
-    const std::string text =
-        one.count == 1 ? PlayerText(rays ? "target_window.count_ray" : "target_window.count_dart")
-                       : PlayerText(rays ? "target_window.count_rays" : "target_window.count_darts",
-                                    {{"count", std::to_string(one.count)}});
-    if (FloatTextFor(player, one.id, text)) {
-      ++sent;
-      said += (said.empty() ? "" : ", ") + Hex(one.id) + " \"" + text + "\"";
-    }
-  }
-  static int logged = 0;
-  if (sent > 0 && logged < 5) {
-    ++logged;
-    Log("target window: counts floated for 0x%08X - %s", player, said.c_str());
-  }
-}
+// Each target's count (owner, 2026-11-19: "it should be a permanently visible indicator on top of each enemy saying how
+// many darts/bolts are assigned to them, not how many are left"; rules::CountsByTarget) is to show as the animation
+// session's numbered marker (B). 0.99.88-0.99.90 floated it as text instead; 0.99.91 took that out (owner: "after a
+// while it stops showing up until the spell is cast and then it just streams in all the buffered values"): the client
+// holds floating text while the game is paused - the usual way to pick - and plays the queue once it runs. An
+// effect, as the red glow, shows paused.
 
 void Refresh(uint32_t player, Held* held) {
   SetRowTexts(player, *held);
   SyncMarks(player, held);
-  ShowCounts(player, *held);
 }
 
 std::string Layout(const Held& held) {
@@ -254,7 +225,6 @@ void Close(uint32_t player, Held* held) {
   for (uint32_t id : held->marked) Unmark(player, id);
   held->marked.clear();
   g_enter.erase(player);
-  g_counts_at.erase(player);
   NuiClose(player, kWindow);
   StopTargeting(player);
 }
@@ -464,14 +434,8 @@ void ServerTick() {
     Open(id, &one.second);
     break;  // Open may erase from g_held: one a frame
   }
-  const ULONGLONG now = GetTickCount64();
-  for (auto& one : g_held) {  // 0.99.88: the counts floated again before they fade
-    if (!one.second.open) continue;
-    const auto at = g_counts_at.find(one.first);
-    if (at != g_counts_at.end() && now - at->second < kCountsEveryMs) continue;
-    ShowCounts(one.first, one.second);
-  }
   if (g_enter.empty()) return;
+  const ULONGLONG now = GetTickCount64();
   for (auto it = g_enter.begin(); it != g_enter.end();) {
     if (now < it->second.due) {
       ++it;
