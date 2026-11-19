@@ -142,7 +142,16 @@ A part's `motion` (M2) scrolls, turns and breathes the pictures on its textured 
   its first line. A texture of your own file's part is still copied beside the draft, and stays ours there (its draft
   names the material, the material the texture).
 - The VFX Bench's Composer (M3, nwn5e-tools 91b56b7 + 22a3d62) sets, shows and plays a moving texture (its part card's
-  Texture motion). TMO-1 passed 2026-11-18: route A (texture0), the texture's TXI still applies.
+  Texture motion). TMO-1 passed 2026-11-18: route A (texture0) - the texture's TXI applies to the texture (its flipbook,
+  its clamp), **not to the blend** (MV: the engine takes a mesh's blend only from its bitmap's TXI).
+- **Its own TXI, and a moving shape's texture as a still one's** (MV; DC-1 with Scroll round, the owner, 2026-11-19: the
+  rim line back on the stage, in game an opaque tint or flames on black - "go"): each moving texture's material gets a
+  TXI of its own, `n5u_<...>.txi` - its texture's `blending` (and environment / bump map) lines (so an additive texture adds its light in game, not
+  drawn on black) - hashed into its name; none for a texture without one (as before). A moving shape's texture0 is what
+  a still one's is (DC, below): its copy for a decal texture or a flipbook, its clamped soft texture - clamped in v
+  (`clamp 2`) only while it moves **sideways only** (no scroll up, turn or breath, its v within [0, 1]): the still
+  ring's own copy, so Scroll round keeps the line at the rim gone. Both beside the material wherever it goes, owned by
+  their names. The Floating Disk's README, "Moving textures keep their blend", has the rule.
 - **Clamped** (W1; TMO-2: a shrinking breath showed the next repeat at the dome's bottom edge - the owner: "go with 1 for
   the wrap"): a texture that breathes and doesn't scroll, on a mesh whose UVs stay within one repeat (a shape From above
   or at Repeat 1 / 1, a game part whose UVs don't tile), has its own material (the clamp in its name) naming its copy,
@@ -159,8 +168,8 @@ A part's `motion` (M2) scrolls, turns and breathes the pictures on its textured 
   `n5l_<12 hex digits>` (one per texture, clamp and content - its TXI's text and picture - never per colour): the game's picture with a TXI of its lines minus
   `decal`, plus `clamp 2` (v) within one repeat, beside what names it (`data\files`, git-ignored; `--saved`), owned by
   its `n5l_` name. A still Soft shape within one repeat names its clamped soft texture (its own `n5s_` name, its TXI
-  `clamp 2`). A plain library texture, a moving shape, a game part and your own file's parts as before. The Floating
-  Disk's README, "A library texture's copy", has the rule.
+  `clamp 2`). A plain library texture, a game part and your own file's parts as before; a moving shape (MV, above) by the
+  same rule, sideways only. The Floating Disk's README, "A library texture's copy", has the rule.
 - The maths, the bounds and the files: the Floating Disk's README, "Moving textures".
 
 ## The probe (TMO-1)
@@ -190,7 +199,8 @@ node tools\data\composer\uvprobe.js --saved <nwn5e-ee>\build\vfxedit\saved [--ga
   names. It prints which dome is which.
 - Since W1 the generators clamp a breathing texture that doesn't scroll on a mesh within one repeat; the probe writes
   TMO-1's domes as they were (that rule off: domes 3 and 6 by their routes, unclamped), through the same copy path
-  (`files.js`'s `motionPicture` and `motionWrites`).
+  (`files.js`'s `motionPicture` and `motionWrites`). Since MV a moving texture's material has a TXI of its own (its
+  blend); the probe's don't - TMO-1's domes as they were, alpha-blended (its texture0 domes' "additive" was never so).
 - TMO-1 (the board's row): as a mesh beat in a new effect, Play in game; which domes move, and which let the sparks
   through, says the route - and the game's logs say whether the shader failed.
 

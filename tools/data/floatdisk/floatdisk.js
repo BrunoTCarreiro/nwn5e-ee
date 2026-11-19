@@ -860,8 +860,14 @@ function motionNumbers(motion, pivot) {
 // and its pivot (motionNumbers), as shapeTextureName makes an n5s_ name. One per texture, motion and pivot - and clamp
 // (W1: motionClamps'): a clamped one hashes ":clamp" after them, so a clamped and an unclamped motion never share a name
 // (the copy and its TXI go with the clamped one only); an unclamped one is named as before W1.
-function motionName(texture, motion, pivot, clamp = false) {
-  return "n5u_" + cyrb53(`uv:${String(texture).toLowerCase()}:${motionNumbers(motion, pivot).join(",")}${clamp ? ":clamp" : ""}`).toString(16).padStart(14, "0").slice(-12);
+// MV (`more`): `side` - its texture0 clamped in v under a sideways-only motion (moveTextures) - hashes ":clampv" (its own
+// mark, never W1's ":clamp"), and `txi` - the material's own TXI (motionTxi: its texture's blending and map lines) - hashes ":txi:"
+// and its text after that (M1b's rule: a changed TXI never shares a name). With neither, every name is as before MV. Its
+// texture is texture0 as the material names it: a copy (n5l_) or a clamped soft texture where the shape rule gave one.
+function motionName(texture, motion, pivot, clamp = false, more = {}) {
+  const { side = false, txi = null } = more || {};
+  return "n5u_" + cyrb53(`uv:${String(texture).toLowerCase()}:${motionNumbers(motion, pivot).join(",")}${clamp ? ":clamp" : ""}${side ? ":clampv" : ""}` +
+    `${txi ? ":txi:" + txi : ""}`).toString(16).padStart(14, "0").slice(-12);
 }
 // --- W1: a breathing texture's edges clamped (the design's addendum (c); TMO-2, the owner, 2026-11-18: "when it shrank
 // the texture being tiled and wrapping would show a bit at the bottom edge of the dome" - "go with 1 for the wrap") ----
@@ -968,15 +974,31 @@ function isMotionShader(text) {
 // materials. `clamp` false: the rule off, every one repeats (uvprobe: TMO-1's domes as they were written). Called after a
 // part's bakes and soft textures are named (files.js motionMaterials), so its texture - texture0, or the copy's picture -
 // is the real one.
-function moveTextures(meshes, motion, { clamp = true } = {}) {
+// MV (the MV diagnosis: the engine takes a mesh's blend only from <its bitmap>.txi - an n5u_ name had none, so every
+// moving additive texture drew alpha-blended, on black): an unclamped material (route A, texture0) also gets
+// - `txi`: its own TXI, n5u_<...>.txi - its texture's TXI's blending and map lines (motionTxi of `txiOf(texture)`: its TXI's text
+//   or bytes, none null; the texture as the mesh names it - after the shape rule, gameTextures, a copy's or a clamped soft
+//   texture's, whose TXI keeps the source's blending and map lines). No txiOf (uvprobe; a caller without the pictures): none;
+// - `side: true`: a shape part's (`shape`, readShape's) mesh moving sideways only within one repeat (sidewaysClamps) whose
+//   texture the shape rule gave clamped in v - its copy (n5l_: clamp 2 there) or its clamped soft texture.
+// Both are hashed into its name (motionName's `more`); with neither the name is as before MV. W1's clamped one as before:
+// its copy's TXI already carries the source's lines.
+function moveTextures(meshes, motion, { clamp = true, shape = null, txiOf = null } = {}) {
   const m = readMotion(motion, "moveTextures");
   if (!hasMotion(m)) return { meshes, materials: [] };
   const materials = [], seen = new Set();
+  const clampedSoft = shape && shape.texture === "soft" ? shapeTextureName({ colour: shape.colour, blend: shape.blend, clamp: true }) : null;
   const out = meshes.map((mesh) => {
     const texture = String(mesh.bitmap || "").toLowerCase();
     if (!texture || texture === "null" || MOTION_TEXTURE.test(texture)) return Object.assign({}, mesh);
-    const pivot = uvPivot(mesh.tverts), clamped = clamp && motionClamps(m, mesh.tverts), name = motionName(texture, m, pivot, clamped);
-    if (!seen.has(name)) { seen.add(name); materials.push(Object.assign({ name, texture, motion: m, pivot }, clamped ? { clamp: true } : {})); }
+    const pivot = uvPivot(mesh.tverts), clamped = clamp && motionClamps(m, mesh.tverts);
+    const side = !clamped && !!shape && sidewaysClamps(m, mesh.tverts) && (COPY_TEXTURE.test(texture) || texture === clampedSoft);
+    const txi = clamped || typeof txiOf !== "function" ? null : motionTxi(txiOf(texture));
+    const name = motionName(texture, m, pivot, clamped, { side, txi });
+    if (!seen.has(name)) {
+      seen.add(name);
+      materials.push(Object.assign({ name, texture, motion: m, pivot }, clamped ? { clamp: true } : {}, side ? { side: true } : {}, txi ? { txi } : {}));
+    }
     return Object.assign({}, mesh, { bitmap: name });
   });
   return { meshes: out, materials };
@@ -1106,14 +1128,61 @@ function copyKind(shape, motion) {
 // texture, clamp, key }] (library textures to copy) }, each name once. A soft mesh whose v stays within one repeat names
 // its soft texture clamped; a library one the game must have copied (`copied`) names its copy, clamp CLAMP_V within one
 // repeat, else 0 - when its key is known (none: no copy can be named, as it is). Anything else as it is.
+// MV: the rule is gameTextures (below), a moving part's too; this keeps DC's answer for a moving part - its meshes as they
+// are - for a bench from before MV (nwn5e-tools composer.js asks for gameTextures first). The generators call gameTextures.
 function stillTextures(shape, motion, meshes, info) {
-  const kind = copyKind(shape, motion), softs = [], copies = [], seen = new Set();
+  return hasMotion(motion) ? { meshes, softs: [], copies: [] } : gameTextures(shape, motion, meshes, info);
+}
+
+// --- MV: moving textures keep their blend, a flipbook or decal texture moves from DC's copy, a sideways-only scroll
+// clamped in v (#39; the owner, 2026-11-19: "go") ------------------------------------------------------------------------
+// The MV diagnosis (nwmain, read): a mesh's blend comes only from <its bitmap>.txi - Material::Init -> ParseField reads
+// `blending` and `decal` there, and nothing else sets them (an MTR can't; texture0's TXI isn't read for them) - so an
+// n5u_ material with no TXI of its own drew every moving additive texture alpha-blended (GL_SRC_ALPHA,
+// ONE_MINUS_SRC_ALPHA, depth written): on black. texture0's own TXI is read by its texture (CAurTextureBasic::Init): its
+// flipbook (proceduretype cycle - each bind steps it) and its clamp. So a moving texture's material gets a TXI of its own
+// with its texture's blending and map lines (motionTxi), and a moving shape's texture0 is what DC gives a still one - its copy for
+// a decal texture or a flipbook (n5l_: decal dropped, its flipbook kept), its clamped soft texture - with the clamp in v
+// only while the motion is sideways only (sidewaysClamps): a scroll round leaves v as it is, so the still ring's clamp
+// keeps the line at the rim gone (the owner: "Scroll round keeps the vertical clamp on the stage and in game"). Never
+// W1's clamp 3 there: u runs round the ring and must repeat for the scroll.
+// The rule (one place: gameTextures here, moveTextures' mark, the stage's clampV - nwn5e-tools composer.js): a motion
+// (read or as given) on a mesh with these UVs moves its texture sideways only - its scroll up (v), its turn and its breath
+// each 0 as the material takes them (motionNumbers, to 0.001; the shader then gives v' = (v - pV) / 1 + pV - fract(0 t),
+// v itself) - and the mesh's v stays within one repeat (vClamps). A still motion is sideways only: for a still part this
+// is DC's vClamps.
+function sidewaysClamps(motion, tverts) {
+  const [, sv, turn, breathe] = motionNumbers(motion, [0, 0]);
+  return !sv && !turn && !breathe && vClamps(tverts);
+}
+// A moving texture's material's own TXI, n5u_<...>.txi (`source` its texture's TXI, a string or bytes; none: ""): each of
+// its lines the engine reads for a mesh from its bitmap's TXI (Material::ParseField: `blending`, and - fix round 1, the MV
+// review - `envmaptexture`, `bumpmaptexture`, `bumpyshinytexture`, `bumpreplacementtexture`) but `decal`, which is never
+// carried (it would drop the material: the SHP-8 diagnosis) - each with a value, as it is (any case, spaces or tabs; its
+// line end dropped), in its order, LF. A flipbook's, a clamp's and every other line stay texture0's. None: null (no TXI,
+// as before MV). The game's 734 TXIs: `blending` 42 (13 additive, 23 default, 4 normal, 2 punchthrough), `envmaptexture`
+// 50, `bumpmaptexture` 22, `bumpyshinytexture` 33, `bumpreplacementtexture` none - and none of the maps on an fx*, n5* or
+// vfx* texture.
+const MESH_TXI_LINE = /^[ \t]*(?:blending|envmaptexture|bumpmaptexture|bumpyshinytexture|bumpreplacementtexture)[ \t]+\S/i;
+function motionTxi(source) {
+  const lines = latin1(source).split(/\r?\n/).filter((l) => MESH_TXI_LINE.test(l));
+  return lines.length ? lines.join("\n") + "\n" : null;
+}
+// The shape rule, still or moving (DC's stillTextures, MV): a shape part's meshes (`shape`, its part's `motion`, `meshes`
+// placed) as the game must be given them, `info(texture)` as stillTextures' -> { meshes, softs, copies } as stillTextures
+// gives them. DC's rule with its "v within one repeat" read as "sideways only, v within one repeat" (sidewaysClamps): a
+// still part's is DC's exactly; a moving one's soft texture is clamped only sideways, its library texture copied when its
+// TXI says decal (clamp 2 sideways, else 0) or it's a flipbook moving sideways (clamp 2) - its material then names the
+// copy as texture0 (moveTextures). A mesh W1 clamps (it breathes: motionClamps) as it is - W1's own copy route.
+function gameTextures(shape, motion, meshes, info) {
+  const moving = hasMotion(motion), kind = copyKind(shape, undefined), softs = [], copies = [], seen = new Set();
   if (!kind) return { meshes, softs, copies };
   const soft = kind === "soft" ? shapeTextureName(shape) : null;
   const out = (meshes || []).map((m) => {
     const t = String(m.bitmap || "").toLowerCase();
     if (!t || t === "null") return m;
-    const clampV = vClamps(m.tverts);
+    if (moving && motionClamps(motion, m.tverts)) return m;
+    const clampV = sidewaysClamps(motion, m.tverts);
     if (kind === "soft") {
       if (t !== soft || !clampV) return m;
       const blend = shape.blend === "additive" ? "additive" : "normal", name = shapeTextureName({ colour: shape.colour, blend, clamp: true });
@@ -1404,6 +1473,7 @@ const api = {
   uvPivot, uvMotion, motionName, motionMaterialText, motionShaderText, isMotionShader, moveTextures,
   UV_REPEAT_EPSILON, CLAMP_TXI, motionClamps, clampedTxi, txiClamps,
   CLAMP_V, COPY_TEXTURE, txiDecal, txiClampBits, txiCycle, copiedTxi, softTxi, vClamps, copyKey, copyName, copied, copyKind, stillTextures,
+  sidewaysClamps, motionTxi, gameTextures,
 };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.FloatDisk = api;

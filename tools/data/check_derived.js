@@ -729,6 +729,45 @@ try {
     }
   });
 
+  check("MV: a placeable project's flame ring scrolling round (fxpa_flame02: a decal flipbook, additive) comes out into --out - its material naming the copy as texture0 (n5l_: clamp 2, sideways only), the copy and its TXI, the material's own TXI (blending additive), owned by their names; a second build the same", () => {
+    // DC-1's flame ring with the owner's Scroll round 0.5: texture0 the still ring's copy (decal dropped, its flipbook kept,
+    // clamp 2 - a scroll round leaves v as it is), and the material's own TXI (the engine takes a mesh's blend only from its
+    // bitmap's TXI) - all git-ignored build output, written beside the model.
+    const FLAME = "fxpa_flame02", img = RD.image(FLAME, []), COPY = F.copyName(FLAME, 2, F.copyKey(img.txi, img.dds || img.tga));
+    const motion = { scroll: [0.5, 0] }, pivot = [0.5, 0.5], TXI = "blending additive\n", MAT = F.motionName(COPY, motion, pivot, false, { side: true, txi: TXI });
+    const file = project("chkmv", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14164, parts: [
+      { shape: { type: "cylinder", radius: 1, height: 0.6, top: 1.17, texture: FLAME, colour: [0.137, 0.922, 0.314] }, at: [0, 0, 0], motion }] }] });
+    const own = ["plc_n5chkmv.mdl", "plc_n5chkmv.pwk", COPY + ".tga", COPY + ".txi", MAT + ".mtr", MAT + ".txi", SHADER];
+    try {
+      const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
+        { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+      assert.strictEqual(g.status, 0, "composer build.js: " + (g.stdout + g.stderr).trim());
+      for (const f of own) assert.ok(fs.existsSync(path.join(FILES, f)), f + " isn't in the copy's data\\files");
+      for (const f of [COPY + ".tga", COPY + ".txi", MAT + ".mtr", MAT + ".txi"]) assert.ok(ignored(f), f + " isn't git-ignored");
+      const r = derive(["--out", OUT]);
+      done(r);
+      assert.deepStrictEqual(Object.entries(states(r)).filter(([, s]) => s !== "unchanged").sort(), own.map((f) => [f, "written"]).sort());
+      assert.match(r.out, /the Composer's project chkmv \(tools\/data\/composer\/chkmv\.json\): 7 files; its rows agree/);
+      assert.ok(fs.readFileSync(path.join(OUT, "plc_n5chkmv.mdl"), "latin1").includes(`\r\n  bitmap ${MAT}\r\n`), "plc_n5chkmv.mdl doesn't name " + MAT);
+      assert.strictEqual(fs.readFileSync(path.join(OUT, MAT + ".mtr"), "latin1"), F.motionMaterialText({ texture: COPY, motion, pivot }));
+      assert.strictEqual(fs.readFileSync(path.join(OUT, MAT + ".txi"), "latin1"), TXI);
+      assert.ok(fs.readFileSync(path.join(OUT, COPY + ".tga")).equals(img.tga), COPY + ".tga isn't the game's " + FLAME);
+      assert.strictEqual(fs.readFileSync(path.join(OUT, COPY + ".txi"), "latin1"), F.copiedTxi(img.txi, 2));
+      const s = derive(["--out", OUT]);
+      done(s);
+      assert.ok(Object.values(states(s)).every((x) => x === "unchanged"), JSON.stringify(states(s)));
+      // In --out, a TXI of the material's name is the generator's (the name fixes its bytes): rewritten.
+      fs.writeFileSync(path.join(OUT, MAT + ".txi"), "blending punchthrough\r\n");
+      const w = derive(["--out", OUT]);
+      done(w);
+      assert.deepStrictEqual(Object.entries(states(w)).filter(([, x]) => x !== "unchanged"), [[MAT + ".txi", "written"]]);
+    } finally {
+      fs.rmSync(file, { force: true });
+      fs.rmSync(path.join(ROWS, "placeables.chkmv.txt"), { force: true });
+      for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
+    }
+  });
+
   check("the real worktree is untouched (composition.json's hash, data\\files' and data\\rows' mtimes)", () => {
     assert.deepStrictEqual(worktreeState(), WORKTREE);
   });

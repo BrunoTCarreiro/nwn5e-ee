@@ -22,7 +22,10 @@
 //   shape's library texture whose TXI says decal, or a flipbook on a mesh whose v stays within one repeat, copied under
 //   its own name, n5l_<12 hex digits>, with a TXI of its lines minus decal (+ clamp 2 within one repeat), which the models
 //   name instead (files.js's copyTextures) - git-ignored, the game's art - and a still Soft shape within one repeat
-//   naming its clamped soft texture (its own n5s_ name, a TXI saying clamp 2).
+//   naming its clamped soft texture (its own n5s_ name, a TXI saying clamp 2). MV: a moving shape's texture as a still
+//   one's (floatdisk.js gameTextures) - its copy, its clamped soft texture, clamped in v only while it moves sideways only -
+//   its material naming that as texture0; and a moving texture's material with a TXI of its own, n5u_<...>.txi, its
+//   texture's blending and map lines - the engine takes a mesh's blend only from its bitmap's TXI (files.js motionMaterials).
 // - data\rows: appearance.floatdisk.txt (rows 14000-14003, each appearance 298's) and placeables.floatdisk.txt (14001-
 //   14003, each 189 TreasureSml's), floatdisk.js's ROWS.
 //
@@ -144,12 +147,14 @@ function main() {
   // textures shipped, so texture0 is the real texture); then the creature's meshes and the pile's.
   const moved = new Map();  // a material's name -> { texture, motion, pivot, clamp?, text, label, copy? }
   // DC (SHP-8): a still shape's library texture the game must have copied (its TXI says decal, or a flipbook within one
-  // repeat) renamed for its copy, n5l_<12 hex digits>, its picture and TXI beside it (files.js copyTextures).
+  // repeat) renamed for its copy, n5l_<12 hex digits>, its picture and TXI beside it (files.js copyTextures). MV: a moving
+  // shape's too (floatdisk.js gameTextures) - its material names the copy as texture0 - and each moving texture's material
+  // a TXI of its own with its texture's blending and map lines (files.js motionMaterials, given where the TXIs are read).
   const copied = new Map();  // a copy's name -> { texture, clamp, decal, ext, bytes, txi, label }
   for (const stage of F.STAGES) {
     const parts = placed[stage];
     W.copyTextures(parts, copied, { rd, shaped, baked, ship });
-    W.motionMaterials(parts, moved);
+    W.motionMaterials(parts, moved, { sources: { rd, shaped, baked, ship }, copies: copied });
     const junk = [].concat(...parts.map((x) => x.meshes));
     const creature = F.uniqueNames([...junk, diskMesh], taken);
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];

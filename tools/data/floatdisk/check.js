@@ -2157,15 +2157,17 @@ check("DC files.js: a still Soft shape's clamped texture made under its own name
   const asked = [], rd = { image: (name) => { asked.push(name); return name === "fxpa_flame02" ? FLAME : name === "fxpa_globe" ? GLOBE : null; } };
   const copies = W.copyTextures(placed, new Map(), { rd, shaped });
   const c2 = dcName("fxpa_flame02", 2), c0 = dcName("fxpa_flame02", 0);  // (its key: FLAME_TXI and "flame-tga", as rd gives them)
-  assert.deepStrictEqual(placed.map((x) => x.meshes.length ? x.meshes[0].bitmap : null), [c2, c2, c0, "fxpa_globe", "fxpa_flame02", addClamped, add, ""]);
+  // (MV: the moving flipbook - it scrolls up - names its copy too, unclamped: floatdisk.js gameTextures.)
+  assert.deepStrictEqual(placed.map((x) => x.meshes.length ? x.meshes[0].bitmap : null), [c2, c2, c0, "fxpa_globe", c0, addClamped, add, ""]);
   assert.deepStrictEqual([...copies.keys()], [c2, c0]);
   assert.deepStrictEqual([...new Set(asked)], ["fxpa_flame02", "fxpa_globe"]);
   const lines = "proceduretype cycle\r\nnumx 4\r\nnumy 4\r\nfps 32\r\nblending additive\r\ndownsamplemax 0\r\ndownsamplemin 0\r\n";
   assert.deepStrictEqual([c2, c0].map((n) => { const c = copies.get(n); return [c.texture, c.clamp, c.ext, c.bytes.toString(), c.txi.toString("latin1"), c.label]; }),
     [["fxpa_flame02", 2, ".tga", "flame-tga", lines + "clamp 2\r\n", "cylinder 1 m"], ["fxpa_flame02", 0, ".tga", "flame-tga", lines, "cylinder 1 m"]]);
-  // The moving one's material: texture0 the game's fxpa_flame02 (M2's route: no decal through a material).
+  // The moving one's material: texture0 its copy (MV: before, the game's fxpa_flame02 - M2's route; its decal is never
+  // read through a material, the copy is for its flipbook's clamp when it moves sideways: the MV checks).
   const materials = W.motionMaterials(placed);
-  assert.deepStrictEqual([...materials.values()].map((m) => [m.texture, /^texture0 fxpa_flame02$/m.test(m.text)]), [["fxpa_flame02", true]]);
+  assert.deepStrictEqual([...materials.values()].map((m) => [m.texture, m.text.split("\n").includes("texture0 " + c0)]), [[c0, true]]);
   // Writes: each copy's picture and TXI under its name, kind "copy" (owned by the n5l_ name); --json's and the summary's.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "n5_fddc-"));
   try {
@@ -2196,6 +2198,231 @@ check("DC files.js: a still Soft shape's clamped texture made under its own name
   bare[0].meshes = F.placePart(bare[0].part, F.shapeModel(bare[0].part.source.shape), 0, 0, "j", true).meshes;
   assert.strictEqual(W.copyTextures(bare, new Map(), {}).size, 0);
   assert.strictEqual(bare[0].meshes[0].bitmap, "fxpa_flame02");
+});
+
+// --- MV (#39; the owner, 2026-11-19: "go"): moving textures keep their blend, a flipbook or decal texture moves from DC's
+// copy, a sideways-only scroll clamped in v. The engine (the MV diagnosis): a mesh's blend comes only from <its bitmap>.txi
+// (Material::Init -> ParseField reads blending and decal there) - an n5u_ name had no TXI, so every moving additive texture
+// drew alpha-blended, on black; texture0's own TXI gives its flipbook and its clamp (CAurTextureBasic::Init), never its
+// blend or decal. ------------------------------------------------------------------------------------------------------
+const RING = { scroll: [0.5, 0] };  // the owner's Scroll round 0.5 (DC-1's flame ring, 2026-11-19)
+const mvPart = (shape, motion) => F.readPart({ shape: Object.assign({ type: "cylinder", radius: 1, height: 0.6, top: 1.17 }, shape), at: [0, 0, 0], motion }, "p", BASE);
+check("MV the rule: sideways only - scroll up, turn and breath each 0 as the material takes them (to 0.001) - on a mesh whose v stays within one repeat; a still part's is vClamps (DC's); scroll up, a turn or a breath never", () => {
+  const ring = dcPlaced(dcShape({ texture: "fxpa_flame02" }))[0].tverts, tiled = dcPlaced(dcShape({ texture: "fxpa_flame02", repeat_up: 2 }))[0].tverts;
+  for (const m of [RING, { scroll: [-0.05, 0] }, { scroll: [0.01, 0] }, { scroll: [10, 0.0004] }, { scroll: [0.5, 0], rate: 3 }, F.readMotion({ scroll: [0.31, 0] }, "m")]) {
+    assert.strictEqual(F.sidewaysClamps(m, ring), true, JSON.stringify(m));
+  }
+  // Still: DC's rule, vClamps.
+  for (const m of [undefined, null, {}, STILL, { rate: 2 }]) {
+    assert.strictEqual(F.sidewaysClamps(m, ring), true, JSON.stringify(m));
+    assert.strictEqual(F.sidewaysClamps(m, tiled), false, JSON.stringify(m));
+  }
+  // Scroll up (either way, with or without a scroll round), a turn, a breath: never (each takes v out of 0..1).
+  for (const m of [{ scroll: [0, 0.25] }, { scroll: [0.5, -0.1] }, { scroll: [0.5, 0.001] }, { scroll: [0.5, 0], turn: 5 }, { turn: 30 }, { breathe: 0.2 },
+    { scroll: [0.5, 0], breathe: 0.05 }]) assert.strictEqual(F.sidewaysClamps(m, ring), false, JSON.stringify(m));
+  // v past one repeat (Repeat up 2, v below 0) or no UVs: never; u past one repeat is fine (round a ring: Repeat around).
+  for (const t of [tiled, [0, -0.5, 1, 1], [], null, undefined]) assert.strictEqual(F.sidewaysClamps(RING, t), false, JSON.stringify(t));
+  assert.strictEqual(F.sidewaysClamps(RING, [0, 0, 3, 1, 1.5, 0.5]), true);
+  // Never with W1's: a breath is W1's rule (motionClamps), never this one.
+  for (const m of [{ breathe: 0.2 }, { breathe: 0.2, turn: 30 }]) assert.deepStrictEqual([F.motionClamps(m, ring), F.sidewaysClamps(m, ring)], [true, false], JSON.stringify(m));
+  assert.throws(() => F.sidewaysClamps({ scroll: [11, 0] }, ring), /motion\.scroll: /);
+});
+check("MV motionTxi: a moving texture's material's own TXI - its texture's TXI's blending and map lines as they are (with decal, all the engine reads for a mesh from its bitmap's TXI), LF; none: null", () => {
+  for (const t of [FLAME_TXI, SYM_TXI, Buffer.from(FLAME_TXI, "latin1"), F.SOFT_TXI, F.softTxi({ blend: "additive", clamp: true }), F.copiedTxi(FLAME_TXI, 2)]) {
+    assert.strictEqual(F.motionTxi(t), "blending additive\n", JSON.stringify(String(t)));
+  }
+  assert.strictEqual(F.motionTxi("blending punchthrough\r\nmipmap 0\r\n"), "blending punchthrough\n");
+  assert.strictEqual(F.motionTxi("  Blending\tAdditive \r\nfilter 0"), "  Blending\tAdditive \n", "the line as it is, but its line end");
+  assert.strictEqual(F.motionTxi("blending default\r\nmipmap 0\r\nblending additive"), "blending default\nblending additive\n", "each, in order");
+  for (const t of ["", null, undefined, Buffer.alloc(0), "decal 1\r\n", "proceduretype cycle\nnumx 4\nnumy 4\nfps 32\n", "clamp 2\n", "blending\n", "blending  \r\n",
+    "# blending additive", "blendingx additive", F.softTxi({ blend: "normal", clamp: true })]) assert.strictEqual(F.motionTxi(t), null, JSON.stringify(t));
+  // Never a decal, a clamp or a flipbook: those are texture0's (its own TXI) or nobody's.
+  const t = F.motionTxi(FLAME_TXI);
+  assert.deepStrictEqual([F.txiDecal(t), F.txiClampBits(t), F.txiCycle(t), F.txiAdditive(t)], [false, 0, null, true]);
+  // Its own TXI again: the same (the page is told it as the texture route reads it).
+  assert.strictEqual(F.motionTxi(F.motionTxi("blending default\nblending additive\n")), "blending default\nblending additive\n");
+  // Fix round 1 (the MV review: Material::ParseField reads these from the bitmap's TXI too): the environment and bump map
+  // lines are carried as the source has them, in its order - everything the engine reads for the mesh but decal. The
+  // game's c_diamond: envmaptexture and bumpyshinytexture, no blending.
+  const DIAMOND = "envmaptexture evmap_irrid\r\nbumpyshinytexture evmap_irrid\r\n";
+  assert.strictEqual(F.motionTxi(DIAMOND), "envmaptexture evmap_irrid\nbumpyshinytexture evmap_irrid\n");
+  assert.strictEqual(F.motionTxi("decal 1\r\nBumpMapTexture tex_bump\r\nmipmap 0\r\nblending additive\r\nbumpreplacementtexture tex_r\r\nproceduretype cycle\r\n"),
+    "BumpMapTexture tex_bump\nblending additive\nbumpreplacementtexture tex_r\n");
+  for (const t of ["envmaptexture\n", "envmaptexturex foo\n", "# bumpmaptexture foo"]) assert.strictEqual(F.motionTxi(t), null, JSON.stringify(t));
+  assert.strictEqual(F.motionTxi(F.motionTxi(DIAMOND)), F.motionTxi(DIAMOND));
+});
+check("MV the name: the material's TXI hashed in (M1b's rule: a changed TXI never shares a name) and the sideways clamp its own mark, not W1's; with neither, every name as before", () => {
+  const m = F.readMotion(RING, "m"), p = [0.5, 0.5], ADD = "blending additive\n";
+  const plain = F.motionName("fxpa_flame02", m, p);
+  for (const more of [{}, { side: false, txi: null }, { txi: "" }]) assert.strictEqual(F.motionName("fxpa_flame02", m, p, false, more), plain, JSON.stringify(more));
+  assert.strictEqual(F.motionName("fxpa_globe", { scroll: [0, 0.25] }, p, false, {}), "n5u_31e9f07948e1", "M2's pin");
+  const add = F.motionName("fxpa_flame02", m, p, false, { txi: ADD }), punch = F.motionName("fxpa_flame02", m, p, false, { txi: "blending punchthrough\n" });
+  const side = F.motionName("fxpa_flame02", m, p, false, { side: true }), both = F.motionName("fxpa_flame02", m, p, false, { side: true, txi: ADD });
+  const w1 = F.motionName("fxpa_flame02", m, p, true);
+  assert.ok([add, punch, side, both].every((n) => F.MOTION_TEXTURE.test(n)), [add, punch, side, both].join(" "));
+  assert.strictEqual(new Set([plain, add, punch, side, both, w1]).size, 6);
+  assert.deepStrictEqual([add, side, F.motionName("n5l_803909e8bf74", m, p, false, { side: true, txi: ADD })], ["n5u_19a49b6d02f8", "n5u_4ef9b28de294", "n5u_e3017721fff2"],
+    "the recipes pinned: cyrb53 of \"uv:<texture0>:<numbers>[:clampv][:txi:<its TXI>]\"");
+});
+check("MV gameTextures: a shape's textures as the game is given them, moving too - DC's rule with its 'v within one repeat' read as 'sideways only, v within one repeat' (sidewaysClamps): the flame ring scrolling round names the still ring's copy (clamp 2), scrolling up or turning its copy unclamped; a soft texture clamped sideways only; a breath W1's own; stillTextures still DC's", () => {
+  const c2 = dcName("fxpa_flame02", 2), c0 = dcName("fxpa_flame02", 0), flip2 = dcName("my_flip", 2), glyph0 = dcName("fxpa_symbl_003", 0);
+  const copy = (name, texture, clamp) => [{ name, texture, clamp, key: DC_KEY[texture] }];
+  const named = (o, motion) => { const s = dcShape(o); const r = F.gameTextures(s, motion, dcPlaced(s), dcInfo); return [r.meshes[0] ? r.meshes[0].bitmap : null, r.copies, r.softs]; };
+  // A still shape: DC's stillTextures, every case.
+  for (const o of [{ texture: "fxpa_flame02" }, { texture: "fxpa_flame02", repeat_up: 2 }, { texture: "fxpa_globe" }, { texture: "my_flip" }, { blend: "additive" }, { texture: "none" },
+    { type: "dome", radius: 1, height: undefined, top: undefined, texture: "fxpa_symbl_003", mapping: "above" }]) {
+    const s = dcShape(o);
+    assert.deepStrictEqual(F.gameTextures(s, undefined, dcPlaced(s), dcInfo), F.stillTextures(s, undefined, dcPlaced(s), dcInfo), JSON.stringify(o));
+    assert.deepStrictEqual(F.gameTextures(s, STILL, dcPlaced(s), dcInfo), F.stillTextures(s, STILL, dcPlaced(s), dcInfo), JSON.stringify(o));
+  }
+  // Scroll round (MV-1's 0.5, MV-3's 0.01, either way): the still ring's own copy, clamp 2 - one copy a texture, not a speed.
+  for (const m of [RING, { scroll: [0.01, 0] }, { scroll: [-0.31, 0] }]) assert.deepStrictEqual(named({ texture: "fxpa_flame02" }, m), [c2, copy(c2, "fxpa_flame02", 2), []], JSON.stringify(m));
+  // Scroll up, a turn, both ways at once: its copy (decal dropped) unclamped - v must repeat.
+  for (const m of [{ scroll: [0, 0.25] }, { scroll: [0.5, 0.25] }, { turn: 30 }, { scroll: [0.5, 0], turn: 5 }]) {
+    assert.deepStrictEqual(named({ texture: "fxpa_flame02" }, m), [c0, copy(c0, "fxpa_flame02", 0), []], JSON.stringify(m));
+  }
+  // A breath W1 clamps (every UV within one repeat): W1's own copy route - as it is here; one W1 doesn't (u round a ring
+  // three times): its copy, unclamped.
+  assert.deepStrictEqual(named({ texture: "fxpa_flame02" }, { breathe: 0.2 }), ["fxpa_flame02", [], []]);
+  assert.deepStrictEqual(named({ texture: "fxpa_flame02", repeat_around: 3 }, { breathe: 0.2 }), [c0, copy(c0, "fxpa_flame02", 0), []]);
+  // A flipbook that isn't decal: copied for the clamp sideways, as it is scrolling up; TIN-1's glyph From above turning:
+  // copied (decal) unclamped; a plain texture (fxpa_globe) as it is either way; one nothing knows, as it is.
+  assert.deepStrictEqual(named({ texture: "my_flip" }, RING), [flip2, copy(flip2, "my_flip", 2), []]);
+  assert.deepStrictEqual(named({ texture: "my_flip" }, { scroll: [0, 0.25] }), ["my_flip", [], []]);
+  assert.deepStrictEqual(named({ type: "dome", radius: 1, height: undefined, top: undefined, texture: "fxpa_symbl_003", mapping: "above" }, { turn: 30 }),
+    [glyph0, copy(glyph0, "fxpa_symbl_003", 0), []]);
+  for (const m of [RING, { scroll: [0, 0.25] }]) assert.deepStrictEqual(named({ texture: "fxpa_globe" }, m), ["fxpa_globe", [], []], JSON.stringify(m));
+  assert.deepStrictEqual(named({ texture: "nowhere" }, RING), ["nowhere", [], []]);
+  // A soft texture: clamped sideways within one repeat (its own name, as a still one's), as it is scrolling up or tiled.
+  const softName = (o) => F.shapeTextureName(Object.assign({ colour: [0.6, 0.8, 1] }, o));
+  assert.deepStrictEqual(named({ blend: "additive" }, RING), [softName({ blend: "additive", clamp: true }), [],
+    [{ name: softName({ blend: "additive", clamp: true }), colour: [0.6, 0.8, 1], blend: "additive", clamp: true }]]);
+  assert.deepStrictEqual(named({ blend: "additive" }, { scroll: [0, 0.25] }), [softName({ blend: "additive" }), [], []]);
+  assert.deepStrictEqual(named({ blend: "additive", repeat_up: 2 }, RING), [softName({ blend: "additive" }), [], []]);
+  assert.deepStrictEqual(named({ blend: "additive" }, { breathe: 0.2 }), [softName({ blend: "additive" }), [], []], "W1's");
+  // stillTextures stays DC's: a moving part's meshes as they are (a bench from before MV gets what it got).
+  const green = dcShape({ texture: "fxpa_flame02", colour: [0.137, 0.922, 0.314] }), meshes = dcPlaced(green);
+  assert.deepStrictEqual(F.stillTextures(green, RING, meshes, dcInfo), { meshes, softs: [], copies: [] });
+  // Twice is once; the meshes given untouched.
+  const once = F.gameTextures(green, RING, meshes, dcInfo);
+  assert.deepStrictEqual(F.gameTextures(green, RING, once.meshes, dcInfo).meshes, once.meshes);
+  assert.strictEqual(meshes[0].bitmap, "fxpa_flame02");
+});
+check("MV moveTextures: each moving mesh's material names the texture it has (texture0: the shape rule's copy or clamped soft texture), its own TXI that texture's blending lines (txiOf), the sideways clamp marked; with neither, named as before; W1's as before", () => {
+  const green = dcShape({ texture: "fxpa_flame02", colour: [0.137, 0.922, 0.314] }), c2 = dcName("fxpa_flame02", 2), c0 = dcName("fxpa_flame02", 0);
+  const TXIS = { [c2]: F.copiedTxi(FLAME_TXI, 2), [c0]: F.copiedTxi(FLAME_TXI, 0), fxpa_flame02: FLAME_TXI, fxpa_globe: "blending additive\r\nproceduretype arturo\r\n",
+    tex_rock: "mipmap 0\r\n" };
+  const txiOf = (t) => (t in TXIS ? TXIS[t] : null), ADD = "blending additive\n";
+  const moved = (shape, motion, opts = {}) => {
+    const g = F.gameTextures(shape, motion, dcPlaced(shape), dcInfo);
+    return F.moveTextures(g.meshes, motion, Object.assign({ shape, txiOf }, opts));
+  };
+  const m = F.readMotion(RING, "m"), p = F.uvPivot(dcPlaced(green)[0].tverts);
+  // MV-1's ring: texture0 the copy (clamp 2), its TXI blending additive, the sideways mark.
+  const ring = moved(green, RING), name = F.motionName(c2, m, p, false, { side: true, txi: ADD });
+  assert.deepStrictEqual(ring.meshes.map((x) => x.bitmap), [name]);
+  assert.deepStrictEqual(ring.materials, [{ name, texture: c2, motion: m, pivot: p, side: true, txi: ADD }]);
+  assert.ok(F.motionMaterialText(ring.materials[0]).split("\n").includes("texture0 " + c2), F.motionMaterialText(ring.materials[0]));
+  // Scrolling up: its copy unclamped, no mark; its TXI still.
+  const up = F.readMotion({ scroll: [0, 0.25] }, "m"), u = moved(green, up);
+  assert.deepStrictEqual(u.materials, [{ name: F.motionName(c0, up, p, false, { txi: ADD }), texture: c0, motion: up, pivot: p, txi: ADD }]);
+  // A plain texture whose TXI has a blending line (fxpa_globe), sideways: not clamped, so no mark - its TXI; one with none
+  // (tex_rock), or no txiOf (uvprobe; a caller with no pictures): named as before, no TXI.
+  const globe = moved(dcShape({ texture: "fxpa_globe" }), RING).materials[0];
+  assert.deepStrictEqual([globe.name, globe.texture, "side" in globe, globe.txi], [F.motionName("fxpa_globe", m, p, false, { txi: ADD }), "fxpa_globe", false, ADD]);
+  const rock = moved(dcShape({ texture: "tex_rock" }), RING).materials[0];
+  assert.deepStrictEqual(rock, { name: F.motionName("tex_rock", m, p), texture: "tex_rock", motion: m, pivot: p });
+  const bare = F.moveTextures(dcPlaced(green), RING);
+  assert.deepStrictEqual(bare.materials, [{ name: F.motionName("fxpa_flame02", m, p), texture: "fxpa_flame02", motion: m, pivot: p }]);
+  // A soft Additive cylinder sideways: its clamped soft texture, marked; its TXI blending additive (its own TXI's line).
+  const soft = dcShape({ blend: "additive" }), sc = F.shapeTextureName({ colour: soft.colour, blend: "additive", clamp: true });
+  const softTxi = (t) => (t === sc ? F.softTxi({ blend: "additive", clamp: true }) : null);
+  assert.deepStrictEqual(moved(soft, RING, { txiOf: softTxi }).materials, [{ name: F.motionName(sc, m, p, false, { side: true, txi: ADD }), texture: sc, motion: m, pivot: p, side: true, txi: ADD }]);
+  // The mark only where the rule clamped it: the soft texture not yet renamed (the stage's meshes, before Play's rule) -
+  // no mark; nor a still part's (no motion: no material at all).
+  const su = F.shapeTextureName({ colour: soft.colour, blend: "additive" });
+  assert.deepStrictEqual(F.moveTextures(dcPlaced(soft), RING, { shape: soft }).materials, [{ name: F.motionName(su, m, p), texture: su, motion: m, pivot: p }]);
+  assert.deepStrictEqual(F.moveTextures(dcPlaced(soft), undefined, { shape: soft }).materials, []);
+  // No shape (a game part's or your own file's mesh): never marked (DC copies only a shape's) - its TXI still; a mesh of
+  // no shape naming a copy (a model's own n5l_ texture) isn't marked either.
+  const part = F.moveTextures(dcPlaced(green), RING, { txiOf });
+  assert.deepStrictEqual(part.materials, [{ name: F.motionName("fxpa_flame02", m, p, false, { txi: ADD }), texture: "fxpa_flame02", motion: m, pivot: p, txi: ADD }]);
+  const named = F.moveTextures(F.gameTextures(green, RING, dcPlaced(green), dcInfo).meshes, RING, { txiOf });
+  assert.deepStrictEqual(named.materials, [{ name: F.motionName(c2, m, p, false, { txi: ADD }), texture: c2, motion: m, pivot: p, txi: ADD }]);
+  // W1's clamped material as before: its own name, no TXI of this kind (its copy's TXI carries the source's lines).
+  const breath = F.readMotion({ breathe: 0.2 }, "m"), w1 = moved(green, breath);
+  assert.deepStrictEqual(w1.materials, [{ name: F.motionName("fxpa_flame02", breath, p, true), texture: "fxpa_flame02", motion: breath, pivot: p, clamp: true }]);
+});
+check("MV files.js: a moving flame ring scrolling round names DC's copy (clamp 2) through its material, its n5u_ TXI (blending additive) beside its .mtr; scrolling up its copy unclamped; an Additive soft cylinder's TXI; a plain texture with no blending line, and no pictures, as before", () => {
+  const fs = require("fs");
+  const os = require("os");
+  const W = require("./files.js");
+  const up = { scroll: [0, 0.25] };
+  const placed = [mvPart({ texture: "fxpa_flame02" }, RING), mvPart({ texture: "fxpa_flame02" }, up), mvPart({ blend: "additive" }, up), mvPart({ blend: "additive" }, RING),
+    mvPart({ texture: "tex_rock" }, RING), mvPart({ texture: "fxpa_globe" }, RING)].map((p) => ({ part: p }));
+  for (const x of placed) x.meshes = F.placePart(x.part, F.shapeModel(x.part.source.shape), 0, 0, "j", true).meshes;
+  const FLAME = { where: "game", tga: Buffer.from("flame-tga"), dds: null, plt: null, txi: FLAME_TXI };
+  const GLOBE = { where: "game", tga: Buffer.from("globe-tga"), dds: null, plt: null, txi: "blending additive\r\nproceduretype arturo\r\n" };
+  const ROCK = { where: "game", tga: Buffer.from("rock-tga"), dds: null, plt: null, txi: "" };
+  const rd = { image: (name) => ({ fxpa_flame02: FLAME, fxpa_globe: GLOBE, tex_rock: ROCK })[name] || null };
+  const shaped = W.shapeTextures(placed);
+  const add = ADDITIVE([0.6, 0.8, 1]), addClamped = F.shapeTextureName({ colour: [0.6, 0.8, 1], blend: "additive", clamp: true });
+  // The soft textures: the sideways one clamped (its own name and TXI), the one scrolling up as it was - each made once.
+  assert.deepStrictEqual([...shaped.keys()], [add, addClamped]);
+  const copies = W.copyTextures(placed, new Map(), { rd, shaped });
+  const c2 = dcName("fxpa_flame02", 2), c0 = dcName("fxpa_flame02", 0);
+  assert.deepStrictEqual([...copies.keys()], [c2, c0]);
+  assert.deepStrictEqual(placed.map((x) => x.meshes[0].bitmap), [c2, c0, add, addClamped, "tex_rock", "fxpa_globe"]);
+  const materials = W.motionMaterials(placed, new Map(), { sources: { rd, shaped }, copies });
+  const ADD = "blending additive\n", p = [0.5, 0.5], ring = F.readMotion(RING, "m"), scroll = F.readMotion(up, "m");
+  const want = [[c2, ring, true, ADD], [c0, scroll, false, ADD], [add, scroll, false, ADD], [addClamped, ring, true, ADD], ["tex_rock", ring, false, null], ["fxpa_globe", ring, false, ADD]]
+    .map(([t, m, side, txi]) => F.motionName(t, m, p, false, { side, txi }));
+  assert.deepStrictEqual(placed.map((x) => x.meshes[0].bitmap), want);
+  assert.strictEqual(want[4], F.motionName("tex_rock", ring, p), "a plain texture with no blending line isn't named as before");
+  const mat = (k) => materials.get(want[k]);
+  assert.deepStrictEqual([0, 1, 2, 3, 4, 5].map((k) => [mat(k).texture, mat(k).side === true, mat(k).txi || null]),
+    [[c2, true, ADD], [c0, false, ADD], [add, false, ADD], [addClamped, true, ADD], ["tex_rock", false, null], ["fxpa_globe", false, ADD]]);
+  assert.ok(/^texture0 /m.test(mat(0).text) && mat(0).text.split("\n").includes("texture0 " + c2), mat(0).text);
+  // Writes: a material with a TXI its .mtr then <name>.txi, kind "material" (owned by its n5u_ name); then the shader.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "n5_fdmv-"));
+  try {
+    const writes = W.motionWrites(materials, dir);
+    assert.deepStrictEqual(writes.map((w) => [path.basename(w.file), w.kind]), [
+      [want[0] + ".mtr", "material"], [want[0] + ".txi", "material"], [want[1] + ".mtr", "material"], [want[1] + ".txi", "material"],
+      [want[2] + ".mtr", "material"], [want[2] + ".txi", "material"], [want[3] + ".mtr", "material"], [want[3] + ".txi", "material"],
+      [want[4] + ".mtr", "material"], [want[5] + ".mtr", "material"], [want[5] + ".txi", "material"], ["vsn5uvmove.shd", "shader"]]);
+    assert.strictEqual(writes[1].bytes.toString("latin1"), ADD);
+    const owned = W.ownership({ repo: dir, manifest: new Set(), mark: F.MARK });
+    assert.strictEqual(owned(writes[1], Buffer.from("x")), true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  // --json's: side and the TXI said; the summary's line names the copy, the clamp and the TXI.
+  assert.deepStrictEqual(W.motionJson(materials).map((j) => [j.texture, j.side === true, j.txi || null]),
+    [[c2, true, ADD], [c0, false, ADD], [add, false, ADD], [addClamped, true, ADD], ["tex_rock", false, null], ["fxpa_globe", false, ADD]]);
+  assert.ok(!("side" in W.motionJson(materials)[4]) && !("txi" in W.motionJson(materials)[4]));
+  const lines = W.motionLines(materials, "data/files");
+  assert.strictEqual(lines[0], `  material ${want[0]}: ${c2} scrolls 0.5 0 a second, round 0.5 0.5, clamped in v (scrolling sideways only), ${want[0]}.txi beside it: ` +
+    "blending additive - written into data/files, with vsn5uvmove.shd");
+  assert.strictEqual(lines[4], `  material ${want[4]}: tex_rock scrolls 0.5 0 a second, round 0.5 0.5 - written into data/files, with vsn5uvmove.shd`);
+  // No pictures given (uvprobe: TMO-1's domes as they were): no TXI, named as before.
+  const old = [mvPart({ texture: "fxpa_globe" }, RING)].map((p) => ({ part: p }));
+  for (const x of old) x.meshes = F.placePart(x.part, F.shapeModel(x.part.source.shape), 0, 0, "j", true).meshes;
+  assert.deepStrictEqual([...W.motionMaterials(old).values()].map((x) => [x.texture, x.txi || null]), [["fxpa_globe", null]]);
+  assert.strictEqual(old[0].meshes[0].bitmap, F.motionName("fxpa_globe", ring, p));
+});
+check("MV in a page: the same rule, TXI, names, shape rule and moveTextures", () => {
+  const P = pageFloatDisk();
+  const ring = dcPlaced(dcShape({ texture: "fxpa_flame02" }))[0].tverts;
+  assert.deepStrictEqual([P.sidewaysClamps(RING, ring), P.sidewaysClamps({ turn: 5 }, ring), P.motionTxi(FLAME_TXI)], [true, false, "blending additive\n"]);
+  assert.strictEqual(P.motionName("fxpa_flame02", RING, [0.5, 0.5], false, { side: true, txi: "blending additive\n" }),
+    F.motionName("fxpa_flame02", RING, [0.5, 0.5], false, { side: true, txi: "blending additive\n" }));
+  const s = { type: "cylinder", radius: 1, height: 0.6, top: 1.17, texture: "fxpa_flame02" };
+  const ps = P.readShape(s, "s"), fs = F.readShape(s, "s");
+  const pg = P.gameTextures(ps, RING, P.shapeModel(ps).meshes, dcInfo), fg = F.gameTextures(fs, RING, F.shapeModel(fs).meshes, dcInfo);
+  assert.deepStrictEqual(pg, fg);
+  const txiOf = () => FLAME_TXI;
+  assert.deepStrictEqual(P.moveTextures(pg.meshes, RING, { shape: ps, txiOf }), F.moveTextures(fg.meshes, RING, { shape: fs, txiOf }));
 });
 
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);

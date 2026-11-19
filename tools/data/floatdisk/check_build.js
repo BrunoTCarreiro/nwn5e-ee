@@ -526,6 +526,41 @@ try {
     assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
   });
 
+  // MV (#39; the owner, 2026-11-19: "go"): a moving shape's texture0 is the still one's - a decal flipbook's copy, clamped
+  // in v only while it moves sideways only - and its material has a TXI of its own, its texture's blending line (the engine
+  // takes a mesh's blend only from its bitmap's TXI), beside the models and the drafts alike.
+  check("MV: a flame ring part scrolling round (fxpa_flame02, Scroll round 0.5) - its material names the still ring's copy (clamp 2) as texture0, its own TXI (blending additive) beside it; the models and the drafts name the material; again unchanged", () => {
+    global.window = global.window || {};
+    const rd = R.create({ game: GAME, core: require(path.join(TOOLS, "vfx_bench", "public", "core.js")), gameData: require(path.join(TOOLS, "spell_bench", "game_data.js")), reader: null });
+    const FLAME = "fxpa_flame02", flame = rd.image(FLAME, []), C2 = F.copyName(FLAME, 2, F.copyKey(flame.txi, flame.dds || flame.tga));
+    const motion = { scroll: [0.5, 0] }, pivot = [0.5, 0.5], TXI = "blending additive\n", MAT = F.motionName(C2, motion, pivot, false, { side: true, txi: TXI });
+    const file = withComposition("mv.json", (c) => {
+      c.stages.medium = [{ shape: { type: "cylinder", radius: 0.3, height: 0.3, top: 0.35, texture: FLAME, colour: [0.137, 0.922, 0.314] }, at: [0, 0, 0], motion }];
+    });
+    const drafts = path.join(root, "build", "saved"), library = path.join(root, "build", "textures");
+    const args = ["--composition", file, "--drafts", "--out", drafts, "--textures", library];
+    const made = fs.readFileSync(path.join(folder, "made.txt"));
+    const r = build([...args, "--json"]);
+    assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
+    const j = json(r);
+    assert.deepStrictEqual(j.copies, [{ copy: C2, texture: FLAME, clamp: 2 }]);
+    assert.deepStrictEqual(j.materials, [{ material: MAT, texture: C2, motion, pivot, side: true, txi: TXI }]);
+    for (const dir of [FILES, drafts]) {
+      assert.strictEqual(fs.readFileSync(path.join(dir, MAT + ".mtr"), "latin1"), F.motionMaterialText({ texture: C2, motion, pivot }), dir);
+      assert.strictEqual(fs.readFileSync(path.join(dir, MAT + ".txi"), "latin1"), TXI, dir);
+      assert.ok(fs.readFileSync(path.join(dir, C2 + ".tga")).equals(flame.tga), dir + ": the copy isn't the game's fxpa_flame02.tga");
+      assert.strictEqual(fs.readFileSync(path.join(dir, C2 + ".txi"), "latin1"), F.copiedTxi(flame.txi, 2), dir);
+    }
+    for (const m of [F.creatureModel("medium"), F.pileModel("medium")].map((s) => s + ".mdl")) {
+      const t = fs.readFileSync(path.join(FILES, m), "latin1");
+      assert.ok(t.includes(`\r\n  bitmap ${MAT}\r\n`) && !t.includes(`\r\n  bitmap ${FLAME}\r\n`) && !t.includes(`\r\n  bitmap ${C2}\r\n`), m + " doesn't name " + MAT);
+    }
+    assert.ok(fs.readFileSync(path.join(folder, "made.txt")).equals(made), "made.txt changed");
+    assert.ok(!/no longer used/.test(build(["--composition", file]).out), "a moving copy's build calls something unused");
+    const again = json(build([...args, "--json"]));
+    assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
+  });
+
   check("the real worktree's data\\files and the real build's vfxedit\\saved\\ are as they were", () => {
     assert.deepStrictEqual(realState(), REAL);
   });

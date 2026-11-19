@@ -44,6 +44,12 @@
 // (files.js copyTextures). A still Soft shape within one repeat names its clamped soft texture (its own n5s_ name, a TXI
 // saying clamp 2: files.js shapeTextures). A game part's and your own file's textures are never copied.
 //
+// MV (the owner, 2026-11-19: "go"): a moving shape's texture is what a still one's is (floatdisk.js gameTextures) - its
+// copy for a decal texture or a flipbook, its clamped soft texture - clamped in v only while it moves sideways only (no
+// scroll up, turn or breath: the shader leaves v as it is), its material naming that as texture0; and a moving texture's
+// material, unclamped, has a TXI of its own beside it, n5u_<...>.txi, its texture's blending and map lines (floatdisk.js
+// motionTxi) - the engine takes a mesh's blend only from its bitmap's TXI, so without it an additive texture drew on black.
+//
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
 // own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo. The files are written by its files.js,
 // under the same ownership rule.
@@ -206,9 +212,11 @@ function main() {
   // motionMaterials, after the bakes and the textures shipped: its texture0 is the real texture). Then each variant's
   // meshes lowered by the guide's height, named unique.
   const moved = new Map();  // a material's name -> { texture, motion, pivot, clamp?, text, label, copy? } (files.js's motionMaterials)
+  // MV: a moving shape's copy too (floatdisk.js gameTextures: its material names it as texture0), and each moving
+  // texture's material a TXI of its own with its texture's blending and map lines (motionMaterials, given where TXIs are read).
   const built = placed.map(({ v, parts }) => {
     W.copyTextures(parts, copied, { rd, shaped, baked, ship });
-    W.motionMaterials(parts, moved);
+    W.motionMaterials(parts, moved, { sources: { rd, shaped, baked, ship }, copies: copied });
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
     for (const x of parts) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], x.lo[k]); hi[k] = Math.max(hi[k], x.hi[k]); }
     const meshes = F.uniqueNames(F.lowered([].concat(...parts.map((x) => x.meshes)), h), []);

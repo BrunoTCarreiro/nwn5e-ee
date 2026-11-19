@@ -633,16 +633,19 @@ try {
     clearMoving();
     for (const f of shapeFiles()) fs.rmSync(f);
     const files = snapshot(), kept = madeTxt();
-    const motion = { scroll: [0, 0.25] }, pivot = [0.5, 0.5], MAT = F.motionName(ADD, motion, pivot);
+    // (MV: its material has a TXI of its own - the soft texture's blending line, "blending additive": the engine takes a
+    // mesh's blend only from its bitmap's TXI - hashed into its name.)
+    const TXI = "blending additive\n", motion = { scroll: [0, 0.25] }, pivot = [0.5, 0.5], MAT = F.motionName(ADD, motion, pivot, false, { txi: TXI });
     const file = uvDome(motion);
     assert.ok(build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/).includes(
-      `  material ${MAT}: ${ADD} scrolls 0 0.25 a second, round 0.5 0.5 - written into ${SAVED}, with ${SHADER}`), "no summary line for " + MAT);
+      `  material ${MAT}: ${ADD} scrolls 0 0.25 a second, round 0.5 0.5, ${MAT}.txi beside it: blending additive - written into ${SAVED}, with ${SHADER}`), "no summary line for " + MAT);
     const j = ok(build(file, ["--json", "--saved", SAVED]));
-    assert.deepStrictEqual(j.materials, [{ material: MAT, texture: ADD, motion, pivot }]);
+    assert.deepStrictEqual(j.materials, [{ material: MAT, texture: ADD, motion, pivot, txi: TXI }]);
     assert.deepStrictEqual(j.shapes, [{ texture: ADD, colour: [0.6, 0.8, 1], blend: "additive" }]);
     const states = byName(j);
     delete states["n5m_chkuv.vfx"];  // (the check above's still dome: rebuilt)
-    assert.deepStrictEqual(states, { [ADD + ".tga"]: "new", [ADD + ".txi"]: "new", [MAT + ".mtr"]: "new", [SHADER]: "new" });
+    assert.deepStrictEqual(states, { [ADD + ".tga"]: "new", [ADD + ".txi"]: "new", [MAT + ".mtr"]: "new", [MAT + ".txi"]: "new", [SHADER]: "new" });
+    assert.strictEqual(fs.readFileSync(path.join(SAVED, MAT + ".txi"), "latin1"), TXI);
     // The draft's plane names the material; its UVs are the dome's (the shader moves them in game).
     assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkuv.vfx")).map((x) => [x.bitmap, x.transparencyhint, x.tverts.length / 2]), [[MAT, 1, 592]]);
     // The material: our shader, the game's lit fragment shader, the soft texture as texture0, the motion; the shader beside it.
@@ -821,9 +824,13 @@ try {
     const j = ok(build(file, ["--json", "--saved", SAVED]));
     assert.strictEqual(j.materials.length, 3);
     assert.ok(j.materials.every((m) => !("clamp" in m)), JSON.stringify(j.materials));
+    // (MV: texture0 fxpa_symbl_003's copy - decal dropped, unclamped: none of these moves sideways only - and beside the
+    // .mtr only its own TXI, the texture's blending line; no picture under the material's name.)
+    const symImage = rd.image(SYM, []), G0 = F.copyName(SYM, 0, F.copyKey(symImage.txi, symImage.dds || symImage.tga));
     for (const m of j.materials) {
-      assert.deepStrictEqual(clampedFiles(SAVED, m.material), [m.material + ".mtr"], m.material);
-      assert.ok(fs.readFileSync(path.join(SAVED, m.material + ".mtr"), "latin1").split("\n").includes("texture0 " + SYM), m.material);
+      assert.deepStrictEqual(clampedFiles(SAVED, m.material), [m.material + ".mtr", m.material + ".txi"], m.material);
+      assert.ok(fs.readFileSync(path.join(SAVED, m.material + ".mtr"), "latin1").split("\n").includes("texture0 " + G0), m.material);
+      assert.strictEqual(fs.readFileSync(path.join(SAVED, m.material + ".txi"), "latin1"), "blending additive\n", m.material);
     }
   });
 
@@ -907,11 +914,12 @@ try {
     const mdl = fs.readFileSync(path.join(FILES, j.variants[0].model + ".mdl"), "latin1");
     const bitmaps = [...mdl.matchAll(/\r\n {2}bitmap (\S+)\r\n/g)].map((m) => m[1]);
     // The dome's copy, the tiled ring's, fxpa_symbl_001 as it is (not decal, not a flipbook), the moving ring's material
-    // (texture0 the game's fxpa_flame02: M2's route), then the crate's own textures - none copied.
+    // (MV: texture0 its copy - it scrolls up, so the tiled ring's unclamped one; before MV the game's fxpa_flame02), then the
+    // crate's own textures - none copied.
     assert.deepStrictEqual(bitmaps.slice(0, 3), [G2, C0, "fxpa_symbl_001"]);
     assert.ok(F.MOTION_TEXTURE.test(bitmaps[3]) && bitmaps.length > 4 && !bitmaps.slice(4).some((b) => /^n5[lu]_/i.test(b)), bitmaps.join(" "));
-    assert.deepStrictEqual(j.materials.map((m) => [m.material, m.texture]), [[bitmaps[3], FLAME]]);
-    assert.ok(fs.readFileSync(path.join(FILES, bitmaps[3] + ".mtr"), "latin1").split("\n").includes("texture0 " + FLAME));
+    assert.deepStrictEqual(j.materials.map((m) => [m.material, m.texture]), [[bitmaps[3], C0]]);
+    assert.ok(fs.readFileSync(path.join(FILES, bitmaps[3] + ".mtr"), "latin1").split("\n").includes("texture0 " + C0));
     assert.deepStrictEqual(copyFiles(FILES), [C0 + ".tga", C0 + ".txi", G2 + ".tga", G2 + ".txi"].sort());
     const sym = rd.image(SYM, []), flame = rd.image(FLAME, []);
     assert.ok(fs.readFileSync(path.join(FILES, G2 + ".tga")).equals(sym.tga) && fs.readFileSync(path.join(FILES, C0 + ".tga")).equals(flame.tga));
@@ -939,6 +947,42 @@ try {
     assert.deepStrictEqual([N, A].map((n) => fs.readFileSync(path.join(SAVED, n + ".txi"), "latin1")), ["clamp 2\n", "blending additive\nclamp 2\n"]);
     assert.ok(!fs.existsSync(path.join(SAVED, SOFT + ".txi")), "a tiled Normal soft texture got a TXI");
     for (const n of [N, A, SOFT]) assert.ok(fs.readFileSync(path.join(SAVED, n + ".tga")).equals(softBytes(colour)), n + ".tga isn't the colour's soft texture");
+  });
+
+  // MV (#39; the owner, 2026-11-19: "go"): a moving texture's material gets a TXI of its own - its texture's blending and map lines:
+  // the engine takes a mesh's blend only from its bitmap's TXI - and a moving shape's texture0 is the still one's (its
+  // copy for a decal texture or a flipbook, clamped in v only while it moves sideways only).
+  check("MV: a spell mesh's flame ring scrolling round (DC-1's, Scroll round 0.5) names a material whose .mtr names the still ring's copy (clamp 2) as texture0, its own TXI (blending additive) beside it in --saved; scrolling up, its copy unclamped; an Additive soft dome scrolling up, its TXI; again unchanged", () => {
+    clearCopies();
+    clearMoving();
+    const ADD = "blending additive\n", RING = { scroll: [0.5, 0] }, UP = { scroll: [0, 0.25] }, P = [0.5, 0.5], A = F.shapeTextureName({ colour: [0.6, 0.8, 1], blend: "additive" });
+    const file = project("chkmv", { kind: "spellmesh", guide: { shape: "circle", diameter: 2.4, height: 0 }, variants: [{ name: "1", parts: [
+      Object.assign(ring([0.137, 0.922, 0.314]), { motion: RING }), Object.assign(ring([1, 0, 0]), { at: [3, 0, 0], motion: UP }),
+      { shape: { type: "dome", radius: 1, blend: "additive" }, at: [-3, 0, 0], motion: UP }] }] });
+    const M2 = F.motionName(C2, RING, P, false, { side: true, txi: ADD }), M0 = F.motionName(C0, UP, P, false, { txi: ADD }), MA = F.motionName(A, UP, P, false, { txi: ADD });
+    const said = build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/);
+    assert.ok(said.includes(`  material ${M2}: ${C2} scrolls 0.5 0 a second, round 0.5 0.5, clamped in v (scrolling sideways only), ${M2}.txi beside it: blending additive - ` +
+      `written into ${SAVED}, with vsn5uvmove.shd`), said.join("\n"));
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(j.copies, [{ copy: C2, texture: FLAME, clamp: 2 }, { copy: C0, texture: FLAME, clamp: 0 }]);
+    assert.deepStrictEqual(j.materials, [{ material: M2, texture: C2, motion: RING, pivot: P, side: true, txi: ADD }, { material: M0, texture: C0, motion: UP, pivot: P, txi: ADD },
+      { material: MA, texture: A, motion: UP, pivot: P, txi: ADD }]);
+    assert.deepStrictEqual(draftPlanes(path.join(SAVED, j.variants[0].model + ".vfx")).map((p) => p.bitmap), [M2, M0, MA]);
+    for (const [m, t] of [[M2, C2], [M0, C0], [MA, A]]) {
+      assert.strictEqual(fs.readFileSync(path.join(SAVED, m + ".mtr"), "latin1"), F.motionMaterialText({ texture: t, motion: m === M2 ? RING : UP, pivot: P }), m);
+      assert.strictEqual(fs.readFileSync(path.join(SAVED, m + ".txi"), "latin1"), ADD, m);
+      assert.ok(!fs.existsSync(path.join(SAVED, m + ".tga")) && !fs.existsSync(path.join(SAVED, m + ".dds")), m + ": a picture under the material's name");
+    }
+    // The copies beside it: the still ring's own (clamp 2: the game's fxpa_flame02.tga, its TXI minus decal + clamp 2), and
+    // the unclamped one; the soft texture and its TXI.
+    const flame = rd.image(FLAME, []);
+    assert.deepStrictEqual([C2, C0].map((n) => fs.readFileSync(path.join(SAVED, n + ".txi"), "latin1")), [F.copiedTxi(flame.txi, 2), F.copiedTxi(flame.txi, 0)]);
+    assert.strictEqual(fs.readFileSync(path.join(SAVED, A + ".txi"), "latin1"), F.SOFT_TXI);
+    // Built again: unchanged; a TXI of a material's name is the generator's (the name fixes its bytes): rewritten.
+    assert.ok(ok(build(file, ["--json", "--saved", SAVED])).files.every((x) => x.state === "unchanged"));
+    fs.writeFileSync(path.join(SAVED, M2 + ".txi"), "blending punchthrough\r\n");
+    assert.strictEqual(byName(ok(build(file, ["--json", "--saved", SAVED])))[M2 + ".txi"], "rebuilt");
+    assert.strictEqual(fs.readFileSync(path.join(SAVED, M2 + ".txi"), "latin1"), ADD);
   });
 
   // The probe (TMO-1's): tools\data\composer\uvprobe.js writes n5m_uvprobe - seven domes in a row, three moving by the
