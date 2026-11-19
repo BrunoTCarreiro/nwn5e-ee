@@ -1972,6 +1972,16 @@ monster AC by CR.
           with the target as the object (floaty_text.cpp's FloatTextFor; the engine's faction broadcast sends a
           floaty about one creature to other players the same way). The first sends are logged ("target window:
           counts floated for ..."). Retest TW-9b.
+        - *0.99.90 (owner, 2026-11-19, on 0.99.89: "ok, no, it should be a permanently visible indicator on top of
+          each enemy saying how many darts/bolts are assigned to them, not how many are left"):* the counts reached
+          the orcs but counted the empty rows the cast gives the latest pick. rules::CountsByTarget now counts the
+          filled rows only; at OK an empty row still goes to the latest pick (TW-3, TW-8). 5 of 5 mutations caught;
+          test.bat 641 ok. Retest TW-9c.
+        - *The permanent indicator:* NWN has no always-on overhead text (floating text rises and fades; the name
+          bubble shows on mouse-over or Tab only), so it is B, the animation session's numbered marker, asked for
+          now. Its proposal: 11 effects (counts 1-11), a camera-facing digit at the head, and
+          `TargetCountMarkerVfx(count)` for the window to apply, swap and remove. It waits on the owner's picks (the
+          look, whether the number replaces the red glow, the size). The floating text stands in until then.
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
   - *Built 0.99.80 (level 2's build 1a):*
