@@ -381,7 +381,8 @@ Play in game runs the same):
 
 - **a library texture whose TXI says decal** - or **a flipbook on a mesh whose v stays within one repeat** (decal or not:
   the line shows on any flipbook; the game's 7 are all decal) - names a **copy**, `n5l_<12 hex digits>` (`copyName`: its
-  texture and the clamp added - one copy per distinct result, never per colour). The copy is its picture as the game
+  texture, the clamp added and its key - `copyKey`, the source TXI's text and its picture's bytes: one copy per distinct
+  result, never per colour, and a game update to either names a new one). The copy is its picture as the game
   draws it (its DDS when it has one) with a TXI of its own lines **minus `decal`** - its flipbook (`proceduretype`,
   `numx`, `numy`, `fps`) and `blending additive` kept - plus **`clamp 2`** (v) when the mesh's v stays within [0, 1]
   (`copiedTxi`; with a clamp line of its own, one line, the two together). U keeps repeating round a ring (Repeat

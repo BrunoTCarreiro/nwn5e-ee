@@ -997,8 +997,8 @@ function moveTextures(meshes, motion, { clamp = true } = {}) {
 // So a Composer shape whose part doesn't move (a moving one's texture goes through its material: M2, W1 - clampedTxi drops
 // decal there) gives the game, under our own names:
 // - a library texture whose TXI says decal, or a flipbook (decal or not) on a mesh whose v stays within one repeat: a copy
-//   of its picture, n5l_<12 hex digits> (copyName: its texture and the clamp added - one copy per distinct result, never
-//   per colour), with a TXI of its own lines minus decal - its flipbook and blending kept - plus clamp 2 (v) when the
+//   of its picture, n5l_<12 hex digits> (copyName: its texture, the clamp added and its key - its source TXI's text and
+//   picture: one copy per distinct result, never per colour), with a TXI of its own lines minus decal - its flipbook and blending kept - plus clamp 2 (v) when the
 //   mesh's v stays within [0, 1] (copiedTxi). U keeps repeating (round a ring, Repeat around);
 // - its soft texture, when its mesh's v stays within [0, 1]: a name of its own (shapeTextureName's clamp) with a TXI
 //   saying clamp 2 (softTxi).
@@ -1064,10 +1064,30 @@ function vClamps(tverts) {
   for (let i = 1; i < t.length; i += 2) if (!isNum(t[i]) || t[i] < -UV_REPEAT_EPSILON || t[i] > 1 + UV_REPEAT_EPSILON) return false;
   return true;
 }
-// A copy's name: n5l_ and 12 hex digits of its texture (lower-case) and the clamp added (0 or CLAMP_V) - its TXI is the
-// texture's own lines minus decal with that clamp, so the name fixes its bytes, and a shape's colour isn't in it.
-function copyName(texture, clamp) {
-  return "n5l_" + cyrb53(`copy:${String(texture).toLowerCase()}:${clamp ? clamp : 0}`).toString(16).padStart(14, "0").slice(-12);
+// cyrb53 over bytes (a Buffer or Uint8Array: a picture's) - the same mixing as cyrb53's over a string's characters.
+function cyrb53Bytes(bytes, seed = 0) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch; i < b.length; i++) { ch = b[i]; h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507); h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507); h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+// A copy's key (DC's fix round: what decides its bytes besides its texture's name and clamp): its source TXI's text as
+// read (latin1: its lines, its line ends - copiedTxi keeps them) and its picture's bytes (the copy path's: its DDS when it
+// has one, else its TGA), 14 hex digits each - "<txi>.<picture>". The generators and the bench's server each have both at
+// hand where they copy; the page is told it by the texture route (X-Copy-Key).
+const hex14 = (n) => n.toString(16).padStart(14, "0");
+function copyKey(txi, bytes) {
+  return hex14(cyrb53("txi:" + latin1(txi))) + "." + hex14(cyrb53Bytes(bytes));
+}
+// A copy's name: n5l_ and 12 hex digits of its texture (lower-case), the clamp added (0 or CLAMP_V) and its key (copyKey:
+// its source TXI's text and picture) - its picture is the source's and its TXI the source's lines minus decal with that
+// clamp, so the name fixes its bytes (a game update that changes either names a new copy), and a shape's colour isn't in
+// it. No key: refused (its bytes aren't known).
+function copyName(texture, clamp, key) {
+  if (typeof key !== "string" || !key) throw new Error(`copyName: ${String(texture).toLowerCase()} - a copy's key (copyKey of its TXI and picture), none given`);
+  return "n5l_" + cyrb53(`copy:${String(texture).toLowerCase()}:${clamp ? clamp : 0}:${key}`).toString(16).padStart(14, "0").slice(-12);
 }
 // Whether the game must have a library texture copied: its TXI (`info`: { decal, cycle } - txiDecal, txiCycle - of it;
 // null when not known) says decal, or it's a flipbook on a mesh whose v stays within one repeat (`clampV`).
@@ -1081,10 +1101,11 @@ function copyKind(shape, motion) {
 }
 // The rule, one place (the generators: files.js shapeTextures / copyTextures; the bench's Play in game: composer.js): a
 // shape part's meshes (`shape`, its part's `motion`, `meshes` placed) as the game must be given them, `info(texture)` ->
-// { decal, cycle } | null its library texture's TXI. -> { meshes (copies - the given ones untouched), softs: [{ name,
-// colour, blend, clamp: true }] (clamped soft textures to make), copies: [{ name, texture, clamp }] (library textures to
-// copy) }, each name once. A soft mesh whose v stays within one repeat names its soft texture clamped; a library one the
-// game must have copied (`copied`) names its copy, clamp CLAMP_V within one repeat, else 0. Anything else as it is.
+// { decal, cycle, key } | null its library texture's TXI (and its copy's key: copyKey). -> { meshes (copies - the given
+// ones untouched), softs: [{ name, colour, blend, clamp: true }] (clamped soft textures to make), copies: [{ name,
+// texture, clamp, key }] (library textures to copy) }, each name once. A soft mesh whose v stays within one repeat names
+// its soft texture clamped; a library one the game must have copied (`copied`) names its copy, clamp CLAMP_V within one
+// repeat, else 0 - when its key is known (none: no copy can be named, as it is). Anything else as it is.
 function stillTextures(shape, motion, meshes, info) {
   const kind = copyKind(shape, motion), softs = [], copies = [], seen = new Set();
   if (!kind) return { meshes, softs, copies };
@@ -1099,9 +1120,10 @@ function stillTextures(shape, motion, meshes, info) {
       if (!seen.has(name)) { seen.add(name); softs.push({ name, colour: shape.colour.slice(), blend, clamp: true }); }
       return Object.assign({}, m, { bitmap: name });
     }
-    if (t !== String(shape.texture).toLowerCase() || !copied(typeof info === "function" ? info(t) : null, clampV)) return m;
-    const clamp = clampV ? CLAMP_V : 0, name = copyName(t, clamp);
-    if (!seen.has(name)) { seen.add(name); copies.push({ name, texture: t, clamp }); }
+    const i = t === String(shape.texture).toLowerCase() && typeof info === "function" ? info(t) : null;
+    if (!copied(i, clampV) || typeof i.key !== "string" || !i.key) return m;
+    const clamp = clampV ? CLAMP_V : 0, name = copyName(t, clamp, i.key);
+    if (!seen.has(name)) { seen.add(name); copies.push({ name, texture: t, clamp, key: i.key }); }
     return Object.assign({}, m, { bitmap: name });
   });
   return { meshes: out, softs, copies };
@@ -1381,7 +1403,7 @@ const api = {
   MOTION_KEYS, MOTION_RATE, MOTION_INFO, MOTION_TEXTURE, MOTION_SHADER, MOTION_PARAMS, MOTION_SHADER_MARK, readMotion, hasMotion, cleanMotion,
   uvPivot, uvMotion, motionName, motionMaterialText, motionShaderText, isMotionShader, moveTextures,
   UV_REPEAT_EPSILON, CLAMP_TXI, motionClamps, clampedTxi, txiClamps,
-  CLAMP_V, COPY_TEXTURE, txiDecal, txiClampBits, txiCycle, copiedTxi, softTxi, vClamps, copyName, copied, copyKind, stillTextures,
+  CLAMP_V, COPY_TEXTURE, txiDecal, txiClampBits, txiCycle, copiedTxi, softTxi, vClamps, copyKey, copyName, copied, copyKind, stillTextures,
 };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.FloatDisk = api;

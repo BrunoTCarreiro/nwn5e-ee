@@ -494,7 +494,11 @@ try {
   // mesh within one repeat) is copied under its n5l_ name - its picture and a TXI of its lines minus decal, + clamp 2 within
   // one repeat - beside the models in data\files and beside the drafts alike; made.txt doesn't list them.
   check("DC: a still flame ring part (fxpa_flame02, Cylinder with a Top radius) names its copy - the game's TGA and a TXI minus decal + clamp 2 beside the models and the drafts; again unchanged", () => {
-    const FLAME = "fxpa_flame02", C2 = F.copyName(FLAME, 2);
+    global.window = global.window || {};
+    const rd = R.create({ game: GAME, core: require(path.join(TOOLS, "vfx_bench", "public", "core.js")), gameData: require(path.join(TOOLS, "spell_bench", "game_data.js")), reader: null });
+    const FLAME = "fxpa_flame02", flame = rd.image(FLAME, []);
+    // (Its name hashes its key: the game texture's TXI text and its picture's bytes - floatdisk.js copyKey.)
+    const C2 = F.copyName(FLAME, 2, F.copyKey(flame.txi, flame.dds || flame.tga));
     const file = withComposition("copy.json", (c) => {
       c.stages.medium = [{ shape: { type: "cylinder", radius: 0.3, height: 0.3, top: 0.35, texture: FLAME, colour: [0.137, 0.922, 0.314] }, at: [0, 0, 0] }];
     });
@@ -507,9 +511,6 @@ try {
     assert.deepStrictEqual(j.copies, [{ copy: C2, texture: FLAME, clamp: 2 }]);
     const states = Object.fromEntries(j.files.filter((f) => f.file.includes(C2)).map((f) => [f.file, f.state]));
     assert.deepStrictEqual(Object.keys(states).sort(), ["build/saved/", "data/files/"].flatMap((d) => [".tga", ".txi"].map((e) => d + C2 + e)).sort());
-    global.window = global.window || {};
-    const rd = R.create({ game: GAME, core: require(path.join(TOOLS, "vfx_bench", "public", "core.js")), gameData: require(path.join(TOOLS, "spell_bench", "game_data.js")), reader: null });
-    const flame = rd.image(FLAME, []);
     assert.ok(flame && flame.tga && F.txiDecal(flame.txi), "the game's fxpa_flame02: a TGA, a decal TXI");
     for (const dir of [FILES, drafts]) {
       assert.ok(fs.readFileSync(path.join(dir, C2 + ".tga")).equals(flame.tga), dir + ": the copy isn't the game's fxpa_flame02.tga");

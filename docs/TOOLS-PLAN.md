@@ -2254,9 +2254,12 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     - **a library texture whose TXI says decal** (any value but 0, as atoi reads it) - or **a flipbook on a mesh whose v
       stays within one repeat**, decal or not (the call the brief left open: the line shows on any flipbook and the owner
       wants none; the game's 7 are all decal anyway, so only a flipbook beside your own parts or in ovr\ is concerned) -
-      names a **copy**, `n5l_<12 hex digits>` (`copyName`: cyrb53 of "copy:<texture>:<clamp>" - one copy per texture and
-      clamp, never per colour; the source's lines are fixed per texture, so (picture, lines) and the name match one to
-      one). Its picture is the game's (its DDS when it has one: the one copy path, `motionPicture`); its TXI (`copiedTxi`)
+      names a **copy**, `n5l_<12 hex digits>` (`copyName`: cyrb53 of "copy:<texture>:<clamp>:<key>" - one copy per
+      distinct result, never per colour; fix round 1: the key, `copyKey`, is 14 hex digits of the source TXI's text as
+      read and 14 of its picture's bytes - the content that decides the copy, so a game update to either names a new copy,
+      and the name fixes its bytes. Both are at hand where a copy is made - the generators' copy path and the bench's
+      server - and cheap: one cyrb53 pass over a TXI and a 49 KB picture; the page is told the key by the texture route,
+      `X-Copy-Key`, and the bake route refuses a key that isn't the picture's now, 409). Its picture is the game's (its DDS when it has one: the one copy path, `motionPicture`); its TXI (`copiedTxi`)
       the source's lines as they are but every `decal` line - `proceduretype cycle`, `numx`, `numy`, `fps`, `blending
       additive` kept - in its own line ends, then one clamp line, the union of its own and `clamp 2` when every v of the
       mesh is within [0, 1] (0.001 either side: `vClamps`; u may tile - Repeat around, Elemental Shield's 3). Repeat up
@@ -2280,8 +2283,9 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       takes `copies: [{ texture, clamp }]` - checked again against the rule on the texture's own TXI, else refused - and
       a shape's `clamp`, writing the copy, its TXI and the clamped soft texture into vfxedit\ (all checked before any is
       written). Play in game names them (composer.js `played`, the stage's mesh loader's TXI: one not read yet waits -
-      "still loading - try again in a moment"). app.js (two lines: the route's two headers as the picture's marks, and
-      the bake body's `copies`) - KF's file, kept small;
+      "still loading - try again in a moment"). app.js - KF's file, kept small - three edits: gameImage keeps the route's
+      `X-Decal`, `X-Clamp` and (fix round 1) `X-Copy-Key` as the picture's marks; request()'s bake body carries `copies`;
+      the `meshTexture` check hook says `decal`;
     - **the stage** (view.js): `upload` clamps each way by the bits; a picture's `clampBits` (X-Clamp: a saved spell
       mesh's copy, a clamped soft texture) uploads it so, a flipbook's frames too; a Composer still shape's mesh carries
       composer.js placeOne's marks - `clampV` (its v within one repeat) and `copies` (a library texture) - and is drawn
@@ -2319,6 +2323,18 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       mm under SHP-8's rim at most 1 brighter than with the ring deleted - 26 on HEAD's code: the line; dcFlameRingPlays;
       dcMeshBeatCopyClamped), browser_check.mjs 112, check_effect 157, check_area 21, beats and parts - all pass. Old
       Composer steps amended where a still Soft dome within one repeat now names its clamped soft texture.
+  - *Fix round 1* (the review, 2026-11-19: Needs fixes): at nwn5e-tools 819c998 check_composer_server was **57 of 58** -
+    its `shapeSummaryMatchesGenerator` compared the page's still shape meshes, now carrying composer.js placeOne's
+    `clampV` / `copies` marks, with the generator's whole (its last run had come before that composer.js edit, so the 58
+    above was wrong). The step now compares the meshes without the marks and asserts each mark is what the generator's
+    own rule gives (`copyKind`, `vClamps`): zotest's still Soft domes and flat shapes `clampV`, the wrapped one none. The
+    copy's name now hashes its content (`copyKey`, above) - the texture route's `X-Copy-Key`, the bake route's key check
+    (409). check_composer_server takes `--port` (run on 18793, beside another run on 18776). After the last edit, every
+    check again: anim floatdisk check 117, floatdisk check_build 14, composer check_build 33, check_derived 19, composer
+    check 24; nwn5e-tools check_chunks 48, check_composer 49 (LF), check_composer_server 58 (port 18793; on 819c998's
+    composer_server.js the two key steps fail), composer_check.mjs 104, browser_check.mjs 112, check_effect, check_area,
+    beats and parts - all pass. The mutation check: 24 breaks (5 of the key), every one caught. Byte-wise as above but for
+    the copy's name: the owner's mbkglyph disc names `n5l_1cef2bd88098` (its picture and TXI the same bytes).
   - *Limits:* unseen in game until DC-1 / DC-3: that the copy keeps cycling under its own name (very likely: the cycle
     hangs on the texture's own TXI) and that the game honours `clamp 2` on a mesh (TMO-5 passed for `clamp 3`). A
     tinted **game part** on a decal texture still shows no tint in game (its model's meshes are given as they are) - a

@@ -38,8 +38,8 @@
 //
 // DC (SHP-8; the owner, 2026-11-19: "Go"): a still shape (its part doesn't move) whose library texture's TXI says decal -
 // the game draws such a mesh unlit, so its Colour never shows - or is a flipbook on a mesh whose v stays within one repeat
-// (its frame wraps at the rim: a thin line) names a copy instead, n5l_<12 hex digits> (its texture and the clamp: one copy
-// per texture and clamp, never per colour): the texture's picture copied under that name with a TXI of its lines minus
+// (its frame wraps at the rim: a thin line) names a copy instead, n5l_<12 hex digits> (its texture, the clamp and its key -
+// its TXI's text and picture: one copy per distinct result, never per colour): the texture's picture copied under that name with a TXI of its lines minus
 // decal, plus clamp 2 (v) within one repeat, beside what names it - owned by the n5l_ name, git-ignored in data\files
 // (files.js copyTextures). A still Soft shape within one repeat names its clamped soft texture (its own n5s_ name, a TXI
 // saying clamp 2: files.js shapeTextures). A game part's and your own file's textures are never copied.

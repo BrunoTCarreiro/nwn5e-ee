@@ -852,7 +852,9 @@ try {
   // v, within one repeat), beside what names it: the game then draws the shape lit, its Colour showing, and its frame
   // never wraps at the rim. A still Soft shape within one repeat names its clamped soft texture (its TXI: clamp 2). A
   // moving one, a plain library texture and a game part as before.
-  const FLAME = "fxpa_flame02", C2 = F.copyName(FLAME, 2), C0 = F.copyName(FLAME, 0);
+  // (A copy's name hashes its key: the game texture's TXI text and its picture's bytes, as the copy path finds them.)
+  const copyOf = (t, clamp) => { const i = rd.image(t, []); return F.copyName(t, clamp, F.copyKey(i.txi, i.dds || i.tga)); };
+  const FLAME = "fxpa_flame02", C2 = copyOf(FLAME, 2), C0 = copyOf(FLAME, 0);
   const copyFiles = (dir) => fs.readdirSync(dir).filter((f) => /^n5l_/i.test(f)).sort();
   const clearCopies = () => { for (const dir of [FILES, SAVED]) for (const f of copyFiles(dir)) fs.rmSync(path.join(dir, f)); };
   const ring = (colour, extra) => ({ shape: Object.assign({ type: "cylinder", radius: 1, height: 0.6, top: 1.17, texture: FLAME, colour, alpha: 0.97 }, extra), at: [0, 0, 0] });
@@ -893,7 +895,7 @@ try {
   check("DC: a placeable's still glyph dome (TIN-1's fxpa_symbl_003, From above, orange) and a tiled flame ring (Repeat up 2: copied, no clamp) - their copies in data\\files beside the model, git-ignored; a plain library texture, a moving flame ring and a game part as before", () => {
     clearCopies();
     clearMoving();
-    const kept = madeTxt(), SYM = "fxpa_symbl_003", G2 = F.copyName(SYM, 2);
+    const kept = madeTxt(), SYM = "fxpa_symbl_003", G2 = copyOf(SYM, 2);
     const file = project("chkcopy", { kind: "placeable", guide: { shape: "circle", diameter: 2, height: 0 }, placeable: THROUGH, variants: [{ name: "1", row: 14162, parts: [
       { shape: { type: "dome", radius: 1, mapping: "above", texture: SYM, colour: [1, 0.502, 0] }, at: [0, 0, 0] },
       Object.assign(ring([1, 1, 1], { repeat_up: 2 }), { at: [3, 0, 0] }),

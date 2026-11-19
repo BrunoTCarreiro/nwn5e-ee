@@ -156,7 +156,7 @@ A part's `motion` (M2) scrolls, turns and breathes the pictures on its textured 
   thin line at its top rim, and no tint in game - "Go"): the game draws a mesh whose texture's TXI says `decal` unlit
   (its material skipped), and a flipbook's frame - a texture of its own - repeats into itself at v 1. So a still shape
   (no motion) whose library texture's TXI says decal - or is a flipbook on a mesh within one repeat - names a copy,
-  `n5l_<12 hex digits>` (one per texture and clamp, never per colour): the game's picture with a TXI of its lines minus
+  `n5l_<12 hex digits>` (one per texture, clamp and content - its TXI's text and picture - never per colour): the game's picture with a TXI of its lines minus
   `decal`, plus `clamp 2` (v) within one repeat, beside what names it (`data\files`, git-ignored; `--saved`), owned by
   its `n5l_` name. A still Soft shape within one repeat names its clamped soft texture (its own `n5s_` name, its TXI
   `clamp 2`). A plain library texture, a moving shape, a game part and your own file's parts as before. The Floating

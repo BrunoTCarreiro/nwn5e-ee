@@ -1970,9 +1970,13 @@ check("W1 in a page: the same rule, name, TXI and moveTextures", () => {
 // a flipbook's frame is a texture of its own, repeating both ways unless its TXI clamps (bit 1 u, 2 v, 4 r). -------------
 const FLAME_TXI = "proceduretype cycle\r\nnumx 4\r\nnumy 4\r\nfps 32\r\nblending additive\r\ndecal 1\r\ndownsamplemax 0\r\ndownsamplemin 0\r\n";
 const SYM_TXI = "decal 1\r\nblending additive\r\ndownsamplemax 0\r\ndownsamplemin 0\r\n";
-const DC_INFO = { fxpa_flame02: { decal: true, cycle: { numx: 4, numy: 4, fps: 32 } }, fxpa_symbl_003: { decal: true, cycle: null },
-  fxpa_globe: { decal: false, cycle: null }, my_flip: { decal: false, cycle: { numx: 2, numy: 2, fps: 8 } } };
+// (DC's fix round: a copy's name hashes its key too - copyKey of its source TXI's text and its picture's bytes.)
+const DC_KEY = typeof F.copyKey === "function" ? { fxpa_flame02: F.copyKey(FLAME_TXI, Buffer.from("flame-tga")), fxpa_symbl_003: F.copyKey(SYM_TXI, Buffer.from("sym-tga")),
+  my_flip: F.copyKey("proceduretype cycle\nnumx 2\nnumy 2\nfps 8\n", Buffer.from("flip-tga")) } : {};
+const DC_INFO = { fxpa_flame02: { decal: true, cycle: { numx: 4, numy: 4, fps: 32 }, key: DC_KEY.fxpa_flame02 }, fxpa_symbl_003: { decal: true, cycle: null, key: DC_KEY.fxpa_symbl_003 },
+  fxpa_globe: { decal: false, cycle: null }, my_flip: { decal: false, cycle: { numx: 2, numy: 2, fps: 8 }, key: DC_KEY.my_flip } };
 const dcInfo = (t) => DC_INFO[t] || null;
+const dcName = (t, clamp) => F.copyName(t, clamp, DC_KEY[t]);
 // SHP-8's flame ring (the owner's: Cylinder (open), Top radius, fxpa_flame02, a green Colour) and its kin, placed as a
 // spell mesh's planes.
 const dcShape = (o) => F.readShape(Object.assign({ type: "cylinder", radius: 1, height: 0.6, top: 1.17 }, o), "s");
@@ -2027,13 +2031,25 @@ check("DC vClamps: every v within one repeat (0 to 1, 0.001 either side) - u may
   assert.deepStrictEqual([tv({}), tv({ repeat_around: 3 }), tv({ mapping: "above" }), tv({ repeat_up: 2 })].map(F.vClamps), [true, true, true, false]);
   assert.strictEqual(F.vClamps(domeModel().meshes[0].tverts), true);
 });
-check("DC the names: a copy's n5l_ and 12 hex digits, one per texture and clamp (never per colour); a clamped soft texture its own n5s_ name (the clamp hashed after its colour and blend); every name before DC as it was", () => {
-  const c2 = F.copyName("fxpa_flame02", 2), c0 = F.copyName("fxpa_flame02", 0), s2 = F.copyName("fxpa_symbl_003", 2);
+check("DC the names: a copy's n5l_ and 12 hex digits, one per texture, clamp and content - its source TXI's text and its picture's bytes (copyKey) - never per colour; a clamped soft texture its own n5s_ name (the clamp hashed after its colour and blend); every name before DC as it was", () => {
+  const c2 = dcName("fxpa_flame02", 2), c0 = dcName("fxpa_flame02", 0), s2 = dcName("fxpa_symbl_003", 2);
   assert.ok([c2, c0, s2].every((n) => F.COPY_TEXTURE.test(n) && F.RESREF.test(n)), [c2, c0, s2].join(" "));
   assert.strictEqual(new Set([c2, c0, s2]).size, 3);
-  assert.strictEqual(F.copyName("FXPA_Flame02", 2), c2);
+  assert.strictEqual(F.copyName("FXPA_Flame02", 2, DC_KEY.fxpa_flame02), c2);
   assert.ok(![c2, c0, s2].some((n) => F.MOTION_TEXTURE.test(n) || F.SHAPE_TEXTURE.test(n) || F.BAKED.test(n)));
-  assert.deepStrictEqual([c2, c0, s2], ["n5l_27c61949bce0", "n5l_b506521ba6df", "n5l_31c019665962"], "the copies' names pinned: cyrb53 of \"copy:<texture>:<clamp>\"");
+  // The key (copyKey): 14 hex digits of the TXI's text as read, a dot, 14 of the picture's bytes - the same for the same,
+  // another for a TXI line or its line ends changed, or a byte of the picture; a Buffer, a Uint8Array or bytes as text alike.
+  const key = F.copyKey(FLAME_TXI, Buffer.from("flame-tga"));
+  assert.match(key, /^[0-9a-f]{14}\.[0-9a-f]{14}$/);
+  assert.strictEqual(F.copyKey(Buffer.from(FLAME_TXI, "latin1"), new Uint8Array(Buffer.from("flame-tga"))), key);
+  const others = [F.copyKey(FLAME_TXI.replace("fps 32", "fps 16"), Buffer.from("flame-tga")), F.copyKey(FLAME_TXI.replace(/\r\n/g, "\n"), Buffer.from("flame-tga")),
+    F.copyKey(FLAME_TXI, Buffer.from("flame-tgb")), F.copyKey("", Buffer.from("flame-tga")), F.copyKey(FLAME_TXI, Buffer.alloc(0))];
+  assert.strictEqual(new Set([key, ...others]).size, 6, JSON.stringify(others));
+  assert.strictEqual(new Set(others.map((k) => F.copyName("fxpa_flame02", 2, k)).concat(c2)).size, 6, "a copy's name ignores its key");
+  // No key: no name (a copy's bytes not known).
+  for (const k of [undefined, null, ""]) assert.throws(() => F.copyName("fxpa_flame02", 2, k), /copyName: fxpa_flame02 - a copy's key/);
+  assert.deepStrictEqual([key, c2, c0, s2], ["03bb721f1452fb.1ba8ec87d68e43", "n5l_803909e8bf74", "n5l_457cbc7cb0a0", "n5l_d63cb9ead2b5"],
+    "the key and the copies' names pinned: cyrb53 of \"copy:<texture>:<clamp>:<key>\"");
   // The soft texture: unclamped names as before (M1b's pins); clamped, a name of its own for each colour and blend.
   const normal = F.shapeTextureName({ colour: [0.6, 0.8, 1] }), additive = ADDITIVE([0.6, 0.8, 1]);
   assert.deepStrictEqual([normal, additive, F.shapeTextureName({ colour: [0.6, 0.8, 1], clamp: false })], ["n5s_8c757fb28f99", "n5s_617b220c1144", "n5s_8c757fb28f99"]);
@@ -2058,26 +2074,29 @@ check("DC the rule: a still shape's soft texture clamped and a library one copie
     .map(([s, m]) => F.copyKind(s, m)), ["soft", "library", null, null, null, "soft", null, null]);
   // SHP-8's ring, green: its mesh names the copy (clamp 2: v 0 to 1 up its side) - everything else of the mesh kept, the
   // mesh given untouched; the same copy in red (one per texture and clamp, not per colour).
-  const green = dcShape({ texture: "fxpa_flame02", colour: [0.137, 0.922, 0.314] }), meshes = dcPlaced(green), copy = F.copyName("fxpa_flame02", 2);
+  const green = dcShape({ texture: "fxpa_flame02", colour: [0.137, 0.922, 0.314] }), meshes = dcPlaced(green), copy = dcName("fxpa_flame02", 2);
   const out = F.stillTextures(green, undefined, meshes, dcInfo);
   assert.deepStrictEqual(out.meshes.map((m) => m.bitmap), [copy]);
-  assert.deepStrictEqual([out.copies, out.softs], [[{ name: copy, texture: "fxpa_flame02", clamp: 2 }], []]);
+  assert.deepStrictEqual([out.copies, out.softs], [[{ name: copy, texture: "fxpa_flame02", clamp: 2, key: DC_KEY.fxpa_flame02 }], []]);
   assert.deepStrictEqual(Object.assign({}, out.meshes[0], { bitmap: "fxpa_flame02" }), meshes[0]);
   assert.strictEqual(meshes[0].bitmap, "fxpa_flame02", "the mesh given was changed");
   const red = dcShape({ texture: "fxpa_flame02", colour: [1, 0, 0] });
-  assert.deepStrictEqual(F.stillTextures(red, undefined, dcPlaced(red), dcInfo).copies, [{ name: copy, texture: "fxpa_flame02", clamp: 2 }]);
+  assert.deepStrictEqual(F.stillTextures(red, undefined, dcPlaced(red), dcInfo).copies, [{ name: copy, texture: "fxpa_flame02", clamp: 2, key: DC_KEY.fxpa_flame02 }]);
   const named = (o, motion) => { const s = dcShape(o); const r = F.stillTextures(s, motion, dcPlaced(s), dcInfo); return [r.meshes[0].bitmap, r.copies, r.softs]; };
   // Repeat up 2 (v tiles): the decal flipbook still copied (no decal), no clamp; TIN-1's glyph From above: clamp 2; a
   // plain texture (fxpa_globe, not decal, not a flipbook): as it is; a flipbook not decal within one repeat: copied for
   // the clamp; tiled: as it is; a texture nothing knows (not in the game): as it is.
-  const c0 = F.copyName("fxpa_flame02", 0), glyph = F.copyName("fxpa_symbl_003", 2), flip = F.copyName("my_flip", 2);
-  assert.deepStrictEqual(named({ texture: "fxpa_flame02", repeat_up: 2 }), [c0, [{ name: c0, texture: "fxpa_flame02", clamp: 0 }], []]);
+  const c0 = dcName("fxpa_flame02", 0), glyph = dcName("fxpa_symbl_003", 2), flip = dcName("my_flip", 2);
+  assert.deepStrictEqual(named({ texture: "fxpa_flame02", repeat_up: 2 }), [c0, [{ name: c0, texture: "fxpa_flame02", clamp: 0, key: DC_KEY.fxpa_flame02 }], []]);
   assert.deepStrictEqual(named({ type: "dome", radius: 1, height: undefined, top: undefined, texture: "fxpa_symbl_003", mapping: "above", colour: [1, 0.5, 0] }),
-    [glyph, [{ name: glyph, texture: "fxpa_symbl_003", clamp: 2 }], []]);
+    [glyph, [{ name: glyph, texture: "fxpa_symbl_003", clamp: 2, key: DC_KEY.fxpa_symbl_003 }], []]);
   assert.deepStrictEqual(named({ texture: "fxpa_globe" }), ["fxpa_globe", [], []]);
-  assert.deepStrictEqual(named({ texture: "my_flip" }), [flip, [{ name: flip, texture: "my_flip", clamp: 2 }], []]);
+  assert.deepStrictEqual(named({ texture: "my_flip" }), [flip, [{ name: flip, texture: "my_flip", clamp: 2, key: DC_KEY.my_flip }], []]);
   assert.deepStrictEqual(named({ texture: "my_flip", repeat_up: 2 }), ["my_flip", [], []]);
   assert.deepStrictEqual(named({ texture: "nowhere" }), ["nowhere", [], []]);
+  // A decal texture whose key isn't known (its TXI and picture not read: no copy can be named): as it is.
+  const keyless = dcShape({ texture: "fxpa_flame02" });
+  assert.deepStrictEqual(F.stillTextures(keyless, undefined, dcPlaced(keyless), () => ({ decal: true, cycle: null })).meshes.map((m) => m.bitmap), ["fxpa_flame02"]);
   // Moving: its texture goes through its material (M2; W1's copy drops decal itself) - as it is here.
   assert.deepStrictEqual(named({ texture: "fxpa_flame02" }, { scroll: [0, 0.25] }), ["fxpa_flame02", [], []]);
   // The soft texture: clamped (its own name and blend) within one repeat, Additive or Normal; tiled (Repeat up 2) or
@@ -2101,8 +2120,8 @@ check("DC in a page: the same TXI words, names, rule and copied TXI", () => {
   assert.strictEqual(String(P.COPY_TEXTURE), String(F.COPY_TEXTURE));
   assert.deepStrictEqual([P.txiDecal(SYM_TXI), P.txiCycle(FLAME_TXI), P.txiClampBits("clamp 1\nclamp 2"), P.copiedTxi(FLAME_TXI, 2), P.softTxi({ blend: "additive", clamp: true })],
     [F.txiDecal(SYM_TXI), F.txiCycle(FLAME_TXI), F.txiClampBits("clamp 1\nclamp 2"), F.copiedTxi(FLAME_TXI, 2), F.softTxi({ blend: "additive", clamp: true })]);
-  assert.deepStrictEqual([P.copyName("fxpa_flame02", 2), P.shapeTextureName({ colour: [1, 0, 0], clamp: true }), P.vClamps([0, 0, 3, 1]), P.copied(DC_INFO.my_flip, true)],
-    [F.copyName("fxpa_flame02", 2), F.shapeTextureName({ colour: [1, 0, 0], clamp: true }), true, true]);
+  assert.deepStrictEqual([P.copyName("fxpa_flame02", 2, DC_KEY.fxpa_flame02), P.shapeTextureName({ colour: [1, 0, 0], clamp: true }), P.vClamps([0, 0, 3, 1]), P.copied(DC_INFO.my_flip, true),
+    P.copyKey(FLAME_TXI, new Uint8Array(Buffer.from("flame-tga")))], [dcName("fxpa_flame02", 2), F.shapeTextureName({ colour: [1, 0, 0], clamp: true }), true, true, DC_KEY.fxpa_flame02]);
   const s = { type: "cylinder", radius: 1, height: 0.6, top: 1.17, texture: "fxpa_flame02" };
   const ps = P.readShape(s, "s"), fs = F.readShape(s, "s");
   assert.strictEqual(P.copyKind(ps), F.copyKind(fs));
@@ -2137,7 +2156,7 @@ check("DC files.js: a still Soft shape's clamped texture made under its own name
   const GLOBE = { where: "game", tga: Buffer.from("globe-tga"), dds: Buffer.from("globe-dds"), plt: null, txi: "blending additive\r\nproceduretype arturo\r\n" };
   const asked = [], rd = { image: (name) => { asked.push(name); return name === "fxpa_flame02" ? FLAME : name === "fxpa_globe" ? GLOBE : null; } };
   const copies = W.copyTextures(placed, new Map(), { rd, shaped });
-  const c2 = F.copyName("fxpa_flame02", 2), c0 = F.copyName("fxpa_flame02", 0);
+  const c2 = dcName("fxpa_flame02", 2), c0 = dcName("fxpa_flame02", 0);  // (its key: FLAME_TXI and "flame-tga", as rd gives them)
   assert.deepStrictEqual(placed.map((x) => x.meshes.length ? x.meshes[0].bitmap : null), [c2, c2, c0, "fxpa_globe", "fxpa_flame02", addClamped, add, ""]);
   assert.deepStrictEqual([...copies.keys()], [c2, c0]);
   assert.deepStrictEqual([...new Set(asked)], ["fxpa_flame02", "fxpa_globe"]);

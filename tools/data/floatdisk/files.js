@@ -193,7 +193,8 @@ const motionJson = (materials) => [...materials].map(([material, m]) => Object.a
 // --- DC: a library texture copied without its decal mark, a flipbook clamped in v ---------------------------------------
 // The placed still shape parts' library textures the game must have copied (floatdisk.js stillTextures: a TXI that says
 // decal, or a flipbook on a mesh whose v stays within one repeat; a part that moves goes through its material): each such
-// mesh renamed in place (x.meshes) for its copy, n5l_<12 hex digits>, and each copy `copies` lacks added - its picture as
+// mesh renamed in place (x.meshes) for its copy, n5l_<12 hex digits> (its texture, clamp and key: the source's TXI text and
+// picture bytes, floatdisk.js copyKey), and each copy `copies` lacks added - its picture as
 // the copy path finds it (motionPicture, `sources`: the game's - its DDS when it has one - or one beside a part's own file)
 // and its TXI (floatdisk.js copiedTxi: its lines minus decal, + clamp 2 within one repeat). A texture found nowhere (nor its
 // TXI) is left as it is - the game hasn't it either; without a reader nothing is copied. Called after bakeParts and
@@ -208,8 +209,8 @@ function copyTextures(placed, copies = new Map(), sources = {}) {
   for (const x of placed) {
     if (x.part.source.kind !== "shape" || !x.meshes) continue;
     const still = F.stillTextures(x.part.source.shape, x.part.motion, x.meshes, (t) => {
-      const pic = picture(t);
-      return pic ? { decal: F.txiDecal(pic.txi), cycle: F.txiCycle(pic.txi) } : null;
+      const pic = picture(t);  // (its key - its TXI's text and its picture's bytes - names the copy: floatdisk.js copyKey)
+      return pic ? { decal: F.txiDecal(pic.txi), cycle: F.txiCycle(pic.txi), key: F.copyKey(pic.txi, pic.bytes) } : null;
     });
     x.meshes = still.meshes;
     for (const c of still.copies) {

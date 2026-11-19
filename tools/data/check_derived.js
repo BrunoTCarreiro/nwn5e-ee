@@ -691,7 +691,9 @@ try {
     // TIN-1's glyph, orange, still: its model names the copy - the game's picture under our own name with its TXI's lines
     // but decal, + clamp 2 - git-ignored build output (the game's art: never committed); a Soft dome beside it names its
     // clamped soft texture (its own n5s_ name, its TXI clamp 2).
-    const SYM = "fxpa_symbl_003", COPY = F.copyName(SYM, 2), colour = [1, 0.85, 0.4], SOFT = F.shapeTextureName({ colour, clamp: true });
+    // (The copy's name hashes its key: the game texture's TXI text and its picture's bytes - floatdisk.js copyKey.)
+    const SYM = "fxpa_symbl_003", symImage = RD.image(SYM, []), COPY = F.copyName(SYM, 2, F.copyKey(symImage.txi, symImage.dds || symImage.tga));
+    const colour = [1, 0.85, 0.4], SOFT = F.shapeTextureName({ colour, clamp: true });
     const file = project("chkdc", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14163, parts: [
       { shape: { type: "dome", radius: 1, mapping: "above", texture: SYM, colour: [1, 0.502, 0] }, at: [0, 0, 0] },
       { shape: { type: "dome", radius: 0.5, colour }, at: [2, 0, 0] }] }] });
