@@ -1957,6 +1957,17 @@ monster AC by CR.
       placed instance. Shatter now also puts out the lights in its Sphere as the bombs' blast and the Thunderstone's
       bang do (light_sources.cpp's BlastPutsOutLights: every lit placeable and tile-flame stand-in, no plot or
       line-of-sight check). The other S2 rows passed; S2-5's retest is S2-16.
+    - *Which placeables break (owner, 2026-11-19, S2-16 passed):* asked about "a weird dichotomy of objects that
+      although have relevant information to the player becaome destructible and ones that are just set dressing are
+      imprevious to harm". In the owner's save of the Prelude (read from it): area m0q1b's four banner-signs
+      (FlagPennantBanner1/3/5/8, the trainers' signs: conversations m1q0bsign_*) are clickable and not Plot, so
+      breakable. m0q1c's decorative flags are Plot, so not. The module's settings make the difference. Offered: A
+      spells break no placeables; B respect Plot, as built (spells and weapons break what isn't Plot); C spare
+      anything with a purpose (corrected: containers stay bashable); C+ weapons too; D also break purposeless Plot
+      dressing. The owner on the signs: "these signs are not important, sure they have some information, but they
+      are not plot relevant (as they are not marked plot) and should absolutely be breakable". *Decided (owner,
+      2026-11-19): "B, respect plot".* No change: what a module marks Plot never breaks, and anything else may.
+      Static scenery isn't an object and stays as it is.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
