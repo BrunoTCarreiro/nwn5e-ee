@@ -4746,12 +4746,19 @@ void MindSpikeKnow(uint32_t self, const rules::Spell2024& spell, const std::stri
 
 // Shatter: every creature in the 10-foot-radius Sphere at the point (the caster too), a Constitution save for half of
 // one damage roll (a Construct with Disadvantage); the doors and placeables in it that aren't plot take the damage.
+// 0.99.92 (owner, 2026-11-19, PD-4: "benches don't take damage, same for the candelabra or the big vase"; the log:
+// "0 object(s)" at the pews, which loaded breakable): the sight-checked search keeps flags and banners but leaves out
+// pews and urns - things that block walking, whose footprint NWN folds into the area's walk mesh, so a sight line to
+// their centre crosses their own footprint. A door or placeable that search left out is looked at again: its sight
+// line to its near side ($NEAR m from it toward the point, or the point itself when closer) clear, it's hit. Each one
+// it leaves out is logged with why (n5s_skip).
 const char* const kShatterGather = R"nss(
 object c = GetSpellTargetObject();
 location l = GetSpellTargetLocation();
 if (GetIsObjectValid(c)) l = GetLocation(c);
 ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_FNF_SOUND_BURST), l);
 string r = "";
+string seen = ";";
 int types = OBJECT_TYPE_CREATURE | OBJECT_TYPE_DOOR | OBJECT_TYPE_PLACEABLE;
 object t = GetFirstObjectInShape(SHAPE_SPHERE, $RADIUS, l, TRUE, types);
 while (GetIsObjectValid(t)) {
@@ -4759,16 +4766,46 @@ while (GetIsObjectValid(t)) {
     if (!GetIsDead(t)) r += ObjectToString(t) + ":" + IntToString(GetRacialType(t)) + ";";
   } else if (!GetPlotFlag(t)) {
     r += ObjectToString(t) + ":-1;";
+    seen += ObjectToString(t) + ";";
   }
   t = GetNextObjectInShape(SHAPE_SPHERE, $RADIUS, l, TRUE, types);
 }
+vector at = GetPositionFromLocation(l);
+vector up = Vector(0.0, 0.0, 1.0);
+string skip = "";
+t = GetFirstObjectInShape(SHAPE_SPHERE, $RADIUS, l, FALSE, OBJECT_TYPE_DOOR | OBJECT_TYPE_PLACEABLE);
+while (GetIsObjectValid(t)) {
+  string id = ObjectToString(t);
+  if (FindSubString(seen, ";" + id + ";") < 0) {
+    string why = "plot";
+    if (!GetPlotFlag(t)) {
+      vector p = GetPosition(t);
+      vector d = Vector(at.x - p.x, at.y - p.y, 0.0);
+      float m = VectorMagnitude(d);
+      vector side = Vector(at.x, at.y, p.z);
+      if (m > $NEAR) side = p + VectorNormalize(d) * $NEAR;
+      if (LineOfSightVector(at + up, side + up)) {
+        r += id + ":-1;";
+        why = "hit - its near side in sight";
+      } else {
+        why = "behind something";
+      }
+    }
+    if (GetStringLength(skip) < 600) skip += GetTag(t) + " 0x" + id + " " + why + "; ";
+  }
+  t = GetNextObjectInShape(SHAPE_SPHERE, $RADIUS, l, FALSE, OBJECT_TYPE_DOOR | OBJECT_TYPE_PLACEABLE);
+}
 SetLocalString(OBJECT_SELF, "n5s_hits", r);
+SetLocalString(OBJECT_SELF, "n5s_skip", skip);
 )nss";
+constexpr float kShatterNearSideMetres = 1.2f;  // a pew's half-length: its near side, outside its own footprint
 
 void Shatter(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
   std::string code = kShatterGather;
   Replace(&code, "$RADIUS", Float(rules::FeetToMetres(spell.feet) + kSlack));
+  Replace(&code, "$NEAR", Float(kShatterNearSideMetres));
   Run(code, self, spell.script);
+  const std::string skipped = engine::GetLocalString(caster, "n5s_skip");
   const Look look = LookOf(spell.row);
   const int dice = rules::SpellDiceAt(spell, slot);
   const int full = RollEngineDice(dice, spell.die);
@@ -4797,6 +4834,7 @@ void Shatter(uint32_t self, void* caster, const rules::Spell2024& spell, int slo
         "and %d object(s) in the 10-foot Sphere%s",
         self, slot, Dice(dice, spell.die).c_str(), full, creatures, objects, log.c_str());
   }
+  if (!skipped.empty()) Log("spells2024: Shatter's Sphere, looked at again: %s", skipped.c_str());
   // 0.99.82 (owner, 2026-11-18, on S2-5: "the only thing that wasn't confirmed was shatter breaking light sources
   // (candelabra and wall tourches) or even putting them out"): a lamp or a candelabra is often plot, and a wall torch
   // is a tile's flame (its nwn5e stand-in), so the damage above skipped them. The lights in the Sphere go out as a
