@@ -74,7 +74,11 @@ head node (0.35 m clear above it).
 - **From any side:** one disc faces the camera within 45 degrees; between two (45 degrees off both) both show, each at
   71% of its width - the number on two faces of a box. From above (a steep camera) the discs are seen foreshortened.
 - **No keys:** a model's animation waits for the clock, which stops while paused, so nothing in it is keyed (impact,
-  duration and cessation are empty) - what is drawn is the rest geometry.
+  duration are empty) - what is drawn is the rest geometry.
+- **No cessation (#171, TC-1):** while a model's cessation runs the client re-attaches it every frame, on the object's clock
+  (stopped while paused), then lingers 3 s - so a removed marker stayed on screen and the old numbers overlapped the new.
+  With no cessation the client detaches it and deletes it the next frame, paused or not. Never a cessation of length 0: its
+  timer would be 0, the effect would never finish - invisible, never deleted. check.js fails any model with one.
 - **One inert emitter** (`_anchor`: Single, birthrate 0 - it never makes a particle - and lifeExp 0 - the game draws
   none): the VFX Bench's library (the dev layer's export) lists only models with an emitter, so this lists the markers
   on the bench's nwn5e tab (and the Game tab, as rows 2200-2210 on the head). It shows nothing anywhere.

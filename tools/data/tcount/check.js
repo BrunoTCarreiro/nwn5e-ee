@@ -185,9 +185,13 @@ for (const name of names) {
   if ((text.match(/\n  transparencyhint 0\n/g) || []).length !== 4) what.push("transparencyhint");
   const emitters = text.split("\nnode emitter ").length - 1;
   if (emitters !== 1 || !text.includes("\n  birthrate 0\n") || !text.includes("\n  lifeExp 0\n")) what.push("not one inert emitter");
-  for (const anim of ["impact", "duration", "cessation"]) {
+  for (const anim of ["impact", "duration"]) {
     if (!text.includes("\nnewanim " + anim + " " + name + "\n")) what.push("no " + anim);
   }
+  // No cessation (#171, TC-1): with one the client keeps re-attaching the marker while it runs (never, while paused);
+  // without, a removed marker is detached and deleted the next frame. A cessation of length 0 would never finish.
+  if (/\bnewanim\s+cessation\b/i.test(text)) what.push("has a cessation (a removed marker would linger)");
+  if ((text.match(/\nnewanim /g) || []).length !== 2) what.push("not exactly impact and duration");
   if (/key\s+\d/i.test(text)) what.push("keyed (a key would wait for the clock while paused)");
   if (what.length) fail(name + ".mdl: " + what.join("; "));
 }

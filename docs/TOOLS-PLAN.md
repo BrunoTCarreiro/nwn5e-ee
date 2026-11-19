@@ -2696,6 +2696,10 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     the camera within 45 degrees, two at 45 degrees show the number twice at 71% width. Drawn unlit (`decal 1`). No keys
     (a key waits for the clock). One inert emitter lists each model in the VFX Bench (its library takes models with an
     emitter); it never makes a particle.
+  - **No cessation (TC-1 fix, #171):** the models have only impact and duration. A cessation (it was 0.2 s, empty) makes
+    the client re-attach the model each frame while its timer runs - on the object's dt, 0 while paused - and then keep it
+    3 s, so a removed marker stayed (forever paused) and overlapped the new. With none, PlayAnimation returns 0, the
+    effect is detached and deleted the next frame. Never a cessation of length 0: its timer is 0 and it never finishes.
   - **Art:** tools/data/tcount/build.js draws the 11 textures from its own digit shapes (lines and arcs, stroked; no font)
     and writes the models; outputs committed in data/files (own, deterministic art, as the death-save marker's;
     build_derived.js is for art made from the game's files). check.js: 11 distinct textures, clear outside the disc, an

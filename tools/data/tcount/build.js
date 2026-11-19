@@ -256,7 +256,9 @@ function model(n) {
     ...anchor(name),
     "endmodelgeom " + name,
   ];
-  for (const [anim, length] of [["impact", 0.25], ["duration", 1], ["cessation", 0.2]]) {
+  // No cessation, and never one of length 0 (#171, TC-1): the client re-attaches a model every frame while its cessation
+  // runs (never, paused) and lingers 3 s after; with none a removed marker is detached and deleted the next frame.
+  for (const [anim, length] of [["impact", 0.25], ["duration", 1]]) {
     lines.push("", "newanim " + anim + " " + name, "  length " + num(length), "  transtime 0.25", "  animroot " + name,
                "node dummy " + name, "  parent NULL", "endnode", "doneanim " + anim + " " + name);
   }
