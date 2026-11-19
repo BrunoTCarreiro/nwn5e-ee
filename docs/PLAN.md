@@ -1966,6 +1966,12 @@ monster AC by CR.
           every 2.5 s while the window is open, because NWN's floating text fades. Only the caster sees it.
         - Test TargetRowsCountsByTarget; 4 of 4 mutations caught; test.bat 640 ok.
         - B goes to the animation session for later: a numbered marker over each target.
+        - *0.99.89 (owner, 2026-11-19, TW-9: "no text above the orcs"):* FloatingTextStringOnCreature sends its text
+          only to the creature's own player (or, by faction, its party), so over an NPC no player saw it. The engine's
+          own floaty message (a CNWCCMessageData, as the script command builds it) now goes to the caster's player
+          with the target as the object (floaty_text.cpp's FloatTextFor; the engine's faction broadcast sends a
+          floaty about one creature to other players the same way). The first sends are logged ("target window:
+          counts floated for ..."). Retest TW-9b.
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
   - *Built 0.99.80 (level 2's build 1a):*
@@ -2036,6 +2042,20 @@ monster AC by CR.
         said "No conflict"). A save made with it on keeps the dressing breakable.
       - Tests PlotDressingBreaksWhenNothingAttached, PlotDressingKeepsWhatHasAPurpose; 9 of 9 mutations caught;
         test.bat 633 ok.
+      *0.99.89 (owner, 2026-11-19, on 0.99.88: "I still can't break placed flags. or benches for that matter"):*
+      nothing was freed, and no log line said why. The check read the engine's light flag (CNWSPlaceable +0x594)
+      raw. The constructor sets it to 1, and LoadPlaceable writes the saved LightState into it only for an
+      appearance with a LightColor in placeables.2da. CNWSPlaceable::GetLightIsOn checks the same. So every bench,
+      flag, pot and table read as "a light" and stayed Plot. Read from the engine (LoadPlaceable stores Plot at
+      +0xfc before it returns; the area loader calls it for a save's placeables) and from the owner's save (109 Plot
+      pieces qualify: not static, not clickable, no inventory, no conversation, no LightColor, only the trap script).
+      - rules::PlaceableLit (a LightColor and the flag) answers as GetLightIsOn does. A Plot piece is "a light" if
+        its appearance has a LightColor, lit or put out.
+      - The same misread made 0.37.0's static-light branch load static pieces without an inventory (a cot, a flag)
+        as normal placeables called lights. It now takes only real lights (a brazier).
+      - The first 3 Plot placeables kept are logged, with the reason.
+      - Test PlaceableLitOnlyWithALightColour; 3 of 3 mutations caught; test.bat 641 ok. Retests PD-1b, PD-2b,
+        PD-3b and PD-4 (the pews).
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
