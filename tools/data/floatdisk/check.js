@@ -1833,17 +1833,19 @@ check("W1 the name: the clamp is hashed in - a clamped and an unclamped motion n
 });
 check("W1 the TXI: the source's lines and the game's clamp line (clamp 3: 10 of the game's 15 clamp TXIs); txiClamps reads it", () => {
   assert.strictEqual(F.CLAMP_TXI, "clamp 3");
-  // fxpa_symbl_003's own TXI (decal, additive; CRLF, no last line end): its lines, then the clamp line, in its line ends.
-  const sym = "decal 1\r\nblending additive\r\ndownsamplemax 0\r\ndownsamplemin 0";
-  assert.strictEqual(F.clampedTxi(sym), sym + "\r\nclamp 3\r\n");
-  assert.strictEqual(F.clampedTxi(Buffer.from(sym, "latin1")), sym + "\r\nclamp 3\r\n");
+  // fxpa_symbl_003's own TXI (decal, additive; CRLF, no last line end): its lines, then the clamp line, in its line ends -
+  // (DC) its decal line dropped: a decal mesh is drawn unlit, its material skipped (the SHP-8 diagnosis), and our material
+  // would read whatever colour the mesh before it left.
+  const sym = "decal 1\r\nblending additive\r\ndownsamplemax 0\r\ndownsamplemin 0", symLines = "blending additive\r\ndownsamplemax 0\r\ndownsamplemin 0";
+  assert.strictEqual(F.clampedTxi(sym), symLines + "\r\nclamp 3\r\n");
+  assert.strictEqual(F.clampedTxi(Buffer.from(sym, "latin1")), symLines + "\r\nclamp 3\r\n");
   // A soft additive texture's (SOFT_TXI, LF); none at all.
   assert.strictEqual(F.clampedTxi(F.SOFT_TXI), "blending additive\nclamp 3\n");
   for (const none of ["", null, undefined, Buffer.alloc(0)]) assert.strictEqual(F.clampedTxi(none), "clamp 3\n", JSON.stringify(none));
-  // A flipbook's lines kept in order (its procedure); a clamp line of its own replaced by ours; blank lines at its end
-  // dropped, those within kept (fxpa_globe's channelscale numbers run over lines).
+  // A flipbook's lines kept in order (its procedure) - but its decal (DC); a clamp line of its own replaced by ours; blank
+  // lines at its end dropped, those within kept (fxpa_globe's channelscale numbers run over lines).
   const cycle = "proceduretype cycle\r\nnumx 4\r\nnumy 4\r\nfps 32\r\nblending additive\r\ndecal 1\r\n\r\ndownsamplemax 0\r\ndownsamplemin 0";
-  assert.strictEqual(F.clampedTxi(cycle), cycle + "\r\nclamp 3\r\n");
+  assert.strictEqual(F.clampedTxi(cycle), cycle.replace("decal 1\r\n", "") + "\r\nclamp 3\r\n");
   assert.strictEqual(F.clampedTxi("mipmap 0\r\nclamp 1\r\nfilter 0\r\n\r\n\r\n"), "mipmap 0\r\nfilter 0\r\nclamp 3\r\n");
   assert.strictEqual(F.clampedTxi("channelscale 4\n1\n\t\n1\n\ndownsamplemax 0\n\n"), "channelscale 4\n1\n\t\n1\n\ndownsamplemax 0\nclamp 3\n");
   // Whether a TXI clamps: a "clamp" line with a value other than 0, any case, either line end.
@@ -1905,7 +1907,9 @@ check("W1 files.js: a clamped material's copy - its picture under its name and a
   assert.deepStrictEqual(asked.map((a) => a[0]), ["fxpa_symbl_003", "only_dds"]);
   const copy = (k) => materials.get(names[k]).copy;
   assert.strictEqual(copy(1), undefined, "a copy for the scrolling one");
-  assert.deepStrictEqual([copy(0).ext, copy(0).bytes.toString(), copy(0).txi.toString("latin1")], [".tga", "sym-tga", SYM.txi + "\r\nclamp 3\r\n"]);
+  // (DC: the copy's TXI without the source's decal line.)
+  const SYM_COPY = "blending additive\r\ndownsamplemax 0\r\ndownsamplemin 0\r\nclamp 3\r\n";
+  assert.deepStrictEqual([copy(0).ext, copy(0).bytes.toString(), copy(0).txi.toString("latin1")], [".tga", "sym-tga", SYM_COPY]);
   assert.deepStrictEqual([copy(2).ext, copy(2).txi.toString("latin1")], [".tga", "blending additive\nclamp 3\n"]);
   assert.ok(copy(2).bytes.equals(shaped.get(soft).bytes), "the soft one's copy isn't its TGA");
   assert.deepStrictEqual([copy(3).ext, copy(3).bytes.toString(), copy(3).txi.toString("latin1")], [".dds", "odd-dds", "clamp 3\n"]);
@@ -1919,7 +1923,7 @@ check("W1 files.js: a clamped material's copy - its picture under its name and a
     [names[2] + ".mtr", "material"], [names[2] + ".tga", "material"], [names[2] + ".txi", "material"],
     [names[3] + ".mtr", "material"], [names[3] + ".dds", "material"], [names[3] + ".txi", "material"],
     [names[4] + ".mtr", "material"], [names[4] + ".tga", "material"], [names[4] + ".txi", "material"], ["vsn5uvmove.shd", "shader"]]);
-  assert.strictEqual(writes[2].bytes.toString("latin1"), SYM.txi + "\r\nclamp 3\r\n");
+  assert.strictEqual(writes[2].bytes.toString("latin1"), SYM_COPY);
   // --json's and the summary's: clamp said.
   assert.deepStrictEqual(W.motionJson(materials).map((j) => j.clamp === true), [true, false, true, true, true]);
   assert.ok(!("clamp" in W.motionJson(materials)[1]));
@@ -1958,6 +1962,240 @@ check("W1 in a page: the same rule, name, TXI and moveTextures", () => {
   assert.strictEqual(P.txiClamps("clamp 3"), true);
   const model = domeModel({ mapping: "above" });
   assert.deepStrictEqual(P.moveTextures(model.meshes, m), F.moveTextures(model.meshes, m));
+});
+
+// --- DC (#39; SHP-8, the owner, 2026-11-19: "Go"): a library texture marked decal copied under our own name without the
+// mark, so a shape's Colour shows in game; flipbook frames and soft textures clamped in v, so no thin line shows at a
+// mesh's top rim. The engine (the SHP-8 diagnosis): a decal mesh is drawn unlit - texture x alpha, its material skipped;
+// a flipbook's frame is a texture of its own, repeating both ways unless its TXI clamps (bit 1 u, 2 v, 4 r). -------------
+const FLAME_TXI = "proceduretype cycle\r\nnumx 4\r\nnumy 4\r\nfps 32\r\nblending additive\r\ndecal 1\r\ndownsamplemax 0\r\ndownsamplemin 0\r\n";
+const SYM_TXI = "decal 1\r\nblending additive\r\ndownsamplemax 0\r\ndownsamplemin 0\r\n";
+// (DC's fix round: a copy's name hashes its key too - copyKey of its source TXI's text and its picture's bytes.)
+const DC_KEY = typeof F.copyKey === "function" ? { fxpa_flame02: F.copyKey(FLAME_TXI, Buffer.from("flame-tga")), fxpa_symbl_003: F.copyKey(SYM_TXI, Buffer.from("sym-tga")),
+  my_flip: F.copyKey("proceduretype cycle\nnumx 2\nnumy 2\nfps 8\n", Buffer.from("flip-tga")) } : {};
+const DC_INFO = { fxpa_flame02: { decal: true, cycle: { numx: 4, numy: 4, fps: 32 }, key: DC_KEY.fxpa_flame02 }, fxpa_symbl_003: { decal: true, cycle: null, key: DC_KEY.fxpa_symbl_003 },
+  fxpa_globe: { decal: false, cycle: null }, my_flip: { decal: false, cycle: { numx: 2, numy: 2, fps: 8 }, key: DC_KEY.my_flip } };
+const dcInfo = (t) => DC_INFO[t] || null;
+const dcName = (t, clamp) => F.copyName(t, clamp, DC_KEY[t]);
+// SHP-8's flame ring (the owner's: Cylinder (open), Top radius, fxpa_flame02, a green Colour) and its kin, placed as a
+// spell mesh's planes.
+const dcShape = (o) => F.readShape(Object.assign({ type: "cylinder", radius: 1, height: 0.6, top: 1.17 }, o), "s");
+const dcPlaced = (shape) => F.placePart({ at: [0, 0, 0], turn: 0, scale: 1, tilt: [0, 0], tint: [1, 1, 1] }, F.shapeModel(shape), 0, 0, "j", true).meshes;
+check("DC the TXI's words: decal (a value other than 0, as C's atoi reads it), the flipbook (the bench's txiCycle), the clamp bits (every clamp line's together)", () => {
+  for (const t of [SYM_TXI, FLAME_TXI, "decal 1", "Decal\t2\r\n", "  decal 1  ", Buffer.from("decal 1\n"), "mipmap 0\ndecal 1x"]) assert.strictEqual(F.txiDecal(t), true, JSON.stringify(String(t)));
+  for (const t of ["decal 0", "decal", "decal x", "", null, undefined, "# decal 1", "decalx 1", "blending additive\n", "nodecal 1"]) assert.strictEqual(F.txiDecal(t), false, JSON.stringify(t));
+  assert.deepStrictEqual(F.txiCycle(FLAME_TXI), { numx: 4, numy: 4, fps: 32 });
+  assert.deepStrictEqual(F.txiCycle(Buffer.from(FLAME_TXI, "latin1")), { numx: 4, numy: 4, fps: 32 });
+  assert.deepStrictEqual(F.txiCycle("proceduretype cycle\nnumx 1\nnumy 8\nfps 12\n"), { numx: 1, numy: 8, fps: 12 });  // the game's waterfalls
+  assert.deepStrictEqual(F.txiCycle("ProcedureType Cycle\r\nnumx 2\r\n"), { numx: 2, numy: 1, fps: 0 });  // fps left out: its first frame
+  assert.deepStrictEqual(F.txiCycle("proceduretype cycle\nnumx 4\nnumx 1\n"), { numx: 4, numy: 1, fps: 0 }, "the first line naming a word");
+  for (const t of [SYM_TXI, "proceduretype arturo\nnumx 4\n", "proceduretype cycle\n", "proceduretype cycle\nnumx 1\nnumy 1\n", "proceduretype cycle\nnumx 2.5\n",
+    "proceduretype cycle\nnumx 0\nnumy 4\n", "proceduretype cycle\nnumx 4\nfps -1\n", "", null, undefined]) assert.strictEqual(F.txiCycle(t), null, JSON.stringify(t));
+  for (const [t, bits] of [["clamp 3", 3], ["clamp 1\r\nmipmap 0\r\nclamp 2\r\n", 3], ["", 0], [null, 0], ["clamp 0", 0], ["clamp x", 0], ["clamp 2", 2], ["Clamp\t4", 4],
+    ["# clamp 3", 0], [SYM_TXI, 0]]) assert.strictEqual(F.txiClampBits(t), bits, JSON.stringify(t));
+  // W1's txiClamps is the same reading: clamps when the bits aren't 0.
+  for (const t of ["clamp 3", "clamp 1\r\n", "clamp 0", "clamp x", "", SYM_TXI]) assert.strictEqual(F.txiClamps(t), F.txiClampBits(t) !== 0, JSON.stringify(t));
+  assert.strictEqual(F.CLAMP_V, 2);
+});
+check("DC copiedTxi: the source's lines as they are but its decal, in its own line ends, then one clamp line - its own and ours together; W1's clampedTxi is clamp 3 through it", () => {
+  const flameLines = "proceduretype cycle\r\nnumx 4\r\nnumy 4\r\nfps 32\r\nblending additive\r\ndownsamplemax 0\r\ndownsamplemin 0";
+  assert.strictEqual(F.copiedTxi(FLAME_TXI, 2), flameLines + "\r\nclamp 2\r\n");
+  assert.strictEqual(F.copiedTxi(FLAME_TXI, 0), flameLines + "\r\n");
+  assert.strictEqual(F.copiedTxi(FLAME_TXI), flameLines + "\r\n");
+  assert.strictEqual(F.copiedTxi(Buffer.from(FLAME_TXI, "latin1"), 2), flameLines + "\r\nclamp 2\r\n");
+  assert.strictEqual(F.copiedTxi(SYM_TXI, 2), "blending additive\r\ndownsamplemax 0\r\ndownsamplemin 0\r\nclamp 2\r\n");
+  // Every decal line goes (any value, any case, a bare one too); a clamp line of its own joins ours - one line, the union,
+  // at the end; blank lines at its end dropped.
+  assert.strictEqual(F.copiedTxi("Decal 0\nmipmap 0\ndecal\nclamp 1\nfilter 0\n\n\n", 2), "mipmap 0\nfilter 0\nclamp 3\n");
+  assert.strictEqual(F.copiedTxi("clamp 2\r\n", 2), "clamp 2\r\n");
+  assert.strictEqual(F.copiedTxi("decalx 1\n"), "decalx 1\n", "not a decal line");
+  // Nothing left: empty with no clamp to add, else the clamp line alone (LF, ours).
+  for (const none of ["", null, undefined, "decal 1", Buffer.alloc(0)]) {
+    assert.strictEqual(F.copiedTxi(none), "", JSON.stringify(none));
+    assert.strictEqual(F.copiedTxi(none, 2), "clamp 2\n", JSON.stringify(none));
+  }
+  // W1's clamp 3 is the union with the source's own (the game's clamp TXIs say 1, 2 or 3: clamp 3 always, as before).
+  for (const s of [SYM_TXI, FLAME_TXI, "clamp 1\r\n", "mipmap 0\nclamp 2", F.SOFT_TXI, ""]) assert.strictEqual(F.clampedTxi(s), F.copiedTxi(s, 3), JSON.stringify(s));
+  assert.strictEqual(F.clampedTxi("mipmap 0\r\nclamp 1\r\nfilter 0\r\n"), "mipmap 0\r\nfilter 0\r\nclamp 3\r\n");
+  // What the copy says: no decal, the clamp, the flipbook and the blending kept.
+  const copy = F.copiedTxi(FLAME_TXI, 2);
+  assert.deepStrictEqual([F.txiDecal(copy), F.txiClampBits(copy), F.txiCycle(copy), F.txiAdditive(copy)], [false, 2, { numx: 4, numy: 4, fps: 32 }, true]);
+  assert.strictEqual(F.txiDecal(F.clampedTxi(SYM_TXI)), false);
+});
+check("DC vClamps: every v within one repeat (0 to 1, 0.001 either side) - u may tile; no UVs, no", () => {
+  assert.strictEqual(F.vClamps([0, 0, 3, 1, 1.5, 0.5]), true);  // Elemental Shield's ring: u 0 to 3, v 0 to 1
+  assert.strictEqual(F.vClamps([0, 0, 1, 1.0009, -0.5, -0.0009]), true);
+  for (const t of [[0, 0, 1, 2], [0, -0.002], [0, 1.002], [], null, undefined, [0, NaN]]) assert.strictEqual(F.vClamps(t), false, JSON.stringify(t));
+  // A shape's: Wrapped at Repeat up 1 (any Repeat around) and From above within one repeat; Repeat up 2 not.
+  const tv = (o) => F.shapeModel(dcShape(o)).meshes[0].tverts;
+  assert.deepStrictEqual([tv({}), tv({ repeat_around: 3 }), tv({ mapping: "above" }), tv({ repeat_up: 2 })].map(F.vClamps), [true, true, true, false]);
+  assert.strictEqual(F.vClamps(domeModel().meshes[0].tverts), true);
+});
+check("DC the names: a copy's n5l_ and 12 hex digits, one per texture, clamp and content - its source TXI's text and its picture's bytes (copyKey) - never per colour; a clamped soft texture its own n5s_ name (the clamp hashed after its colour and blend); every name before DC as it was", () => {
+  const c2 = dcName("fxpa_flame02", 2), c0 = dcName("fxpa_flame02", 0), s2 = dcName("fxpa_symbl_003", 2);
+  assert.ok([c2, c0, s2].every((n) => F.COPY_TEXTURE.test(n) && F.RESREF.test(n)), [c2, c0, s2].join(" "));
+  assert.strictEqual(new Set([c2, c0, s2]).size, 3);
+  assert.strictEqual(F.copyName("FXPA_Flame02", 2, DC_KEY.fxpa_flame02), c2);
+  assert.ok(![c2, c0, s2].some((n) => F.MOTION_TEXTURE.test(n) || F.SHAPE_TEXTURE.test(n) || F.BAKED.test(n)));
+  // The key (copyKey): 14 hex digits of the TXI's text as read, a dot, 14 of the picture's bytes - the same for the same,
+  // another for a TXI line or its line ends changed, or a byte of the picture; a Buffer, a Uint8Array or bytes as text alike.
+  const key = F.copyKey(FLAME_TXI, Buffer.from("flame-tga"));
+  assert.match(key, /^[0-9a-f]{14}\.[0-9a-f]{14}$/);
+  assert.strictEqual(F.copyKey(Buffer.from(FLAME_TXI, "latin1"), new Uint8Array(Buffer.from("flame-tga"))), key);
+  const others = [F.copyKey(FLAME_TXI.replace("fps 32", "fps 16"), Buffer.from("flame-tga")), F.copyKey(FLAME_TXI.replace(/\r\n/g, "\n"), Buffer.from("flame-tga")),
+    F.copyKey(FLAME_TXI, Buffer.from("flame-tgb")), F.copyKey("", Buffer.from("flame-tga")), F.copyKey(FLAME_TXI, Buffer.alloc(0))];
+  assert.strictEqual(new Set([key, ...others]).size, 6, JSON.stringify(others));
+  assert.strictEqual(new Set(others.map((k) => F.copyName("fxpa_flame02", 2, k)).concat(c2)).size, 6, "a copy's name ignores its key");
+  // No key: no name (a copy's bytes not known).
+  for (const k of [undefined, null, ""]) assert.throws(() => F.copyName("fxpa_flame02", 2, k), /copyName: fxpa_flame02 - a copy's key/);
+  assert.deepStrictEqual([key, c2, c0, s2], ["03bb721f1452fb.1ba8ec87d68e43", "n5l_803909e8bf74", "n5l_457cbc7cb0a0", "n5l_d63cb9ead2b5"],
+    "the key and the copies' names pinned: cyrb53 of \"copy:<texture>:<clamp>:<key>\"");
+  // The soft texture: unclamped names as before (M1b's pins); clamped, a name of its own for each colour and blend.
+  const normal = F.shapeTextureName({ colour: [0.6, 0.8, 1] }), additive = ADDITIVE([0.6, 0.8, 1]);
+  assert.deepStrictEqual([normal, additive, F.shapeTextureName({ colour: [0.6, 0.8, 1], clamp: false })], ["n5s_8c757fb28f99", "n5s_617b220c1144", "n5s_8c757fb28f99"]);
+  const nc = F.shapeTextureName({ colour: [0.6, 0.8, 1], clamp: true }), ac = F.shapeTextureName({ colour: [0.6, 0.8, 1], blend: "additive", clamp: true });
+  assert.ok(F.SHAPE_TEXTURE.test(nc) && F.SHAPE_TEXTURE.test(ac), nc + " " + ac);
+  assert.strictEqual(new Set([normal, additive, nc, ac]).size, 4);
+  assert.strictEqual(F.shapeTextureName({ colour: [0.6001, 0.8, 1], blend: "additive", clamp: true }), ac, "to 0.001, as the colour");
+  assert.deepStrictEqual([nc, ac], ["n5s_a40318b044a1", "n5s_bfc2ebac4509"], "the clamped soft names pinned: \"soft:0.6,0.8,1[:additive]:clamp2\"");
+  // Its TXI (softTxi): an Additive one's SOFT_TXI, a Normal one's none - clamped, each with clamp 2.
+  assert.strictEqual(F.softTxi({ blend: "additive" }), F.SOFT_TXI);
+  for (const s of [{ blend: "normal" }, {}, { blend: "normal", clamp: false }]) assert.strictEqual(F.softTxi(s), null, JSON.stringify(s));
+  assert.strictEqual(F.softTxi({ blend: "normal", clamp: true }), "clamp 2\n");
+  assert.strictEqual(F.softTxi({ blend: "additive", clamp: true }), "blending additive\nclamp 2\n");
+});
+check("DC the rule: a still shape's soft texture clamped and a library one copied where the game must have it so (decal; a flipbook within one repeat) - a moving one, a plain texture, a tiled flipbook or None as they were", () => {
+  // copied(info, clampV): the copy route for a library texture whose TXI says decal, or a flipbook on a mesh within one repeat.
+  assert.deepStrictEqual([[DC_INFO.fxpa_flame02, true], [DC_INFO.fxpa_flame02, false], [DC_INFO.fxpa_symbl_003, false], [DC_INFO.fxpa_globe, true],
+    [DC_INFO.my_flip, true], [DC_INFO.my_flip, false], [null, true], [undefined, true]].map(([i, v]) => F.copied(i, v)), [true, true, true, false, true, false, false, false]);
+  // copyKind(shape, motion): soft, library or none - only a shape's, only while its part doesn't move.
+  assert.deepStrictEqual([[dcShape({}), undefined], [dcShape({ texture: "fxpa_flame02" }), null], [dcShape({ texture: "none" }), undefined],
+    [dcShape({}), { breathe: 0.2 }], [dcShape({ texture: "fxpa_flame02" }), { scroll: [0, 0.25] }], [dcShape({}), { rate: 2 }], [undefined, undefined], [null, undefined]]
+    .map(([s, m]) => F.copyKind(s, m)), ["soft", "library", null, null, null, "soft", null, null]);
+  // SHP-8's ring, green: its mesh names the copy (clamp 2: v 0 to 1 up its side) - everything else of the mesh kept, the
+  // mesh given untouched; the same copy in red (one per texture and clamp, not per colour).
+  const green = dcShape({ texture: "fxpa_flame02", colour: [0.137, 0.922, 0.314] }), meshes = dcPlaced(green), copy = dcName("fxpa_flame02", 2);
+  const out = F.stillTextures(green, undefined, meshes, dcInfo);
+  assert.deepStrictEqual(out.meshes.map((m) => m.bitmap), [copy]);
+  assert.deepStrictEqual([out.copies, out.softs], [[{ name: copy, texture: "fxpa_flame02", clamp: 2, key: DC_KEY.fxpa_flame02 }], []]);
+  assert.deepStrictEqual(Object.assign({}, out.meshes[0], { bitmap: "fxpa_flame02" }), meshes[0]);
+  assert.strictEqual(meshes[0].bitmap, "fxpa_flame02", "the mesh given was changed");
+  const red = dcShape({ texture: "fxpa_flame02", colour: [1, 0, 0] });
+  assert.deepStrictEqual(F.stillTextures(red, undefined, dcPlaced(red), dcInfo).copies, [{ name: copy, texture: "fxpa_flame02", clamp: 2, key: DC_KEY.fxpa_flame02 }]);
+  const named = (o, motion) => { const s = dcShape(o); const r = F.stillTextures(s, motion, dcPlaced(s), dcInfo); return [r.meshes[0].bitmap, r.copies, r.softs]; };
+  // Repeat up 2 (v tiles): the decal flipbook still copied (no decal), no clamp; TIN-1's glyph From above: clamp 2; a
+  // plain texture (fxpa_globe, not decal, not a flipbook): as it is; a flipbook not decal within one repeat: copied for
+  // the clamp; tiled: as it is; a texture nothing knows (not in the game): as it is.
+  const c0 = dcName("fxpa_flame02", 0), glyph = dcName("fxpa_symbl_003", 2), flip = dcName("my_flip", 2);
+  assert.deepStrictEqual(named({ texture: "fxpa_flame02", repeat_up: 2 }), [c0, [{ name: c0, texture: "fxpa_flame02", clamp: 0, key: DC_KEY.fxpa_flame02 }], []]);
+  assert.deepStrictEqual(named({ type: "dome", radius: 1, height: undefined, top: undefined, texture: "fxpa_symbl_003", mapping: "above", colour: [1, 0.5, 0] }),
+    [glyph, [{ name: glyph, texture: "fxpa_symbl_003", clamp: 2, key: DC_KEY.fxpa_symbl_003 }], []]);
+  assert.deepStrictEqual(named({ texture: "fxpa_globe" }), ["fxpa_globe", [], []]);
+  assert.deepStrictEqual(named({ texture: "my_flip" }), [flip, [{ name: flip, texture: "my_flip", clamp: 2, key: DC_KEY.my_flip }], []]);
+  assert.deepStrictEqual(named({ texture: "my_flip", repeat_up: 2 }), ["my_flip", [], []]);
+  assert.deepStrictEqual(named({ texture: "nowhere" }), ["nowhere", [], []]);
+  // A decal texture whose key isn't known (its TXI and picture not read: no copy can be named): as it is.
+  const keyless = dcShape({ texture: "fxpa_flame02" });
+  assert.deepStrictEqual(F.stillTextures(keyless, undefined, dcPlaced(keyless), () => ({ decal: true, cycle: null })).meshes.map((m) => m.bitmap), ["fxpa_flame02"]);
+  // Moving: its texture goes through its material (M2; W1's copy drops decal itself) - as it is here.
+  assert.deepStrictEqual(named({ texture: "fxpa_flame02" }, { scroll: [0, 0.25] }), ["fxpa_flame02", [], []]);
+  // The soft texture: clamped (its own name and blend) within one repeat, Additive or Normal; tiled (Repeat up 2) or
+  // moving as before; None nothing.
+  const softName = (o) => F.shapeTextureName(Object.assign({ colour: [0.6, 0.8, 1] }, o));
+  assert.deepStrictEqual(named({ blend: "additive" }), [softName({ blend: "additive", clamp: true }), [], [{ name: softName({ blend: "additive", clamp: true }),
+    colour: [0.6, 0.8, 1], blend: "additive", clamp: true }]]);
+  assert.deepStrictEqual(named({ mapping: "above" }), [softName({ clamp: true }), [], [{ name: softName({ clamp: true }), colour: [0.6, 0.8, 1], blend: "normal", clamp: true }]]);
+  assert.deepStrictEqual(named({ blend: "additive", repeat_up: 2 }), [softName({ blend: "additive" }), [], []]);
+  assert.deepStrictEqual(named({ blend: "additive" }, { scroll: [0, 0.25] }), [softName({ blend: "additive" }), [], []]);
+  assert.deepStrictEqual(named({ texture: "none" }), ["", [], []]);
+  // Twice is once: a mesh already given its copy or clamped soft name stays (the generators and the page each run it).
+  const once = F.stillTextures(green, undefined, meshes, dcInfo);
+  assert.deepStrictEqual(F.stillTextures(green, undefined, once.meshes, dcInfo).meshes, once.meshes);
+  // No meshes, or none of the shape's own texture: nothing.
+  assert.deepStrictEqual(F.stillTextures(green, undefined, [], dcInfo), { meshes: [], softs: [], copies: [] });
+});
+check("DC in a page: the same TXI words, names, rule and copied TXI", () => {
+  const P = pageFloatDisk();
+  for (const k of ["CLAMP_V"]) assert.strictEqual(P[k], F[k]);
+  assert.strictEqual(String(P.COPY_TEXTURE), String(F.COPY_TEXTURE));
+  assert.deepStrictEqual([P.txiDecal(SYM_TXI), P.txiCycle(FLAME_TXI), P.txiClampBits("clamp 1\nclamp 2"), P.copiedTxi(FLAME_TXI, 2), P.softTxi({ blend: "additive", clamp: true })],
+    [F.txiDecal(SYM_TXI), F.txiCycle(FLAME_TXI), F.txiClampBits("clamp 1\nclamp 2"), F.copiedTxi(FLAME_TXI, 2), F.softTxi({ blend: "additive", clamp: true })]);
+  assert.deepStrictEqual([P.copyName("fxpa_flame02", 2, DC_KEY.fxpa_flame02), P.shapeTextureName({ colour: [1, 0, 0], clamp: true }), P.vClamps([0, 0, 3, 1]), P.copied(DC_INFO.my_flip, true),
+    P.copyKey(FLAME_TXI, new Uint8Array(Buffer.from("flame-tga")))], [dcName("fxpa_flame02", 2), F.shapeTextureName({ colour: [1, 0, 0], clamp: true }), true, true, DC_KEY.fxpa_flame02]);
+  const s = { type: "cylinder", radius: 1, height: 0.6, top: 1.17, texture: "fxpa_flame02" };
+  const ps = P.readShape(s, "s"), fs = F.readShape(s, "s");
+  assert.strictEqual(P.copyKind(ps), F.copyKind(fs));
+  assert.deepStrictEqual(P.stillTextures(ps, undefined, P.shapeModel(ps).meshes, dcInfo), F.stillTextures(fs, undefined, F.shapeModel(fs).meshes, dcInfo));
+});
+check("DC files.js: a still Soft shape's clamped texture made under its own name with its TXI; a still library decal or flipbook texture copied - its picture and a TXI of its lines minus decal (+ clamp 2) under its n5l_ name, owned by it; the rest as before", () => {
+  const fs = require("fs");
+  const os = require("os");
+  const W = require("./files.js");
+  const part = (shape, motion) => F.readPart({ shape: Object.assign({ type: "cylinder", radius: 1, height: 0.6, top: 1.17 }, shape), at: [0, 0, 0], motion }, "p", BASE);
+  // SHP-8's green ring; a red one (the same copy); one tiled up (its copy unclamped); a plain library texture; a moving
+  // flipbook (its material's); a Soft Additive cylinder (clamped), a tiled one (as before); None.
+  const placed = [part({ texture: "fxpa_flame02", colour: [0.137, 0.922, 0.314] }), part({ texture: "fxpa_flame02", colour: [1, 0, 0] }),
+    part({ texture: "fxpa_flame02", repeat_up: 2 }), part({ texture: "fxpa_globe" }), part({ texture: "fxpa_flame02" }, { scroll: [0, 0.25] }),
+    part({ blend: "additive" }), part({ blend: "additive", repeat_up: 2 }), part({ texture: "none" })].map((p) => ({ part: p }));
+  for (const x of placed) x.meshes = F.placePart(x.part, F.shapeModel(x.part.source.shape), 0, 0, "j", true).meshes;
+  const add = ADDITIVE([0.6, 0.8, 1]), addClamped = F.shapeTextureName({ colour: [0.6, 0.8, 1], blend: "additive", clamp: true });
+  // The soft textures: the clamped one under its own name (the mesh renamed), its TXI blending additive + clamp 2; the
+  // tiled one's as before.
+  const shaped = W.shapeTextures(placed);
+  assert.deepStrictEqual([...shaped.keys()], [addClamped, add]);
+  assert.deepStrictEqual([placed[5].meshes[0].bitmap, placed[6].meshes[0].bitmap], [addClamped, add]);
+  assert.deepStrictEqual([shaped.get(addClamped).txi.toString("latin1"), shaped.get(add).txi.toString("latin1")], ["blending additive\nclamp 2\n", F.SOFT_TXI]);
+  assert.ok(shaped.get(addClamped).bytes.equals(shaped.get(add).bytes), "the clamped soft texture's picture isn't its colour's");
+  assert.deepStrictEqual(W.shapeJson(shaped), [{ texture: addClamped, colour: [0.6, 0.8, 1], blend: "additive", clamp: true }, { texture: add, colour: [0.6, 0.8, 1], blend: "additive" }]);
+  assert.deepStrictEqual(W.shapeLines(shaped, "data/files"), [
+    `  texture ${addClamped}: a shape's soft texture, colour 0.6 0.8 1, additive, clamped in v (${addClamped}.txi beside it: blending additive, clamp 2) - written into data/files`,
+    `  texture ${add}: a shape's soft texture, colour 0.6 0.8 1, additive (${add}.txi beside it: blending additive) - written into data/files`]);
+  // The copies: fxpa_flame02's picture as the game draws it (reader.js image), asked for once a texture; the TXI its lines
+  // minus decal, + clamp 2 within one repeat; fxpa_globe asked for and left (not decal, not a flipbook).
+  const FLAME = { where: "game", tga: Buffer.from("flame-tga"), dds: null, plt: null, txi: FLAME_TXI };
+  const GLOBE = { where: "game", tga: Buffer.from("globe-tga"), dds: Buffer.from("globe-dds"), plt: null, txi: "blending additive\r\nproceduretype arturo\r\n" };
+  const asked = [], rd = { image: (name) => { asked.push(name); return name === "fxpa_flame02" ? FLAME : name === "fxpa_globe" ? GLOBE : null; } };
+  const copies = W.copyTextures(placed, new Map(), { rd, shaped });
+  const c2 = dcName("fxpa_flame02", 2), c0 = dcName("fxpa_flame02", 0);  // (its key: FLAME_TXI and "flame-tga", as rd gives them)
+  assert.deepStrictEqual(placed.map((x) => x.meshes.length ? x.meshes[0].bitmap : null), [c2, c2, c0, "fxpa_globe", "fxpa_flame02", addClamped, add, ""]);
+  assert.deepStrictEqual([...copies.keys()], [c2, c0]);
+  assert.deepStrictEqual([...new Set(asked)], ["fxpa_flame02", "fxpa_globe"]);
+  const lines = "proceduretype cycle\r\nnumx 4\r\nnumy 4\r\nfps 32\r\nblending additive\r\ndownsamplemax 0\r\ndownsamplemin 0\r\n";
+  assert.deepStrictEqual([c2, c0].map((n) => { const c = copies.get(n); return [c.texture, c.clamp, c.ext, c.bytes.toString(), c.txi.toString("latin1"), c.label]; }),
+    [["fxpa_flame02", 2, ".tga", "flame-tga", lines + "clamp 2\r\n", "cylinder 1 m"], ["fxpa_flame02", 0, ".tga", "flame-tga", lines, "cylinder 1 m"]]);
+  // The moving one's material: texture0 the game's fxpa_flame02 (M2's route: no decal through a material).
+  const materials = W.motionMaterials(placed);
+  assert.deepStrictEqual([...materials.values()].map((m) => [m.texture, /^texture0 fxpa_flame02$/m.test(m.text)]), [["fxpa_flame02", true]]);
+  // Writes: each copy's picture and TXI under its name, kind "copy" (owned by the n5l_ name); --json's and the summary's.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "n5_fddc-"));
+  try {
+    const writes = W.copyWrites(copies, dir);
+    assert.deepStrictEqual(writes.map((w) => [path.basename(w.file), w.kind]), [[c2 + ".tga", "copy"], [c2 + ".txi", "copy"], [c0 + ".tga", "copy"], [c0 + ".txi", "copy"]]);
+    assert.deepStrictEqual(W.copyWrites(new Map(), dir), []);
+    assert.deepStrictEqual(W.copyJson(copies), [{ copy: c2, texture: "fxpa_flame02", clamp: 2 }, { copy: c0, texture: "fxpa_flame02", clamp: 0 }]);
+    assert.deepStrictEqual(W.copyLines(copies, "data/files"), [
+      `  texture ${c2}: fxpa_flame02 copied without its decal mark, clamped in v (${c2}.tga, ${c2}.txi: its TXI without decal, and clamp 2) - written into data/files`,
+      `  texture ${c0}: fxpa_flame02 copied without its decal mark (${c0}.tga, ${c0}.txi: its TXI without decal) - written into data/files`]);
+    const owned = W.ownership({ repo: dir, manifest: new Set(), mark: F.MARK });
+    for (const ext of [".tga", ".dds", ".txi"]) assert.strictEqual(owned({ file: path.join(dir, c2 + ext), kind: "copy" }, Buffer.from("x")), true, ext);
+    for (const name of ["n5l_mine.tga", "fxpa_flame02.tga", c2 + ".mtr", "n5u_0123456789ab.tga"]) assert.strictEqual(owned({ file: path.join(dir, name), kind: "copy" }, Buffer.from("x")), false, name);
+    fs.writeFileSync(path.join(dir, c2 + ".txi"), "decal 1\r\n");
+    assert.deepStrictEqual(W.writeAll(writes, owned, { repo: dir, manifest: new Set() }).map(([s, f]) => [s, path.basename(f)]),
+      [["new", c2 + ".tga"], ["rebuilt", c2 + ".txi"], ["new", c0 + ".tga"], ["new", c0 + ".txi"]]);
+    assert.strictEqual(fs.readFileSync(path.join(dir, c2 + ".txi"), "latin1"), lines + "clamp 2\r\n");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  // A DDS when the texture has one (what the game draws), its TXI from the game: a decal DDS-only texture.
+  const dds = [{ part: part({ texture: "c_air_skin" }) }];
+  dds[0].meshes = F.placePart(dds[0].part, F.shapeModel(dds[0].part.source.shape), 0, 0, "j", true).meshes;
+  const air = W.copyTextures(dds, new Map(), { rd: { image: () => ({ where: "game", tga: Buffer.from("t"), dds: Buffer.from("d"), plt: null, txi: "decal 1\r\nproceduretype arturo\r\n" }) } });
+  assert.deepStrictEqual([...air.values()].map((c) => [c.ext, c.bytes.toString(), c.txi.toString("latin1")]), [[".dds", "d", "proceduretype arturo\r\nclamp 2\r\n"]]);
+  // Without a reader (a page's caller, or none given): nothing copied.
+  const bare = [{ part: part({ texture: "fxpa_flame02" }) }];
+  bare[0].meshes = F.placePart(bare[0].part, F.shapeModel(bare[0].part.source.shape), 0, 0, "j", true).meshes;
+  assert.strictEqual(W.copyTextures(bare, new Map(), {}).size, 0);
+  assert.strictEqual(bare[0].meshes[0].bitmap, "fxpa_flame02");
 });
 
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);

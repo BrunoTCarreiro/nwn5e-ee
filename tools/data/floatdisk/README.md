@@ -347,8 +347,9 @@ A part's `motion` moves the pictures on its textured meshes (M2; the owner, 2026
     domes moved and stayed see-through).
   - **The copy:** the texture's picture under the material's name, `n5u_<...>.tga` (or `.dds`, as the source is: a
     soft one as made, a dyed part's bake, the game's - its DDS when it has one - or the one beside your own file), and
-    `n5u_<...>.txi`: the source's own TXI lines as they are (blending, `proceduretype` / `numx` / `numy` / `fps`, `decal`
-    ...), then the game's clamp line, `clamp 3` (`clampedTxi`). The game's 15 clamp TXIs say `clamp 1` (4), `clamp 2`
+    `n5u_<...>.txi`: the source's own TXI lines as they are (blending, `proceduretype` / `numx` / `numy` / `fps` ...) but
+    its `decal` (DC: a decal mesh is drawn unlit, its material skipped - ours would read whatever the mesh before it
+    left), then the game's clamp line, `clamp 3` (`clampedTxi`: `copiedTxi` with clamp 3). The game's 15 clamp TXIs say `clamp 1` (4), `clamp 2`
     (1) or `clamp 3` (10, the GUI's tabs, icons and loadscreens): read as two bits (1 u, 2 v - inferred, not seen),
     3 clamps both ways, and it's the game's commonest. `files.js`'s `motionCopies` (its `motionPicture`: one copy path
     for the generators, the probe and the VFX Bench's Play) makes it; `motionWrites` writes it beside the `.mtr`
@@ -360,6 +361,49 @@ A part's `motion` moves the pictures on its textured meshes (M2; the owner, 2026
   - **Unproven until TMO-5:** that the game honours a TXI's clamp on a mesh (14 of its 15 clamp TXIs are the GUI's). If
     it doesn't, the fallback is a breath that only grows (the design's option 2).
 
+## A library texture's copy, and clamped flipbooks and soft textures (DC)
+
+SHP-8 (the owner, 2026-11-19): a flame ring - a Cylinder (open) with a Top radius, `fxpa_flame02`, a green Colour - showed
+"a top very thin color at the edge on the rim of the cylinder", on the stage and in game, and "when played in game the
+tinting doesn't show". "Go" to the fix. The engine (read in the SHP-8 diagnosis):
+
+- a TXI's `decal` makes the game draw the mesh **unlit**: its colour set to (1, 1, 1, alpha), its material skipped, the
+  shader texture x alpha - so a shape's Colour (its selfillum, ambient and diffuse) never shows. 21 of the game's 734
+  TXIs say it: `fxpa_flame02`, `fxpa_symbl_003`, `fxpa_web`, `fxpa_fern`, all 7 of its flipbooks (`proceduretype cycle`),
+  `c_air_skin` ...;
+- a flipbook's frame is a **texture of its own**, repeating both ways unless its TXI clamps (`clamp` bits: 1 u, 2 v, 4
+  r - read in the engine, `SetTextureParameters`). A mesh whose v runs to 1 samples the frame's wrapped bottom row at
+  its top rim: the thin line. Our soft textures (alpha 77 at the top row, 253 at the bottom) show it fainter.
+
+So a **still** shape (its part has no motion - a moving one's texture goes through its material, whose copy drops
+`decal` too) is given the game under our own names (`floatdisk.js`'s `stillTextures`, the one rule; the VFX Bench's
+Play in game runs the same):
+
+- **a library texture whose TXI says decal** - or **a flipbook on a mesh whose v stays within one repeat** (decal or not:
+  the line shows on any flipbook; the game's 7 are all decal) - names a **copy**, `n5l_<12 hex digits>` (`copyName`: its
+  texture, the clamp added and its key - `copyKey`, the source TXI's text and its picture's bytes: one copy per distinct
+  result, never per colour, and a game update to either names a new one). The copy is its picture as the game
+  draws it (its DDS when it has one) with a TXI of its own lines **minus `decal`** - its flipbook (`proceduretype`,
+  `numx`, `numy`, `fps`) and `blending additive` kept - plus **`clamp 2`** (v) when the mesh's v stays within [0, 1]
+  (`copiedTxi`; with a clamp line of its own, one line, the two together). U keeps repeating round a ring (Repeat
+  around). The game then draws it lit, its Colour showing, and its frame never wraps at the rim. Repeat up above 1 (v
+  tiles): a decal texture's copy without the clamp - its tint shows, its frames repeat as the game's, line included; a
+  plain flipbook (not decal) as it is;
+- **its soft texture**, when the mesh's v stays within [0, 1], names a **clamped soft texture** of its own:
+  `shapeTextureName` hashes `:clamp2` after the colour and blend (the M1b rule: a TXI change never shares a name), and
+  its TXI says `clamp 2` (`softTxi`: an Additive one's `blending additive` and `clamp 2`). Repeat up above 1, or moving:
+  the soft texture as before;
+- a plain library texture (not decal, not a flipbook: `fxpa_globe`, `fxpa_symbl_001` ...) is named as before; a game
+  part's and your own file's textures are never copied (they're drawn as their models have them), nor are the game's
+  own effects (the bench opens them, never copies them).
+
+`files.js`'s `shapeTextures` names a clamped soft texture and makes it (its TXI beside it, kind "shape"); its
+`copyTextures` finds each copy's picture by the one copy path (`motionPicture`) and `copyWrites` writes the picture and
+its TXI beside what names them - `data\files` (git-ignored, `/data/files/n5l_*`: the game's art is never committed), the
+drafts - kind "copy", owned by the `n5l_` name. The summary says `texture n5l_...: fxpa_flame02 copied without its
+decal mark, clamped in v (n5l_....tga, n5l_....txi: its TXI without decal, and clamp 2) - ...`; `--json`'s `copies`:
+`[{ copy, texture, clamp }]`, a clamped soft texture's `shapes` entry `"clamp": true`.
+
 ## The files here
 
 | file | what it is |
@@ -369,7 +413,7 @@ A part's `motion` moves the pictures on its textured meshes (M2; the owner, 2026
 | `floatdisk.js` | its pure parts: placing, the disk, the shapes (their meshes and soft textures), a moving texture's maths, material and shader, the models' and rows' text (it loads in a page too: the VFX Bench's Composer places with it) |
 | `check.js` | checks `floatdisk.js` |
 | `reader.js` | reads the parts' meshes (a shape's from `floatdisk.js`) and the textures from the game or beside a file, and bakes a dyed part's PLT (what `build.js` and the VFX Bench share) |
-| `files.js` | the file plumbing this `build.js` and the Composer's share: the options, loading nwn5e-tools, a dyed part's bakes, a shape's soft texture, a moving texture's materials and shader, shipping your own textures, the one ownership rule they write by |
+| `files.js` | the file plumbing this `build.js` and the Composer's share: the options, loading nwn5e-tools, a dyed part's bakes, a shape's soft texture, a moving texture's materials and shader, a library texture's copy (DC), shipping your own textures, the one ownership rule they write by |
 | `check_build.js` | checks `build.js` end to end on a temporary copy (needs the game) |
 | `mdlmesh.cpp`, `build_mdlmesh.bat` | the mesh reader, built from the repo's `src\data\vfx_model.cpp` into `build\floatdisk\` |
 | `made.txt` | the textures the generator wrote (they can't carry its mark), and the moving textures' shader, `data/files/vsn5uvmove.shd` (committed whole; never called unused) |

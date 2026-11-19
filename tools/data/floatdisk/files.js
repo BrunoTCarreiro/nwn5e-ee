@@ -72,30 +72,43 @@ const bakedJson = (baked) => [...baked].map(([texture, b]) => ({ texture, plt: b
 // --- a shape's soft texture -------------------------------------------------------------------------------------------
 // The soft textures the placed shape parts name (floatdisk.js's shapeModel: `textures`, none for `none` or a library
 // texture), each generated from its colour: original, nothing of the game's. Each `made` lacks is added. `placed`:
-// [{ part, meshes }] (placePart's, with its part). -> `made`: Map(name -> { colour, blend (M1b: additive | normal), bytes
-// (its 32-bit TGA), txi (an additive one's TXI, floatdisk.js's SOFT_TXI; null for normal), label (the part's) }), in the
-// parts' order.
+// [{ part, meshes }] (placePart's, with its part). DC: a still shape's soft mesh whose v stays within one repeat
+// (floatdisk.js stillTextures: its part doesn't move) is renamed in place (x.meshes) for its clamped soft texture - its
+// own name, its TXI saying clamp 2 - and only the soft textures its meshes name are made (a part given without meshes:
+// its shape's, as before). -> `made`: Map(name -> { colour, blend (M1b: additive | normal), clamp: true (DC: a clamped
+// one's only), bytes (its 32-bit TGA), txi (its TXI, floatdisk.js's softTxi: an Additive one's "blending additive", a
+// clamped one's "clamp 2"; null for a Normal unclamped one), label (the part's) }), in the parts' order.
 function shapeTextures(placed, made = new Map()) {
   for (const x of placed) {
     if (x.part.source.kind !== "shape") continue;
-    for (const { name, colour, blend } of F.shapeModel(x.part.source.shape).textures) {
+    const shape = x.part.source.shape;
+    const still = x.meshes ? F.stillTextures(shape, x.part.motion, x.meshes, () => null) : null;
+    if (still) x.meshes = still.meshes;
+    const named = still ? new Set(x.meshes.map((m) => String(m.bitmap || "").toLowerCase())) : null;
+    const textures = [...F.shapeModel(shape).textures.filter((t) => !named || named.has(t.name)), ...(still ? still.softs : [])];
+    for (const { name, colour, blend, clamp } of textures) {
       if (made.has(name)) continue;
-      made.set(name, { colour, blend, bytes: F.tgaBytes(F.shapeTexture({ colour }), { alpha: true }),
-        txi: blend === "additive" ? Buffer.from(F.SOFT_TXI, "latin1") : null, label: F.partLabel(x.part) });
+      const txi = F.softTxi({ blend, clamp });
+      made.set(name, Object.assign({ colour, blend }, clamp ? { clamp: true } : {}, { bytes: F.tgaBytes(F.shapeTexture({ colour }), { alpha: true }),
+        txi: txi ? Buffer.from(txi, "latin1") : null, label: F.partLabel(x.part) }));
     }
   }
   return made;
 }
 // The soft textures as writes into `dir` (beside what names them: the models' folder, or a spell mesh's drafts'):
-// <dir>\<name>.tga and, an additive one (M1b), <dir>\<name>.txi beside it - "blending additive", so the game draws it on
-// its additive path - each kind "shape", not noted in made.txt: whose it is, its name says (ownership).
+// <dir>\<name>.tga and, one with a TXI (M1b: an additive one's "blending additive", so the game draws it on its additive
+// path; DC: a clamped one's "clamp 2"), <dir>\<name>.txi beside it - each kind "shape", not noted in made.txt: whose it
+// is, its name says (ownership).
 const shapeWrites = (made, dir) => [].concat(...[...made].map(([name, s]) => [{ file: path.join(dir, name + ".tga"), bytes: s.bytes, kind: "shape" },
   ...(s.txi ? [{ file: path.join(dir, name + ".txi"), bytes: s.txi, kind: "shape" }] : [])]));
-// The summary's line a soft texture: its colour (an additive one's blend and its TXI), and where it goes.
+// The summary's line a soft texture: its colour (an additive one's blend, a clamped one's clamp - DC - and its TXI's
+// lines), and where it goes.
 const shapeLines = (made, where) => [...made].map(([name, s]) => `  texture ${name}: a shape's soft texture, colour ${s.colour.join(" ")}` +
-  (s.txi ? `, additive (${name}.txi beside it: blending additive)` : "") + ` - written into ${where}`);
-// --json's: [{ texture, colour, blend (only "additive": a Normal one's as before M1b) }].
-const shapeJson = (made) => [...made].map(([texture, s]) => (s.txi ? { texture, colour: s.colour, blend: "additive" } : { texture, colour: s.colour }));
+  (s.blend === "additive" ? ", additive" : "") + (s.clamp ? ", clamped in v" : "") +
+  (s.txi ? ` (${name}.txi beside it: ${Buffer.from(s.txi).toString("latin1").trim().split(/\r?\n/).join(", ")})` : "") + ` - written into ${where}`);
+// --json's: [{ texture, colour, blend (only "additive": a Normal one's as before M1b), clamp (DC: only true, a clamped one's) }].
+const shapeJson = (made) => [...made].map(([texture, s]) => Object.assign({ texture, colour: s.colour }, s.blend === "additive" ? { blend: "additive" } : {},
+  s.clamp ? { clamp: true } : {}));
 
 // --- a moving texture's material (M2) ---------------------------------------------------------------------------------
 // The placed parts' moving textures: each part with a motion has its textured meshes renamed for it (floatdisk.js's
@@ -177,6 +190,49 @@ const motionLines = (materials, where) => [...materials].map(([name, m]) => `  m
 const motionJson = (materials) => [...materials].map(([material, m]) => Object.assign({ material, texture: m.texture, motion: F.cleanMotion(m.motion), pivot: m.pivot },
   m.clamp ? { clamp: true } : {}));
 
+// --- DC: a library texture copied without its decal mark, a flipbook clamped in v ---------------------------------------
+// The placed still shape parts' library textures the game must have copied (floatdisk.js stillTextures: a TXI that says
+// decal, or a flipbook on a mesh whose v stays within one repeat; a part that moves goes through its material): each such
+// mesh renamed in place (x.meshes) for its copy, n5l_<12 hex digits> (its texture, clamp and key: the source's TXI text and
+// picture bytes, floatdisk.js copyKey), and each copy `copies` lacks added - its picture as
+// the copy path finds it (motionPicture, `sources`: the game's - its DDS when it has one - or one beside a part's own file)
+// and its TXI (floatdisk.js copiedTxi: its lines minus decal, + clamp 2 within one repeat). A texture found nowhere (nor its
+// TXI) is left as it is - the game hasn't it either; without a reader nothing is copied. Called after bakeParts and
+// shipTextures, before motionMaterials. `placed`: [{ part, meshes }]. -> `copies`: Map(name -> { texture, clamp (0 or 2),
+// decal (its TXI said so), ext, bytes, txi (bytes), label (the part's) }), in the parts' order.
+function copyTextures(placed, copies = new Map(), sources = {}) {
+  const pictures = new Map();
+  const picture = (t) => {
+    if (!pictures.has(t)) pictures.set(t, sources.rd ? motionPicture(t, sources) : null);
+    return pictures.get(t);
+  };
+  for (const x of placed) {
+    if (x.part.source.kind !== "shape" || !x.meshes) continue;
+    const still = F.stillTextures(x.part.source.shape, x.part.motion, x.meshes, (t) => {
+      const pic = picture(t);  // (its key - its TXI's text and its picture's bytes - names the copy: floatdisk.js copyKey)
+      return pic ? { decal: F.txiDecal(pic.txi), cycle: F.txiCycle(pic.txi), key: F.copyKey(pic.txi, pic.bytes) } : null;
+    });
+    x.meshes = still.meshes;
+    for (const c of still.copies) {
+      if (copies.has(c.name)) continue;
+      const pic = picture(c.texture);
+      copies.set(c.name, { texture: c.texture, clamp: c.clamp, decal: F.txiDecal(pic.txi), ext: pic.ext, bytes: pic.bytes,
+        txi: Buffer.from(F.copiedTxi(pic.txi, c.clamp), "latin1"), label: F.partLabel(x.part) });
+    }
+  }
+  return copies;
+}
+// The copies as writes into `dir` (beside what names them: the models' folder, or a spell mesh's drafts'): <dir>\<name>
+// .tga or .dds and <dir>\<name>.txi, each kind "copy" (ours by its n5l_ name: only the generator makes them, and the name
+// fixes the bytes) - git-ignored in data\files (/data/files/n5l_*: a copy is the game's art), never noted in made.txt.
+const copyWrites = (copies, dir) => [].concat(...[...copies].map(([name, c]) => [{ file: path.join(dir, name + c.ext), bytes: c.bytes, kind: "copy" },
+  { file: path.join(dir, name + ".txi"), bytes: c.txi, kind: "copy" }]));
+// The summary's line a copy: its texture, what's changed in it, and where it goes.
+const copyLines = (copies, where) => [...copies].map(([name, c]) => `  texture ${name}: ${c.texture} copied${c.decal ? " without its decal mark" : ""}` +
+  `${c.clamp ? ", clamped in v" : ""} (${name}${c.ext}, ${name}.txi: its TXI${c.decal ? " without decal" : ""}${c.clamp ? `, and clamp ${c.clamp}` : ""}) - written into ${where}`);
+// --json's: [{ copy, texture, clamp (0 or 2) }].
+const copyJson = (copies) => [...copies].map(([copy, c]) => ({ copy, texture: c.texture, clamp: c.clamp }));
+
 // --- textures ---------------------------------------------------------------------------------------------------------
 // The textures that the placed parts' own files bring and the game doesn't have: each mesh's, looked up in the game,
 // then beside its file (reader.js's findTexture); a baked one (`baked`, bakeParts' - renamed, so the game hasn't it) is
@@ -213,7 +269,8 @@ function writeManifest(file, manifest, header) {
 // bake makes such names, and the name fixes the bytes); "shape" (a shape's soft texture, or an additive one's TXI: M1b)
 // likewise when it's a soft texture's (F.SHAPE_TEXTURE: only the generator makes them); "material" (M2: a moving
 // texture's material - or, on the copy route, its texture and TXI under the material's name) likewise by its n5u_ name
-// (F.MOTION_TEXTURE); "shader" (vsn5uvmove.shd) when made.txt lists it (data\files' committed one) or it's the
+// (F.MOTION_TEXTURE); "copy" (DC: a library texture's copy, its picture or its TXI) likewise by its n5l_ name
+// (F.COPY_TEXTURE); "shader" (vsn5uvmove.shd) when made.txt lists it (data\files' committed one) or it's the
 // generators' shader, this version's or an earlier one's (F.isMotionShader: its first line); a kind in `kinds` by its own
 // test (w, old); any other (a texture in the repo) when made.txt (`manifest`) lists it. -> (w, old) => true when it's ours.
 function ownership({ repo, manifest, mark, kinds = {} }) {
@@ -223,6 +280,7 @@ function ownership({ repo, manifest, mark, kinds = {} }) {
     if (w.kind === "baked") return F.BAKED.test(path.basename(w.file).replace(/\.tga$/i, ""));
     if (w.kind === "shape") return F.SHAPE_TEXTURE.test(path.basename(w.file).replace(/\.(tga|txi)$/i, ""));
     if (w.kind === "material") return /\.(mtr|tga|dds|txi)$/i.test(w.file) && F.MOTION_TEXTURE.test(path.basename(w.file).replace(/\.(mtr|tga|dds|txi)$/i, ""));
+    if (w.kind === "copy") return /\.(tga|dds|txi)$/i.test(w.file) && F.COPY_TEXTURE.test(path.basename(w.file).replace(/\.(tga|dds|txi)$/i, ""));
     if (w.kind === "shader") return listed(w.file) || F.isMotionShader(old);
     if (kinds[w.kind]) return kinds[w.kind](w, old);
     return listed(w.file);
@@ -260,4 +318,5 @@ function writeAll(writes, owned, { repo, manifest, dry = false }) {
 }
 
 module.exports = { option, loadTools, repoPath, shown, bakeParts, bakedWrites, bakedLines, bakedJson, shapeTextures, shapeWrites, shapeLines,
-  shapeJson, motionMaterials, motionPicture, motionCopies, motionWrites, motionLines, motionJson, shipTextures, readManifest, writeManifest, ownership, writeAll };
+  shapeJson, motionMaterials, motionPicture, motionCopies, motionWrites, motionLines, motionJson, copyTextures, copyWrites, copyLines, copyJson,
+  shipTextures, readManifest, writeManifest, ownership, writeAll };

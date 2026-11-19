@@ -32,7 +32,10 @@ remove the six files from main"**:
   while colours are tried;
 - any moving texture's material: `n5u_*` (the Floating Disk's README, "Moving textures"), build output as a soft
   texture is - and a clamped one's copy (W1: `n5u_*.tga` / `.dds` and its `.txi`, the texture's picture under the
-  material's name - the game's own art for a library texture, so never committed).
+  material's name - the game's own art for a library texture, so never committed);
+- any library texture's copy: `n5l_*` (DC: a still shape's decal or flipbook texture, `.tga` / `.dds` and its `.txi` -
+  the game's picture under our own name with its TXI minus `decal`, + `clamp 2`: the Floating Disk's README, "A library
+  texture's copy"), the game's own art, so never committed.
 
 The generators' own runs (the VFX Bench's Save and build) still write them into `data\files`, where they stay,
 ignored. What's made from scratch stays committed: the `.pwk` files, `n5t_forcedisk.tga`, the rows, and the moving
@@ -69,6 +72,9 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
   clamped one (W1: it breathes, doesn't scroll, its mesh within one repeat) brings its copy too - the texture's picture
   under the material's name (`n5u_*.tga` or `.dds`) and its TXI (`n5u_*.txi`: the texture's own lines and the game's
   `clamp 3`) - owned by the `n5u_` name as the material is.
+- **A library texture's copy** (DC: `n5l_*.tga` or `.dds` and `n5l_*.txi` - a still shape's decal or flipbook texture,
+  the game's picture with its TXI minus `decal`, + `clamp 2` within one repeat) comes out with the model that names it,
+  owned by its `n5l_` name; a still Soft shape's clamped soft texture (its own `n5s_` name) with its TXI (`clamp 2`).
 - **Spell meshes are skipped**, and it says so. Their drafts live in the VFX Bench's saved folder, and the dev layer
   writes their models when the game runs.
 - **A project never built is skipped**, and it says so. That's one with no `data\rows\placeables.<name>.txt` and no
@@ -84,8 +90,8 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
   - For a build that won't be installed, `NWN5E_DERIVED=skip` gets past it (build.bat).
 - **Never a file it didn't make.** In `--out` it keeps the generators' rule: a model or `.pwk` is overwritten only
   when it carries its generator's mark, a texture only when that generator's `made.txt` lists it, a baked texture, a
-  shape's soft texture or a moving texture's material by its name (only the generators make `n5p_`, `n5s_` and `n5u_`
-  names, and the name fixes the bytes), the shader by its first line.
+  shape's soft texture, a moving texture's material or a library texture's copy by its name (only the generators make
+  `n5p_`, `n5s_`, `n5u_` and `n5l_` names, and the name fixes the bytes), the shader by its first line.
   Any other file in the way stops it. Every file is checked before any is written.
 - **What it says:** a line per generator (its files, whether its rows agree), a line per file (`written` or
   `unchanged`), then a total.

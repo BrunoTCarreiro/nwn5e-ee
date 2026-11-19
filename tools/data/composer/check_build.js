@@ -367,6 +367,9 @@ try {
     for (const l of list) assert.ok(text.includes(`\r\n${l}\r\n`), `${path.basename(file)} has no line "${l}"`);
   };
   // chkdome: a spell mesh, Zone of Truth's 9.14 m circle and its dome. chkdomep: a placeable, a 1 m dome in gold.
+  // (DC: the soft-texture checks below give their domes Repeat up 2 - v tiles, so the soft texture is its colour's own, as
+  // before DC; a still dome within one repeat is clamped, its own name and TXI: DC's checks.)
+  const TILED = { repeat_up: 2 };
   const zone = (shape) => project("chkdome", { kind: "spellmesh", guide: { shape: "circle", diameter: 9.14, height: 0 }, variants: [{ name: "1", parts: [
     { note: "zone", shape: Object.assign({ type: "dome", radius: 4.57 }, shape), at: [0, 0, 0] }] }] });
   const gold = (shape) => project("chkdomep", { kind: "placeable", guide: { shape: "circle", diameter: 2, height: 0 }, placeable: THROUGH, variants: [
@@ -378,7 +381,7 @@ try {
   };
 
   check("a spell mesh's dome: its draft and its soft texture into --saved", () => {
-    const file = zone({});
+    const file = zone(TILED);
     const files = snapshot(), kept = madeTxt();
     assert.ok(build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/).includes(
       `  texture ${SOFT}: a shape's soft texture, colour 0.6 0.8 1 - written into ${SAVED}`), "no summary line for " + SOFT);
@@ -413,7 +416,7 @@ try {
 
   check("a placeable's dome: its model is see-through (transparencyhint 1) and names its texture, written beside it", () => {
     const kept = madeTxt();
-    const file = gold({});
+    const file = gold(TILED);
     assert.ok(build(file, ["--check"]).out.split(/\r?\n/).includes(`  texture ${GOLD}: a shape's soft texture, colour 1 0.85 0.4 - written into data/files`),
       "no summary line for " + GOLD);
     const j = ok(build(file, ["--json"]));
@@ -443,7 +446,7 @@ try {
     for (const f of shapeFiles()) fs.rmSync(f);
     const kept = madeTxt();
     // A spell mesh: Zone of Truth's dome at Opacity 0.1, Additive.
-    const file = zone({ alpha: 0.1, blend: "additive" });
+    const file = zone(Object.assign({ alpha: 0.1, blend: "additive" }, TILED));
     assert.ok(build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/).includes(
       `  texture ${ADD}: a shape's soft texture, colour 0.6 0.8 1, additive (${ADD}.txi beside it: blending additive) - written into ${SAVED}`), "no summary line for " + ADD);
     const j = ok(build(file, ["--json", "--saved", SAVED]));
@@ -459,12 +462,12 @@ try {
     assert.deepStrictEqual(byName(ok(build(file, ["--json", "--saved", SAVED]))), { "n5m_chkdome.vfx": "unchanged", [ADD + ".tga"]: "unchanged", [ADD + ".txi"]: "rebuilt" });
     // Back to Normal: the default colour's own texture, no TXI written (the Additive one's files are left as they are -
     // they're named apart, so the game never reads its TXI for the Normal texture).
-    const n = ok(build(zone({ alpha: 0.1 }), ["--json", "--saved", SAVED]));
+    const n = ok(build(zone(Object.assign({ alpha: 0.1 }, TILED)), ["--json", "--saved", SAVED]));
     assert.deepStrictEqual(n.shapes, [{ texture: SOFT, colour: [0.6, 0.8, 1] }]);
     assert.ok(!n.files.some((x) => /\.txi$/i.test(x.file)), JSON.stringify(n.files));
     assert.ok(!fs.existsSync(path.join(SAVED, SOFT + ".txi")), "a Normal soft texture got a TXI");
     // A placeable's: beside its model in data\files, git-ignored there as its TGA (/data/files/n5s_*); not in made.txt.
-    const g = ok(build(gold({ blend: "additive" }), ["--json"]));
+    const g = ok(build(gold(Object.assign({ blend: "additive" }, TILED)), ["--json"]));
     assert.deepStrictEqual(g.shapes, [{ texture: GOLD_ADD, colour: [1, 0.85, 0.4], blend: "additive" }]);
     assert.ok(g.files.some((x) => x.file === `data/files/${GOLD_ADD}.txi`) && g.files.some((x) => x.file === `data/files/${GOLD_ADD}.tga`), JSON.stringify(g.files));
     assert.strictEqual(fs.readFileSync(path.join(FILES, GOLD_ADD + ".txi"), "latin1"), "blending additive\n");
@@ -620,7 +623,8 @@ try {
       assert.ok(!j.files.some((x) => /\.(mtr|shd)$/i.test(x.file) || /n5u_/i.test(x.file)), JSON.stringify(j.files));
     }
     assert.deepStrictEqual([movingFiles(FILES), movingFiles(SAVED)], [[], []]);
-    assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkuv.vfx")).map((x) => x.bitmap), [ADD]);
+    // (DC: the still dome within one repeat names its clamped soft texture; moving, below, the soft texture as before.)
+    assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkuv.vfx")).map((x) => x.bitmap), [F.shapeTextureName({ colour: [0.6, 0.8, 1], blend: "additive", clamp: true })]);
     assert.ok(!/\r\n  bitmap n5u_/i.test(fs.readFileSync(path.join(FILES, "plc_n5chkuvp_1.mdl"), "latin1")), "a still crate names a material");
     assert.ok(!fs.readFileSync(path.join(folder, "chkuv.json"), "utf8").includes("motion"), "the project file has a motion");
   });
@@ -777,7 +781,8 @@ try {
     assert.ok(fs.readFileSync(path.join(SAVED, MAT + ".tga")).equals(sym.tga), "the copy isn't the game's " + SYM + ".tga");
     const txi = fs.readFileSync(path.join(SAVED, MAT + ".txi"), "latin1");
     assert.strictEqual(txi, F.clampedTxi(sym.txi));
-    assert.ok(txi.startsWith(sym.txi) && /\r\nclamp 3\r\n$/.test(txi) && F.txiAdditive(txi), JSON.stringify(txi));
+    // (DC: its lines but the decal mark the game's has - our material's colour applies, never the mesh's before it.)
+    assert.ok(F.txiDecal(sym.txi) && !F.txiDecal(txi) && /\r\nclamp 3\r\n$/.test(txi) && F.txiAdditive(txi), JSON.stringify(txi));
     // Nothing in data\, nothing in made.txt; built again: every file unchanged.
     const after = snapshot();
     for (const f of Object.keys(after)) if (!f.startsWith(SAVED)) assert.strictEqual(after[f], files[f], f);
@@ -840,6 +845,100 @@ try {
     const again = byName(ok(build(file, ["--json", "--saved", SAVED])));
     assert.deepStrictEqual([again["n5_chkcrate.tga"], again[MAT + ".tga"], again[MAT + ".txi"]], ["rebuilt", "rebuilt", "unchanged"]);
     assert.ok(fs.readFileSync(path.join(SAVED, MAT + ".tga")).equals(tga(0x44)));
+  });
+
+  // DC (#39; SHP-8, the owner, 2026-11-19: "Go"): a still shape's library texture whose TXI says decal - or a flipbook on
+  // a mesh within one repeat - is copied under its own n5l_ name, its picture and a TXI of its lines minus decal (+ clamp 2,
+  // v, within one repeat), beside what names it: the game then draws the shape lit, its Colour showing, and its frame
+  // never wraps at the rim. A still Soft shape within one repeat names its clamped soft texture (its TXI: clamp 2). A
+  // moving one, a plain library texture and a game part as before.
+  // (A copy's name hashes its key: the game texture's TXI text and its picture's bytes, as the copy path finds them.)
+  const copyOf = (t, clamp) => { const i = rd.image(t, []); return F.copyName(t, clamp, F.copyKey(i.txi, i.dds || i.tga)); };
+  const FLAME = "fxpa_flame02", C2 = copyOf(FLAME, 2), C0 = copyOf(FLAME, 0);
+  const copyFiles = (dir) => fs.readdirSync(dir).filter((f) => /^n5l_/i.test(f)).sort();
+  const clearCopies = () => { for (const dir of [FILES, SAVED]) for (const f of copyFiles(dir)) fs.rmSync(path.join(dir, f)); };
+  const ring = (colour, extra) => ({ shape: Object.assign({ type: "cylinder", radius: 1, height: 0.6, top: 1.17, texture: FLAME, colour, alpha: 0.97 }, extra), at: [0, 0, 0] });
+  check("DC: a spell mesh's still flame ring (SHP-8's: Cylinder (open), Top 1.17, fxpa_flame02, green) names its copy - fxpa_flame02's TGA under n5l_<...> with its TXI minus decal + clamp 2, beside the draft in --saved; a red ring the same copy; again unchanged", () => {
+    clearCopies();
+    const files = snapshot(), kept = madeTxt();
+    const file = project("chkring", { kind: "spellmesh", guide: { shape: "circle", diameter: 2.4, height: 0 }, variants: [{ name: "1", parts: [ring([0.137, 0.922, 0.314])] },
+      { name: "2", parts: [ring([1, 0, 0])] }] });
+    const said = build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/);
+    assert.ok(said.includes(`  texture ${C2}: ${FLAME} copied without its decal mark, clamped in v (${C2}.tga, ${C2}.txi: its TXI without decal, and clamp 2) - written into ${SAVED}`),
+      said.join("\n"));
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(j.copies, [{ copy: C2, texture: FLAME, clamp: 2 }]);
+    const planes = j.variants.map((v) => draftPlanes(path.join(SAVED, v.model + ".vfx")));
+    assert.deepStrictEqual(planes.map((ps) => ps.map((p) => p.bitmap)), [[C2], [C2]]);
+    // Its material as before: at Glow 1 its Colour as selfillum - what the game, drawing the copy lit, now shows.
+    assert.deepStrictEqual(planes.map((ps) => ps[0].selfillum), [[0.137, 0.922, 0.314].map(Math.fround), [1, 0, 0]]);
+    // Beside the drafts: the copy and its TXI, new - one copy for both colours.
+    const flame = rd.image(FLAME, []);
+    assert.ok(flame && flame.tga && !flame.dds && F.txiDecal(flame.txi) && !!F.txiCycle(flame.txi), "the game's fxpa_flame02: a TGA and a decal flipbook TXI");
+    assert.deepStrictEqual(copyFiles(SAVED), [C2 + ".tga", C2 + ".txi"]);
+    assert.deepStrictEqual([byName(j)[C2 + ".tga"], byName(j)[C2 + ".txi"]], ["new", "new"]);
+    assert.ok(fs.readFileSync(path.join(SAVED, C2 + ".tga")).equals(flame.tga), "the copy isn't the game's fxpa_flame02.tga");
+    const txi = fs.readFileSync(path.join(SAVED, C2 + ".txi"), "latin1");
+    assert.strictEqual(txi, F.copiedTxi(flame.txi, 2));
+    assert.deepStrictEqual([F.txiDecal(txi), F.txiClampBits(txi), F.txiCycle(txi), F.txiAdditive(txi)], [false, 2, F.txiCycle(flame.txi), true]);
+    // Nothing in data\, nothing in made.txt; built again: unchanged; a copy's file of its name in the way is the
+    // generator's (the name fixes its bytes): rewritten.
+    const after = snapshot();
+    for (const f of Object.keys(after)) if (!f.startsWith(SAVED)) assert.strictEqual(after[f], files[f], f);
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+    assert.ok(ok(build(file, ["--json", "--saved", SAVED])).files.every((x) => x.state === "unchanged"));
+    fs.writeFileSync(path.join(SAVED, C2 + ".txi"), "decal 1\r\n");
+    assert.strictEqual(byName(ok(build(file, ["--json", "--saved", SAVED])))[C2 + ".txi"], "rebuilt");
+    assert.strictEqual(fs.readFileSync(path.join(SAVED, C2 + ".txi"), "latin1"), txi);
+  });
+
+  check("DC: a placeable's still glyph dome (TIN-1's fxpa_symbl_003, From above, orange) and a tiled flame ring (Repeat up 2: copied, no clamp) - their copies in data\\files beside the model, git-ignored; a plain library texture, a moving flame ring and a game part as before", () => {
+    clearCopies();
+    clearMoving();
+    const kept = madeTxt(), SYM = "fxpa_symbl_003", G2 = copyOf(SYM, 2);
+    const file = project("chkcopy", { kind: "placeable", guide: { shape: "circle", diameter: 2, height: 0 }, placeable: THROUGH, variants: [{ name: "1", row: 14162, parts: [
+      { shape: { type: "dome", radius: 1, mapping: "above", texture: SYM, colour: [1, 0.502, 0] }, at: [0, 0, 0] },
+      Object.assign(ring([1, 1, 1], { repeat_up: 2 }), { at: [3, 0, 0] }),
+      { shape: { type: "dome", radius: 1, texture: "fxpa_symbl_001" }, at: [-3, 0, 0] },
+      Object.assign(ring([1, 1, 1]), { at: [0, 3, 0], motion: { scroll: [0, 0.25] } }),
+      { model: "plc_a03", at: [0, -3, 0] }] }] });
+    const j = ok(build(file, ["--json"]));
+    assert.deepStrictEqual(j.copies, [{ copy: G2, texture: SYM, clamp: 2 }, { copy: C0, texture: FLAME, clamp: 0 }]);
+    const mdl = fs.readFileSync(path.join(FILES, j.variants[0].model + ".mdl"), "latin1");
+    const bitmaps = [...mdl.matchAll(/\r\n {2}bitmap (\S+)\r\n/g)].map((m) => m[1]);
+    // The dome's copy, the tiled ring's, fxpa_symbl_001 as it is (not decal, not a flipbook), the moving ring's material
+    // (texture0 the game's fxpa_flame02: M2's route), then the crate's own textures - none copied.
+    assert.deepStrictEqual(bitmaps.slice(0, 3), [G2, C0, "fxpa_symbl_001"]);
+    assert.ok(F.MOTION_TEXTURE.test(bitmaps[3]) && bitmaps.length > 4 && !bitmaps.slice(4).some((b) => /^n5[lu]_/i.test(b)), bitmaps.join(" "));
+    assert.deepStrictEqual(j.materials.map((m) => [m.material, m.texture]), [[bitmaps[3], FLAME]]);
+    assert.ok(fs.readFileSync(path.join(FILES, bitmaps[3] + ".mtr"), "latin1").split("\n").includes("texture0 " + FLAME));
+    assert.deepStrictEqual(copyFiles(FILES), [C0 + ".tga", C0 + ".txi", G2 + ".tga", G2 + ".txi"].sort());
+    const sym = rd.image(SYM, []), flame = rd.image(FLAME, []);
+    assert.ok(fs.readFileSync(path.join(FILES, G2 + ".tga")).equals(sym.tga) && fs.readFileSync(path.join(FILES, C0 + ".tga")).equals(flame.tga));
+    assert.deepStrictEqual([G2, C0].map((n) => fs.readFileSync(path.join(FILES, n + ".txi"), "latin1")), [F.copiedTxi(sym.txi, 2), F.copiedTxi(flame.txi, 0)]);
+    assert.deepStrictEqual([F.txiClampBits(F.copiedTxi(flame.txi, 0)), F.txiDecal(F.copiedTxi(flame.txi, 0)), F.txiDecal(F.copiedTxi(sym.txi, 2))], [0, false, false]);
+    assert.ok(j.files.some((x) => x.file === `data/files/${G2}.tga`) && j.files.some((x) => x.file === `data/files/${G2}.txi`), JSON.stringify(j.files));
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+    const ignored = (f) => spawnSync("git", ["check-ignore", "-q", "--no-index", "data/files/" + f], { cwd: REPO, windowsHide: true }).status === 0;
+    for (const f of [G2 + ".tga", G2 + ".txi", G2 + ".dds"]) assert.ok(ignored(f), f + " isn't git-ignored");
+  });
+
+  check("DC: a spell mesh's still Soft shapes within one repeat name their clamped soft textures - their own names, a TXI saying clamp 2 (Additive: blending additive and clamp 2) beside the draft; tiled (Repeat up 2) as before", () => {
+    for (const f of shapeFiles()) fs.rmSync(f);
+    const colour = [0.6, 0.8, 1], N = F.shapeTextureName({ colour, clamp: true }), A = F.shapeTextureName({ colour, blend: "additive", clamp: true });
+    const file = project("chksoft", { kind: "spellmesh", guide: { shape: "circle", diameter: 2, height: 0 }, variants: [{ name: "1", parts: [
+      { shape: { type: "dome", radius: 1 }, at: [0, 0, 0] }, { shape: { type: "cylinder", radius: 1, blend: "additive" }, at: [3, 0, 0] },
+      { shape: { type: "dome", radius: 1, repeat_up: 2 }, at: [-3, 0, 0] }] }] });
+    const said = build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/);
+    for (const l of [`  texture ${N}: a shape's soft texture, colour 0.6 0.8 1, clamped in v (${N}.txi beside it: clamp 2) - written into ${SAVED}`,
+      `  texture ${A}: a shape's soft texture, colour 0.6 0.8 1, additive, clamped in v (${A}.txi beside it: blending additive, clamp 2) - written into ${SAVED}`,
+      `  texture ${SOFT}: a shape's soft texture, colour 0.6 0.8 1 - written into ${SAVED}`]) assert.ok(said.includes(l), l + "\n" + said.join("\n"));
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(j.shapes, [{ texture: N, colour, clamp: true }, { texture: A, colour, blend: "additive", clamp: true }, { texture: SOFT, colour }]);
+    assert.deepStrictEqual(draftPlanes(path.join(SAVED, j.variants[0].model + ".vfx")).map((p) => p.bitmap), [N, A, SOFT]);
+    assert.deepStrictEqual([N, A].map((n) => fs.readFileSync(path.join(SAVED, n + ".txi"), "latin1")), ["clamp 2\n", "blending additive\nclamp 2\n"]);
+    assert.ok(!fs.existsSync(path.join(SAVED, SOFT + ".txi")), "a tiled Normal soft texture got a TXI");
+    for (const n of [N, A, SOFT]) assert.ok(fs.readFileSync(path.join(SAVED, n + ".tga")).equals(softBytes(colour)), n + ".tga isn't the colour's soft texture");
   });
 
   // The probe (TMO-1's): tools\data\composer\uvprobe.js writes n5m_uvprobe - seven domes in a row, three moving by the
