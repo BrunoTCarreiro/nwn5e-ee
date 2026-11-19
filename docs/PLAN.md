@@ -1980,6 +1980,19 @@ monster AC by CR.
       - Still protected: Plot chests, signs, levers, lamps and anything with a purpose.
       - A house-rule switch, on by default, lets a module that breaks turn it off. NWN mode keeps NWN's.
       - To build after #171 (its issue: Plot dressing breakable).
+      *Built 0.99.84 (#172; the owner: "Go 1 and 2"):*
+      - rules::PlotDressingBreaks decides (rules/plot_dressing.h). It breaks a Plot placeable that is not static, not
+        clickable, has no inventory, no conversation, isn't a light and has no event script besides OnTrapTriggered,
+        with the house rule on and spellcasting faithful.
+      - light_sources.cpp's CNWSPlaceable::LoadPlaceable hook clears its Plot as it loads. It's the one load path for
+        an area's placeables and a save's, and it's now also installed for #172. The conversation and the event
+        scripts come from the placeable's GFF struct (plot_dressing_load.cpp, CResGFF::ReadFieldCResRef); the rest
+        from the object.
+      - Logged: "plot dressing: a Plot placeable with nothing attached loaded breakable (N so far)".
+      - [house_rules] plot_dressing_breakable=1 (config.*, nwn5e.ini; announced to the animation session, which
+        said "No conflict"). A save made with it on keeps the dressing breakable.
+      - Tests PlotDressingBreaksWhenNothingAttached, PlotDressingKeepsWhatHasAPurpose; 9 of 9 mutations caught;
+        test.bat 633 ok.
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
