@@ -8,4 +8,8 @@ bool PlotDressingBreaks(bool house_rule, bool spellcasting_faithful, const Place
   return p.scripts_besides_trap == 0;
 }
 
+bool PlaceableLit(bool appearance_has_light_colour, int light_flag) {
+  return appearance_has_light_colour && light_flag != 0;
+}
+
 }  // namespace rules

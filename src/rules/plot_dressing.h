@@ -22,4 +22,10 @@ struct PlaceableFacts {
 
 bool PlotDressingBreaks(bool house_rule, bool spellcasting_faithful, const PlaceableFacts& placeable);
 
+// Is a placeable lit, as the engine's CNWSPlaceable::GetLightIsOn answers it: only an appearance with a LightColor
+// (placeables.2da) can be, and then its light flag says. The flag starts at 1 when a placeable is made and a load
+// writes the saved LightState into it only for an appearance with a LightColor, so on a bench or a flag it reads 1
+// (0.99.89: read raw, it made every Plot bench and flag "a light", and nothing was freed).
+bool PlaceableLit(bool appearance_has_light_colour, int light_flag);
+
 }  // namespace rules

@@ -225,6 +225,7 @@ bool g_creating_fire_light = false;               // a grenade's fire light is b
 // Light reach per placeables.2da row: bright / dim in cm (-1: no light), loaded once.
 struct Reach {
   int bright = -1, dim = -1, rings = 0;
+  bool has_colour = false;  // a LightColor in placeables.2da: the engine's light flag means something (PlaceableLit)
 };
 std::vector<Reach> g_reach_by_row;
 bool g_reach_loaded = false;
@@ -249,6 +250,7 @@ const std::vector<Reach>& ReachByRow() {
   int lights = 0;
   for (size_t row = 0; row < colour.size(); ++row) {
     if (colour[row].empty()) continue;
+    g_reach_by_row[row].has_colour = true;
     const size_t c = static_cast<size_t>(atoi(colour[row].c_str()));
     if (c >= red.size() || c >= green.size() || c >= blue.size()) continue;
     const float intensity = (std::max)({static_cast<float>(atof(red[c].c_str())), static_cast<float>(atof(green[c].c_str())),
@@ -266,6 +268,19 @@ const std::vector<Reach>& ReachByRow() {
   return g_reach_by_row;
 }
 
+// Its appearance has a LightColor (placeables.2da): a light source, lit or not.
+bool HasLightColour(const void* placeable) {
+  const std::vector<Reach>& reach = ReachByRow();
+  const size_t row = Field<uint16_t>(placeable, kPlaceableAppearance);
+  return row < reach.size() && reach[row].has_colour;
+}
+
+// Lit, as the engine's CNWSPlaceable::GetLightIsOn answers (rules::PlaceableLit): the raw flag alone reads 1 on a
+// bench or a flag.
+bool Lit(const void* placeable) {
+  return rules::PlaceableLit(HasLightColour(placeable), Field<int32_t>(placeable, kPlaceableLightState));
+}
+
 int LoadPlaceable(void* placeable, void* gff, void* gff_struct, int flag, void* tag) {
   const int result = g_load_placeable(placeable, gff, gff_struct, flag, tag);
   if (result && placeable && !g_creating_flames) {
@@ -276,7 +291,7 @@ int LoadPlaceable(void* placeable, void* gff, void* gff_struct, int flag, void* 
       engine::SetLocalInt(placeable, "nwn5e_light_bright", r.bright);
       engine::SetLocalInt(placeable, "nwn5e_light_dim", r.dim);
       engine::SetLocalInt(placeable, "nwn5e_light_rings", r.rings);
-    } else if (Field<int32_t>(placeable, kPlaceableLightState) != 0) {
+    } else if (Lit(placeable)) {
       engine::SetLocalInt(placeable, "nwn5e_light_bright", -1);  // "lit" but its appearance gives no light
     }
   }
@@ -292,8 +307,10 @@ int LoadPlaceable(void* placeable, void* gff, void* gff_struct, int flag, void* 
     SetField<int32_t>(placeable, kObjectPlot, 1);
     return result;
   }
+  // 0.99.89: lit as GetLightIsOn says (Lit) - read raw, the flag's starting 1 made every static piece without an
+  // inventory (a cot, a table) "a static light" and loaded it as a normal placeable.
   if (result && placeable && g_config.light_sources && Field<int32_t>(placeable, kPlaceableStatic) == 1 &&
-      Field<int32_t>(placeable, kPlaceableLightState) != 0 && Field<int32_t>(placeable, kPlaceableHasInventory) == 0) {
+      Lit(placeable) && Field<int32_t>(placeable, kPlaceableHasInventory) == 0) {
     SetField<int32_t>(placeable, kPlaceableStatic, 0);
     if (++g_unstatic <= 5 || g_unstatic % 50 == 0) {
       Log("lights: a static light (placeables.2da row %d) loaded as a normal placeable, so it can be put out (%d so far)",
@@ -303,14 +320,12 @@ int LoadPlaceable(void* placeable, void* gff, void* gff_struct, int flag, void* 
   // #172 (owner, 2026-11-19: "D′, with the switch on by default"): a module's Plot dressing with nothing attached
   // loads breakable (plot_dressing_load.cpp decides). Lights stay as the light rules handle them.
   if (result && placeable && Field<int32_t>(placeable, kObjectPlot) != 0) {
-    const std::vector<Reach>& reach = ReachByRow();
-    const size_t row = Field<uint16_t>(placeable, kPlaceableAppearance);
     rules::PlaceableFacts facts;
     facts.plot = true;
     facts.is_static = Field<int32_t>(placeable, kPlaceableStatic) != 0;
     facts.useable = Field<int32_t>(placeable, kPlaceableUseable) != 0;
     facts.has_inventory = Field<int32_t>(placeable, kPlaceableHasInventory) != 0;
-    facts.is_light = Field<int32_t>(placeable, kPlaceableLightState) != 0 || (row < reach.size() && reach[row].bright > 0);
+    facts.is_light = HasLightColour(placeable);  // lit or put out: the light rules' (0.99.89: not the raw flag)
     if (PlotDressingFreed(gff, gff_struct, facts)) SetField<int32_t>(placeable, kObjectPlot, 0);
   }
   return result;

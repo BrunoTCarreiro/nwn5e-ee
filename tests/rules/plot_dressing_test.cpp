@@ -38,3 +38,11 @@ TEST(PlotDressingKeepsWhatHasAPurpose) {
   p.scripts_besides_trap = 1;  // a lamp's nw_02_onoff, a quest object's OnDeath
   CHECK_EQ(PlotDressingBreaks(true, true, p), false);
 }
+
+// 0.99.89: the engine's light flag starts at 1 on every placeable; only an appearance with a LightColor is lit by it.
+TEST(PlaceableLitOnlyWithALightColour) {
+  CHECK_EQ(PlaceableLit(false, 1), false);  // a bench or a flag: the flag's starting 1 means nothing
+  CHECK_EQ(PlaceableLit(false, 0), false);
+  CHECK_EQ(PlaceableLit(true, 1), true);    // a lit brazier
+  CHECK_EQ(PlaceableLit(true, 0), false);   // a brazier put out
+}

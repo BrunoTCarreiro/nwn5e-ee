@@ -37,6 +37,7 @@
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
+#include "floaty_text.h"
 #include "log.h"
 #include "nui.h"
 #include "player_text.h"
@@ -182,27 +183,31 @@ void SetRowTexts(uint32_t player, const Held& held) {
 // get a uniform red glow. is it possible to add some sort of floating texture on top?" - "A now, B later"): each
 // target's count floats over it ("2 darts", "1 ray"), as the rows resolve (an empty row the last pick's) - at each
 // change and every kCountsEveryMs while the window is open (NWN's floating text fades). Only the caster sees it.
+// 0.99.89 (owner: "no text above the orcs"): FloatingTextStringOnCreature shows its text to the creature's own player
+// only, so over an NPC no one saw it; the engine's floaty message now goes to the caster's player (floaty_text.h).
 constexpr ULONGLONG kCountsEveryMs = 2500;
 std::unordered_map<uint32_t, ULONGLONG> g_counts_at;  // by player character: the counts last floated
 
 void ShowCounts(uint32_t player, const Held& held) {
   g_counts_at[player] = GetTickCount64();
   const bool rays = held.order.spell == rules::kScorchingRay;
-  std::string code;
+  int sent = 0;
+  std::string said;
   for (const rules::TargetCount& one : rules::CountsByTarget(held.rows)) {
     const std::string text =
         one.count == 1 ? PlayerText(rays ? "target_window.count_ray" : "target_window.count_dart")
                        : PlayerText(rays ? "target_window.count_rays" : "target_window.count_darts",
                                     {{"count", std::to_string(one.count)}});
-    std::string quoted;
-    for (char c : text) {
-      if (c == '"' || c == '\\') quoted += '\\';
-      quoted += c;
+    if (FloatTextFor(player, one.id, text)) {
+      ++sent;
+      said += (said.empty() ? "" : ", ") + Hex(one.id) + " \"" + text + "\"";
     }
-    code += "{ object t = StringToObject(\"" + Hex(one.id) + "\"); if (GetIsObjectValid(t)) "
-            "FloatingTextStringOnCreature(\"" + quoted + "\", t, FALSE, FALSE); }";
   }
-  if (!code.empty()) RunScriptChunk(code.c_str(), player);
+  static int logged = 0;
+  if (sent > 0 && logged < 5) {
+    ++logged;
+    Log("target window: counts floated for 0x%08X - %s", player, said.c_str());
+  }
 }
 
 void Refresh(uint32_t player, Held* held) {

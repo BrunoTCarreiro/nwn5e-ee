@@ -40,6 +40,7 @@ bool HasResRef(void* gff, void* gff_struct, const char* field) {
 }
 
 int g_freed = 0;
+int g_kept = 0;
 
 }  // namespace
 
@@ -58,6 +59,13 @@ bool PlotDressingFreed(void* gff, void* gff_struct, rules::PlaceableFacts facts)
   }
   if (!rules::PlotDressingBreaks(g_config.plot_dressing_breakable,
                                  g_config.spellcasting == rules::RuleVariant::kFaithful, facts)) {
+    // 0.99.89: the first few kept, and why - 0.99.84 to 0.99.88 kept every one silently (a misread light flag).
+    if (++g_kept <= 3) {
+      Log("plot dressing: a Plot placeable kept Plot -%s%s%s%s%s scripts %d (%d kept so far)",
+          facts.is_static ? " static" : "", facts.useable ? " clickable" : "", facts.has_inventory ? " inventory" : "",
+          facts.has_conversation ? " conversation" : "", facts.is_light ? " light" : "", facts.scripts_besides_trap,
+          g_kept);
+    }
     return false;
   }
   if (++g_freed <= 5 || g_freed % 50 == 0) {
