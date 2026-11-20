@@ -109,7 +109,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.99.96";
+constexpr const char* kVersion = "0.99.97";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
