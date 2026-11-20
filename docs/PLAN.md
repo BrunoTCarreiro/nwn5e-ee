@@ -7047,6 +7047,14 @@ history, DoConsoleHist / g_listHistory, is its developer console's).
   Right); 0.99.18 read the text box's line and caret calls the wrong way round, so Left / Right walked the history
   and Up did nothing. The caret is set through +0x168 (Home's call), not +0x158 (the line's).
 
+### The installed version in game (#173)
+
+- *Asked (owner, 2026-11-20):* "is there a way in-game to check the installed version?" It showed only as
+  nwn5e.log's first line ("nwn5e-ee 0.99.97 loaded"). Offered: A a `!version` chat command, on demand; B a chat line
+  when a game loads; C both. *Decided (owner, 2026-11-20): "A for the version command".*
+- *Built 0.99.98:* `!version` answers "nwn5e: version 0.99.98" - the DLL's kVersion (dllmain.cpp's VersionCommand);
+  its line `version.line` in data/text/en.txt (generated, for review). Test VR-1.
+
 ## Test register — the owner's request (2026-11-08, #147)
 
 The owner, 2026-11-08: "instead of having ephemeral test matrices let's have an excel file where we keep all the
