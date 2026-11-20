@@ -341,9 +341,12 @@ constexpr const char* kFlameUseScript = "n5_flame_use";
 constexpr const char* kFlameHitScript = "n5_flame_hit";
 constexpr const char* kFlameSpellScript = "n5_flame_spl";
 
-// The light out / lit again, on OBJECT_SELF (the placeable).
+// The light out / lit again, on OBJECT_SELF (the placeable). 0.99.102 (#172; the owner, 2026-11-20: "yes on all", on the
+// animation session's destruction recon): a light at 0 hit points is breaking - no "off" animation then, or the client
+// plays it in place of the model's own "die" (its debris and sound); it's still marked out, for the light rules.
 constexpr const char* kDouse =
-    "PlayAnimation(ANIMATION_PLACEABLE_DEACTIVATE); SetPlaceableIllumination(OBJECT_SELF, FALSE);"
+    "if (GetCurrentHitPoints(OBJECT_SELF) > 0) PlayAnimation(ANIMATION_PLACEABLE_DEACTIVATE);"
+    "SetPlaceableIllumination(OBJECT_SELF, FALSE);"
     "SetLocalInt(OBJECT_SELF, \"nwn5e_lamp_out\", 1); SetLocalInt(OBJECT_SELF, \"nwn5e_light_changed\", 1);";
 constexpr const char* kRelight =
     "PlayAnimation(ANIMATION_PLACEABLE_ACTIVATE); SetPlaceableIllumination(OBJECT_SELF, TRUE);"
@@ -522,7 +525,9 @@ void Used(uint32_t lamp) {
 void Damaged(uint32_t lamp) {
   Run("object u = GetLastDamager(); int all = GetTotalDamageDealt(); int fire = GetDamageDealtByType(DAMAGE_TYPE_FIRE);"
       "if (fire < 0) fire = 0;"
-      "if (GetCurrentHitPoints(OBJECT_SELF) < GetMaxHitPoints(OBJECT_SELF))"
+      // 0.99.102: not the killing hit's - the engine's heal has no dead check for a placeable, and a breaking light
+      // healed back played no "die" (kDouse).
+      "if (GetCurrentHitPoints(OBJECT_SELF) > 0 && GetCurrentHitPoints(OBJECT_SELF) < GetMaxHitPoints(OBJECT_SELF))"
       " ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectHeal(GetMaxHitPoints(OBJECT_SELF)), OBJECT_SELF);"
       "if (GetPlaceableIllumination(OBJECT_SELF) && (all <= 0 || all > fire) && !GetLocalInt(u, \"nwn5e_snuffing\")) {" +
           std::string(kDouse) +
