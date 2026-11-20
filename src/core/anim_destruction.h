@@ -24,9 +24,12 @@
 
 // The breakable's material, in data::DebrisMaterialCode's order.
 enum class DebrisMaterial { Wood = 0, Stone = 1, Metal = 2, Cloth = 3, Glass = 4 };
+static_assert(static_cast<int>(DebrisMaterial::Glass) + 1 == data::kDebrisMaterials,
+              "every DebrisMaterial has its rows (data::kDebrisMaterials)");
 
 // Its size: Small (cb_bu_*sml), Large (cb_bu_*lrg).
 enum class DebrisSize { Small = 0, Large = 1 };
+static_assert(static_cast<int>(DebrisSize::Large) + 1 == data::kDebrisSizes, "every DebrisSize has its rows (data::kDebrisSizes)");
 
 // The visualeffects.2da row of the debris for `material` and `size`; -1 for anything the enums don't name.
 inline int DestructionDebrisVfx(DebrisMaterial material, DebrisSize size) {

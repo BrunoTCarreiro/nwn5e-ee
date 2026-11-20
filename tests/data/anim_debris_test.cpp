@@ -303,22 +303,31 @@ TEST(LightDeathEmbersSmokeAndAFadingGlow) {
   CHECK_EQ(text.find("newanim duration") == std::string::npos && text.find("newanim cessation") == std::string::npos, true);
   CHECK_EQ(OneDetonateAtZero(text), true);
   CHECK_EQ(text.find("\n  fadingLight 0\n") != std::string::npos && text.find("\n  ambientonly 0\n") != std::string::npos, true);
+  // Where each sits (fix round 1, the review: a burst or embers lifted 1 m passed): the effect is played at the light's
+  // own point, so the sparks, the embers and the glow are on it - within 5 cm - and the smoke rises from 10 cm over it.
+  const auto on_point = [](const float p[3], float z) { return Near(p[0], 0.0f, 0.05f) && Near(p[1], 0.0f, 0.05f) && Near(p[2], z, 0.05f); };
   bool burst = false, embers = false, smoke = false;
   for (const data::VfxEmitter& e : effect.emitters) {
     CHECK_EQ(e.chunk.empty(), true);
-    if (e.update == "Explosion" && e.blend == "Lighten") burst = true;
+    if (e.update == "Explosion" && e.blend == "Lighten") {
+      burst = true;
+      CHECK_EQ(on_point(e.position, 0.0f), true);
+    }
     if (e.update == "Fountain" && e.blend == "Lighten" && e.mass < 0.0f && e.color_start[0] >= e.color_start[2] &&
         e.color_end[0] > e.color_end[2] && e.emit_seconds >= 1.0f) {
       embers = true;
+      CHECK_EQ(on_point(e.position, 0.0f), true);
     }
     if (e.update == "Fountain" && e.texture == "fxpa_smoke01" && e.velocity > 0.0f && e.emit_seconds >= 1.5f && e.life >= 2.0f) {
       smoke = true;
+      CHECK_EQ(on_point(e.position, 0.1f), true);
     }
   }
-  CHECK_EQ(burst && embers && smoke, true);
+  CHECK_EQ(burst && embers && smoke && effect.emitters.size() == 3 && effect.nodes.empty(), true);  // none under a moved node
   CHECK_EQ(effect.lights.size(), 1u);
   if (effect.lights.size() != 1) return;
   const data::VfxLight& light = effect.lights[0];
+  CHECK_EQ(on_point(light.position, 0.0f), true);
   CHECK_EQ(light.color[0] >= light.color[1] && light.color[1] >= light.color[2] && light.color[0] > 0.9f, true);
   CHECK_EQ(!light.fading && !light.ambient_only && light.radius >= 4.0f, true);
   const data::VfxKeys* keys = nullptr;

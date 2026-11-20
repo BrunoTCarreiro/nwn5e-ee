@@ -2869,9 +2869,10 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     game's own - its model and emitter named in build.js, the values read from the install, nothing of the game's kept):
     - the chunks on the game's placeable "die" recipe ("ChunkyWood", the same on its 525 models; PLC_X01's): Explosion on
       the impact's detonate, life 0.75 s, velocity 8, spread 1.222, mass 3, bouncing at 0.5, 89 x 40 cm; the rocks on
-      VFX_COM_CHUNK_STONE's "medrock" (life 4 s); a dust puff on the game's "fire!" (10, 4 -> 1 m, 2.5 s) in the
-      material's own colours (the bench's wood, the sarcophagus's stone, the brazier's metal, the sacks' cloth, the
-      crystal ball's glass);
+      VFX_COM_CHUNK_STONE's "medrock" (life 4 s); a dust puff on the game's "fire!" (10, 4 -> 1 m, 2.5 s) in the colours
+      of one of the game's pieces of the material (the bench's wood, the sarcophagus's stone, the sacks' cloth, the
+      crystal ball's glass; metal's is the brazier's - the game's common grey puff, the same on the bolt of cloth's
+      fire!49, the campfire, the candelabra and the mirror: not a metal tint);
     - wood: plc_chunk_w01 / w02 (the bench PLC_X01); stone: plc_chunk_s01 + fx_rockchunksml (large: + plc_chunk_s02,
       fx_rockchunkmed); metal: plc_chunk_m01 x 3 (the brazier's) + VFX_COM_SPARKS_PARRY's sparks; cloth: dust + plc_chunk_m01
       scraps (the sacks'); glass: dag_chunk_g01 x 12 (the bottles') + the crystal ball's glint and blue-grey puff (large: +
@@ -2880,9 +2881,10 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     - large = the small set plus the same kind 0.6 m higher with the larger chunk, so more, from higher;
     - the light's death (at its light, emitters at 0): a burst of vim_explflame's ember streaks (slower, 0.25 s), rising
       embers (vim_exp2flame's sparks01 drifting up at mass -0.1, shrinking, yellow to the game's deep fire orange, 1.2 s),
-      the brazier's own smoke column (fire!06, alpha 0.3, on 2 s - it climbs past 1 m) and VFX_IMP_FLAME_M's light
-      (0.945 0.741 0.42, 5 m) on at once (fadingLight 0), cooling as it fades: 0.85 0.55 0.25 at 0.5 s, 0.5 0.25 0.08 at
-      1 s, black at 1.5 s.
+      the brazier's own smoke column (fire!06, alpha 0.3, on 2 s - it climbs past 1 m) and VFX_IMP_FLAME_M's light colour
+      and reach (0.945 0.741 0.42, 5 m) on at once (fadingLight 0), cooling as it fades: 0.85 0.55 0.25 at 0.5 s, 0.5 0.25
+      0.08 at 1 s, black at 1.5 s. The game's light is ambient-only and not dynamic; ours lights its surroundings and
+      creatures (ambientonly 0, isdynamic 1), as the placeable's own light did - a deliberate difference.
   - **Made the Detect Magic way:** the drafts (tools/data/vfx/n5_db_*.vfx) by the VFX Bench's own writer (core.js
     writeDraft), the models (data/files/n5_db_*.mdl) by the game's own WriteVfxModel through tools/data/floatdisk's mdlmesh
     --model; build.js writes both (only what changed).
@@ -2909,3 +2911,23 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     only; wood) and the wagon wheel (no "die"; wood); in m0q1d the corpses (no "die"; leather = cloth). So in game only wood
     and cloth can show there; stone, metal and glass need other pieces (or a way to place one - the game session's).
     DE-1 shows all 11.
+  - **Fix round 1 (the review; it approved the code, effects, call, rows file and the merge with RT - clean, 653/0):**
+    - **DE-2's lit lights:** since 0.99.103 any hit that isn't all fire puts a lit light out (Damaged(): PD-8, "The first
+      hit puts it out") and Shatter puts out every light in its sphere (BlastPutsOutLights), so a brazier was usually out
+      before it broke - and the light's death plays only for a light lit as it dies. The row now breaks lit lights with
+      Fire Bolt (fire alone doesn't douse; no blast) before any Shatter near them, the rest with Shatter (a weapon reaches
+      only clickable pieces), and says a light put out first breaks with no embers. DE-1: metal's pieces and cloth's
+      scraps are one chunk (plc_chunk_m01) - metal is told by its sparks and grey dust.
+    - **The light's death pinned:** lifting its burst or embers 1 m passed the test and check.js. Both now pin the burst,
+      the embers and the glow within 5 cm of the light's point and the smoke 10 cm over it, nothing under a node; the
+      lifts (burst, embers, smoke, glow 1 m; embers 30 cm aside) fail both, and passed both before (all five missed by
+      381288f's test and check.js).
+    - **The enum and the name table can't drift:** kMaterialCodes[] unsized with a static_assert against kDebrisMaterials;
+      static_assert(Glass + 1 == kDebrisMaterials) and (Large + 1 == kDebrisSizes). A word missing or one too many, or the
+      last enumerator renumbered, no longer builds. An enumerator added after Glass or Large still builds (no count
+      member in the agreed enums) - DestructionDebrisVfx gives it -1, which DestructionDebrisVfxRefusesOthers pins.
+    - Wording: the dust's colours (metal's is the game's common grey puff) and the light (the game's is ambient-only and
+      not dynamic; ours lights its surroundings on purpose), above and in README.md.
+    - test.bat 657, 0 failed (no new test; LightDeathEmbersSmokeAndAFadingGlow pins the places); the effect files unchanged
+      (build.js: all unchanged). Mutations: the DE tests 34 of 36 - round 0's 26 all caught (the late burst too), 8 of
+      round 1's 10, the two misses the appended enumerators above; check.js 27 of 27.

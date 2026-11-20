@@ -34,9 +34,11 @@ values only - nothing of the game's is kept here). The chunks are **the game's c
   impact's `detonate`, life 0.75 s, velocity 8, spread 1.222, mass 3, bouncing at 0.5, from an 89 x 40 cm patch. Glass
   keeps its own pieces' spread (2.967) and patches (the bottles' 5 x 5 cm, the crystal ball's 22 x 24 cm).
 - **The rocks** (stone) - VFX_COM_CHUNK_STONE's "medrock": they lie 4 s, thrown wide (spread 4.189), bouncing at 0.2.
-- **The dust** - the game's die smoke ("fire!"): 10 puffs, 4 m shrinking to 1 m, fading out over 2.5 s, in **the
-  material's own colours** as the game's pieces tint it (wood brown from the bench, stone from the sarcophagus, metal grey
-  from the brazier, cloth from the sacks, glass blue-grey from the crystal ball - 5 puffs there).
+- **The dust** - the game's die smoke ("fire!"): 10 puffs, 4 m shrinking to 1 m, fading out over 2.5 s, in the colours
+  of one of the game's own pieces of that material: wood brown from the bench, stone from the sarcophagus, cloth from the
+  sacks, glass blue-grey from the crystal ball (5 puffs there). Metal's is the brazier's, which is **the game's common
+  grey puff, not a metal tint** - the same colours on the bolt of cloth (fire!49), the campfire, the candelabra and the
+  mirror (fix round 1, the review). Metal is told apart by its sparks.
 - **Metal's sparks** - VFX_COM_SPARKS_PARRY's: specks streaking (motion blur, added light), falling and bouncing for 3 s,
   white-yellow to orange.
 - **Glass's glint** - the crystal ball's: white streaks turning ice blue, gone in 1 s.
@@ -53,9 +55,11 @@ values only - nothing of the game's is kept here). The chunks are **the game's c
   - the smoke column: the brazier's own (PLC_I05 fire!06: 20 a second rising 1 m/s in a narrow column, growing 1 -> 2 m,
     grey to dark, life 3 s), thicker as the fire chokes (alpha 0.3 where the brazier's is 0.1), on for 2 s - it climbs
     past 1 m;
-  - the glow: VFX_IMP_FLAME_M's light (0.945 0.741 0.42, 5 m), in place of the light the client cuts - on at once
-    (`fadingLight 0`: the engine's fade-in would leave a dark gap), lighting its surroundings, cooling to an ember red as
-    it fades: 0.85 0.55 0.25 at 0.5 s, 0.5 0.25 0.08 at 1 s, black at 1.5 s.
+  - the glow: VFX_IMP_FLAME_M's light colour and reach (0.945 0.741 0.42, 5 m), in place of the light the client cuts -
+    on at once (`fadingLight 0`: the engine's fade-in would leave a dark gap), cooling to an ember red as it fades: 0.85
+    0.55 0.25 at 0.5 s, 0.5 0.25 0.08 at 1 s, black at 1.5 s. **It differs from the game's light on purpose:** the game's
+    is ambient-only and not dynamic; ours lights its surroundings and the creatures near it (`ambientonly 0`, `isdynamic
+    1`), as the placeable's own light did until it was cut.
 - **One-shots.** Each model is an impact alone (no duration, no cessation): it ends with its last particle (3.5 s for
   wood, 5 s for stone's rocks and the light's smoke), nothing left behind.
 

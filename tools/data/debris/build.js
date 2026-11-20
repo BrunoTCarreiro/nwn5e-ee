@@ -71,7 +71,9 @@ const PUFF = {
 const DUST = {
   wood: [[0.443, 0.388, 0.247], [0.639, 0.608, 0.482]],    // PLC_X01 (Bench) fire!117
   stone: [[0.475, 0.439, 0.365], [0.82, 0.796, 0.71]],      // PLC_B10 (Sarco1) fire!20
-  metal: [[0.608, 0.569, 0.486], [0.82, 0.816, 0.796]],     // PLC_I05 (Brazier) fire!51
+  metal: [[0.608, 0.569, 0.486], [0.82, 0.816, 0.796]],     // PLC_I05 (Brazier) fire!51 - the game's common grey puff
+                                                            // (the bolt of cloth's fire!49, the campfire's, the candelabra's
+                                                            // and the mirror's too): not a metal tint; its sparks tell it
   cloth: [[0.475, 0.455, 0.408], [0.82, 0.804, 0.745]],     // PLC_L03 (Sacks) fire!82
   glass: [[0.518, 0.576, 0.608], [0.82, 0.816, 0.796]],     // px2_d01 (CrystalBall) fire!165 - with its 5 and 51 x 51 cm
 };
@@ -144,9 +146,11 @@ const DEBRIS = {
 //   m), cooling to the deep orange of the game's fire light (vim_strkfire's 0.92 0.44 0.11), 12 a second for 1.2 s;
 // - the smoke column: the brazier's own (PLC_I05 fire!06: 20 a second, rising 1 m/s in a narrow column, growing 1 -> 2
 //   m, grey to dark, life 3 s), thicker as the fire chokes (alpha 0.1 -> 0.3 at the start), on for 2 s;
-// - the glow: VFX_IMP_FLAME_M's light (vim_exp2flame AuroraLight01: 0.945 0.741 0.42, 5 m) in place of the light the
-//   client cuts as the placeable dies - on at once (fadingLight off), lighting its surroundings, cooling to an ember red
-//   as it fades, dark at 1.5 s.
+// - the glow: VFX_IMP_FLAME_M's light colour and reach (vim_exp2flame AuroraLight01: 0.945 0.741 0.42, 5 m) in place of
+//   the light the client cuts as the placeable dies - on at once (fadingLight off), cooling to an ember red as it fades,
+//   dark at 1.5 s. Unlike the game's (ambient-only, not dynamic) it lights its surroundings and creatures (ambientonly
+//   off, dynamic on - core.light's own), as the placeable's light did: a choice, not the game's value.
+// Every emitter and the glow sit on the light's point (the smoke 10 cm over it); check.js and the tests pin them.
 function lightDeath(core) {
   const emitters = [
     core.emitter({ name: "burst", update: "Explosion", render: "Motion_Blur", blend: "Lighten", texture: "fxpa_strk_b", grid: 1,

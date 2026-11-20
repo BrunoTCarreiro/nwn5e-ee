@@ -17,8 +17,10 @@
 //   0; a small one's emitters 0.25-0.7 m up, a large one's adding more from 0.9 m up and throwing more;
 // - the light's death: an ember burst (vim_explflame's sparks, slower), rising embers (Lighten, mass below 0, yellow to
 //   deep orange, on 1.2 s), the smoke column (the brazier's fire!06, alpha 0.3, on 2 s), no chunk; one light - the game's
-//   flame light (vim_exp2flame: 0.945 0.741 0.42, 5 m) on at once (fading off), its colour keys from it to black at 1.5 s,
-//   never brighter on the way;
+//   flame light's colour and reach (vim_exp2flame: 0.945 0.741 0.42, 5 m) on at once (fading off), lighting its
+//   surroundings (not ambient only - the game's is: ours on purpose), its colour keys from it to black at 1.5 s, never
+//   brighter on the way; each on the light's point - the burst, the embers and the light within 5 cm of it, the smoke
+//   10 cm over it (fix round 1: a burst or embers lifted 1 m passed before);
 // - data\rows\visualeffects.debris.txt: the 11 rows naming the models in the four root columns, F, OrientWithGround 0;
 // - tools\data\vfx holds exactly the drafts, and the bench reads each back byte for byte (core.readDraft / writeDraft);
 // - data\files holds exactly the models the game's writer makes from them (mdlmesh --model; text whatever its line ends)
@@ -186,6 +188,14 @@ const byName = new Map(built.map((e) => [e.name, e]));
       velocity: 1, randvel: 0.2, spread: 0.175, mass: 0.035, size_start: 1, size_end: 2, color_start: [0.376, 0.376, 0.376],
       color_end: [0.176, 0.176, 0.176], alpha_start: 0.3, alpha_end: 0, emit_seconds: 2 }).map((s) => "smoke " + s));
     if (e.fx.emitters.some((x) => x.chunk)) what.push("a chunk");
+    // Where each sits (fix round 1, the review: a burst or embers lifted 1 m passed): on the light's point - the burst,
+    // the embers and the glow within 5 cm of it, the smoke 10 cm over it; nothing under a node that could move them.
+    const at = (item, z) => item && Array.isArray(item.position) && near(item.position[0], 0, 0.05) && near(item.position[1], 0, 0.05) &&
+      near(item.position[2], z, 0.05) && !item.parent;
+    for (const [item, z, name] of [[burst, 0, "burst"], [embers, 0, "embers"], [smoke, 0.1, "smoke"], [e.fx.lights[0], 0, "light"]]) {
+      if (item && !at(item, z)) what.push(name + " at " + JSON.stringify(item.position) + (item.parent ? " under " + item.parent : "") + ", not 0 0 " + z);
+    }
+    if ((e.fx.nodes || []).length) what.push("nodes");
     const l = e.fx.lights[0];
     if (e.fx.lights.length !== 1 || !l) what.push(e.fx.lights.length + " lights");
     else {
@@ -204,7 +214,7 @@ const byName = new Map(built.map((e) => [e.name, e]));
     }
   } else what.push("missing");
   if (what.length) fail("n5_db_light: " + what.join("; "));
-  else ok("n5_db_light: an ember burst, rising embers, the brazier's smoke column on 2 s, the game's flame light on at once fading to black at 1.5 s");
+  else ok("n5_db_light: an ember burst, rising embers, the brazier's smoke column on 2 s, the game's flame light on at once fading to black at 1.5 s - each on the light's point (the smoke 10 cm over it)");
 }
 
 // --- the rows file ----------------------------------------------------------------------------------------------------
