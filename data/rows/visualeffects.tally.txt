@@ -1,0 +1,44 @@
+# visualeffects.2da - #171's target-count marker, its final look (TF): the count as tally marks (a five four bars struck
+# through) facing the camera from every angle - black bars on the spell's glow (the owner, 2026-11-20: "black on
+# blue/orange/violet glow for magic missile, scorching ray and eldritch blast respectively"). Style s, count n at
+# 2215 + 11 s + n - 1 (src/data/anim_target_count.h kTargetTallyFirstRow; the game's call, core/anim_target_counts.h
+# TargetCountMarkerVfx(style, count)): Magic Missile 2215-2225, Scorching Ray 2226-2236, Eldritch Blast 2237-2247. A
+# lasting effect on the head node, upright (OrientWithObject 0), no cessation: two quads our vertex shader (vsn5bill_sl)
+# turns to the camera on every draw, paused too - the bars, black and alpha-blended, and the glow, additive and black
+# where the bars are, 1 cm nearer the camera - both drawn unlit by our fsn5unlit, so nothing tints them. nwn5e's own
+# models and art (data\files\n5_tf_*, n5_tfg_*, n5_tfgp_*, n5_tfb_*, n5_tfbp_*, vsn5bill_sl, fsn5unlit, made by
+# tools/data/tally/build.js). After the probe's 2211-2214 (tests/data/anim_vfx_rows_test.cpp).
+Label Type_FD OrientWithGround Imp_HeadCon_Node OrientWithObject
+2215 NWN5E_TALLY_MM_1 D 0 n5_tf_mm01 0
+2216 NWN5E_TALLY_MM_2 D 0 n5_tf_mm02 0
+2217 NWN5E_TALLY_MM_3 D 0 n5_tf_mm03 0
+2218 NWN5E_TALLY_MM_4 D 0 n5_tf_mm04 0
+2219 NWN5E_TALLY_MM_5 D 0 n5_tf_mm05 0
+2220 NWN5E_TALLY_MM_6 D 0 n5_tf_mm06 0
+2221 NWN5E_TALLY_MM_7 D 0 n5_tf_mm07 0
+2222 NWN5E_TALLY_MM_8 D 0 n5_tf_mm08 0
+2223 NWN5E_TALLY_MM_9 D 0 n5_tf_mm09 0
+2224 NWN5E_TALLY_MM_10 D 0 n5_tf_mm10 0
+2225 NWN5E_TALLY_MM_11 D 0 n5_tf_mm11 0
+2226 NWN5E_TALLY_SR_1 D 0 n5_tf_sr01 0
+2227 NWN5E_TALLY_SR_2 D 0 n5_tf_sr02 0
+2228 NWN5E_TALLY_SR_3 D 0 n5_tf_sr03 0
+2229 NWN5E_TALLY_SR_4 D 0 n5_tf_sr04 0
+2230 NWN5E_TALLY_SR_5 D 0 n5_tf_sr05 0
+2231 NWN5E_TALLY_SR_6 D 0 n5_tf_sr06 0
+2232 NWN5E_TALLY_SR_7 D 0 n5_tf_sr07 0
+2233 NWN5E_TALLY_SR_8 D 0 n5_tf_sr08 0
+2234 NWN5E_TALLY_SR_9 D 0 n5_tf_sr09 0
+2235 NWN5E_TALLY_SR_10 D 0 n5_tf_sr10 0
+2236 NWN5E_TALLY_SR_11 D 0 n5_tf_sr11 0
+2237 NWN5E_TALLY_EB_1 D 0 n5_tf_eb01 0
+2238 NWN5E_TALLY_EB_2 D 0 n5_tf_eb02 0
+2239 NWN5E_TALLY_EB_3 D 0 n5_tf_eb03 0
+2240 NWN5E_TALLY_EB_4 D 0 n5_tf_eb04 0
+2241 NWN5E_TALLY_EB_5 D 0 n5_tf_eb05 0
+2242 NWN5E_TALLY_EB_6 D 0 n5_tf_eb06 0
+2243 NWN5E_TALLY_EB_7 D 0 n5_tf_eb07 0
+2244 NWN5E_TALLY_EB_8 D 0 n5_tf_eb08 0
+2245 NWN5E_TALLY_EB_9 D 0 n5_tf_eb09 0
+2246 NWN5E_TALLY_EB_10 D 0 n5_tf_eb10 0
+2247 NWN5E_TALLY_EB_11 D 0 n5_tf_eb11 0
