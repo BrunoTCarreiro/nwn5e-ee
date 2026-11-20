@@ -6,9 +6,9 @@
 //   Eldritch Blast), 33 models n5_tf_<ss>NN, the bars' bitmaps n5_tfb_NN and the glows' n5_tfg_<ss>NN (each a material
 //   and a TXI), the vertex shader vsn5bill_sl and the fragment shader fsn5unlit; names under 17 letters; the same bytes
 //   on both builds;
-// - the layout: counts 1-11 as the probe (TP, tools/data/tprobe) lays them out - n less its fives upright bars, a rising
-//   strike over each five's four, inside the picture's margin, centred - stated here in its numbers (and, while the
-//   probe's generator is there, the same as its);
+// - the layout: counts 1-11 as the retired probe (TP) laid them out - n less its fives upright bars, a rising strike
+//   over each five's four, inside the picture's margin, centred - stated here in its numbers, and pinned for 7 and 11
+//   (the probe's generator is gone: these are its expectation, kept here);
 // - the bars pictures: 256 x 128, 32-bit, bottom-up with 8 alpha bits; every pixel #010101 (the owner: never pure black,
 //   "so they don't get seen as transparent" - no pixel with alpha over 0 is 0 0 0); alpha 255 inside a stroke, 0 outside
 //   it and in the border, an antialiased edge between; every bar and strike there;
@@ -140,7 +140,7 @@ function checkLayout(n) {
   const what = [];
   const fives = Math.floor(n / 5);
   if (!L || !Array.isArray(L.bars) || !Array.isArray(L.strikes)) return ["no layout"];
-  if (JSON.stringify(L) !== JSON.stringify(statedLayout(n))) what.push("not the probe's layout");
+  if (JSON.stringify(L) !== JSON.stringify(statedLayout(n))) what.push("not the stated layout");
   if (L.bars.length !== n - fives) what.push(L.bars.length + " bars, not " + (n - fives));
   if (L.strikes.length !== fives) what.push(L.strikes.length + " strikes, not " + fives);
   if (what.length) return what;
@@ -169,16 +169,17 @@ function checkLayout(n) {
   // The probe's glow: 0.9 at a stroke's edge, nothing past 18 px.
   if (B.GLOW_PEAK !== 0.9 || B.GLOW_REACH !== 18) bad.push("the glow's peak " + B.GLOW_PEAK + " and reach " + B.GLOW_REACH + ", not the probe's 0.9 and 18");
   for (const n of COUNTS) for (const w of checkLayout(n)) bad.push(n + ": " + w);
-  // The probe's generator, while it's there: the same strokes for every count.
-  const probe = path.join(__dirname, "..", "tprobe", "build.js");
-  let compared = false;
-  if (fs.existsSync(probe)) {
-    const P = require(probe);
-    for (const n of COUNTS) if (JSON.stringify(P.layout(n)) !== JSON.stringify(B.layout(n))) bad.push(n + ": not tools/data/tprobe's layout");
-    compared = true;
-  }
+  // The retired probe's layout (TP), pinned as literals for a count with one five and one with two: the strokes
+  // themselves, not recomputed from the numbers above.
+  const bar = (x) => ({ x0: x, y0: 30, x1: x, y1: 98 });
+  const PINNED = {
+    7: { bars: [74, 94, 114, 134, 168, 188].map(bar), strikes: [{ x0: 68, y0: 43, x1: 140, y1: 85 }] },
+    11: { bars: [37, 57, 77, 97, 131, 151, 171, 191, 225].map(bar),
+      strikes: [{ x0: 31, y0: 43, x1: 103, y1: 85 }, { x0: 125, y0: 43, x1: 197, y1: 85 }] },
+  };
+  for (const n of Object.keys(PINNED)) if (JSON.stringify(B.layout(+n)) !== JSON.stringify(PINNED[n])) bad.push(n + ": not the pinned layout");
   if (bad.length) fail("layout: " + bad.join("; "));
-  else ok("layout: counts 1-11 - the probe's (n less its fives upright bars, a rising strike over each five's four), inside the margin, centred" + (compared ? "; the same as tools/data/tprobe's" : ""));
+  else ok("layout: counts 1-11 - the probe's (n less its fives upright bars, a rising strike over each five's four), inside the margin, centred; 7 and 11 pinned");
 }
 
 // --- the pictures ----------------------------------------------------------------------------------------------------

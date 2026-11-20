@@ -28,7 +28,3 @@ enum class TargetCountStyle { MagicMissile = 0, ScorchingRay = 1, EldritchBlast 
 inline int TargetCountMarkerVfx(TargetCountStyle style, int count) {
   return data::TargetTallyRow(static_cast<int>(style), count);
 }
-
-// The one-argument call, kept until the game session moves to the style call: Magic Missile's look (rows 2215-2225). The
-// four-disc marker it gave before TF keeps its rows (2200-2210, data::TargetCountRow), unused.
-inline int TargetCountMarkerVfx(int count) { return TargetCountMarkerVfx(TargetCountStyle::MagicMissile, count); }

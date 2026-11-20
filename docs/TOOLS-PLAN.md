@@ -2672,6 +2672,8 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
 
 ## The target-count marker (2026-11-19, #171; TC)
 
+  Retired 2026-11-20 (the owner): replaced by TF; files removed in the commit "retire #171's first disc markers and the TP probe".
+
   #171's target window, the game session's (B): the owner, 2026-11-19: "it should be a permanently visible indicator on
   top of each enemy saying how many darts/bolts are assigned to them, not how many are left"; look, glow and size "A, A,
   as you said" - a bold white number with a dark outline on a small dark-red disc, about 0.4 m, 0.35 m clear above the
@@ -2709,6 +2711,8 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     paused) and TC-2 (the VFX Bench) with the game session's wiring.
 
 ## The marker's probe: glowing tally marks on a quad our vertex shader turns to the camera (2026-11-19, #171; TP)
+
+  Retired 2026-11-20 (the owner): replaced by TF; files removed in the commit "retire #171's first disc markers and the TP probe".
 
   The owner, 2026-11-19, on the four-disc marker: "glowing tally marks that always face the camera, is that possible?" -
   then "go with the probe, white-gold on red". A probe beside the marker (2200-2210 and n5_tcnt_* unchanged); if picked,

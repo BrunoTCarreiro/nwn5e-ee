@@ -3,7 +3,7 @@
 // from every angle - black bars on the spell's glow:
 //   node tools\data\tally\build.js [--out <folder>]      (default: data\files)
 //
-// The owner, 2026-11-20, after the probe (TP, tools\data\tprobe: one quad our vertex shader turns to the camera every
+// The owner, 2026-11-20, after the probe (TP, retired 2026-11-20, in git history: one quad our vertex shader turns to the camera every
 // frame, drawn and turning while paused): the face-on (spherical) style - "camera level for max readability for every
 // angle" - and "for now let's keep your generated style, but can we do it black on blue/orange/violet glow for magic
 // missile, scorching ray and eldritch blast respectively?". An additive glow can't draw black (black adds nothing), so
@@ -56,7 +56,7 @@ const barsBitmap = (n) => `n5_tfb_${pad(n)}`;
 const barsPicture = (n) => `n5_tfbp_${pad(n)}`;
 
 // --- the art ---------------------------------------------------------------------------------------------------------
-// The probe's numbers (tools\data\tprobe\build.js), kept: bars 10 px wide, 68 px tall, 20 px apart; a five's strike
+// The retired probe's numbers (TP), kept: bars 10 px wide, 68 px tall, 20 px apart; a five's strike
 // rising from 6 px before its first bar to 6 px past its fourth; the glow's fall-off and reach; the clear border.
 const TEX_W = 256;
 const TEX_H = 128;
@@ -168,7 +168,7 @@ function tga(rows) {
 
 // --- the shader ------------------------------------------------------------------------------------------------------
 // The probe's spherical billboard (vsn5bill_s; its inputs read from the game's inc_common / inc_transform and the engine's
-// GLRender::SetUniforms - tools\data\tprobe\README.md): m_mv the model-view matrix (the node's place in the world, the
+// GLRender::SetUniforms - the retired tools\data\tprobe\README.md, in git history): m_mv the model-view matrix (the node's place in the world, the
 // head attachment's with it, then the camera's), m_view the camera's alone, m_proj the projection, vPos the vertex in its
 // node; view space the GL one (x right on screen, y up, the camera at the origin looking down -z). One line more: each
 // vertex's y in its node (the quad's front is -y) moves it along the eye's line through the centre - toward the eye for

@@ -14,16 +14,6 @@ std::string TwoDigits(int count) {
 
 }  // namespace
 
-int TargetCountRow(int count) {
-  if (!CountIn(count)) return -1;
-  return kTargetCountFirstRow + count - 1;
-}
-
-std::string TargetCountModel(int count) {
-  if (!CountIn(count)) return std::string();
-  return "n5_tcnt_" + TwoDigits(count);
-}
-
 int TargetTallyRow(int style, int count) {
   if (!StyleIn(style) || !CountIn(count)) return -1;
   return kTargetTallyFirstRow + style * kTargetCountMax + count - 1;
