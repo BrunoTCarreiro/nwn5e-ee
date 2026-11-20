@@ -1,0 +1,64 @@
+#MAXMODEL ASCII
+# nwn5e (tools/data/tprobe/build.js): #171's probe (TP) - 7 as glowing tally marks on one quad that its
+# vertex shader vsn5bill_s turns to the camera (spherical); nwn5e's own art n5_tally_07.tga, additive. No keys.
+newmodel n5_tprobe_s7
+setsupermodel n5_tprobe_s7 NULL
+classification effect
+setanimationscale 1
+beginmodelgeom n5_tprobe_s7
+node dummy n5_tprobe_s7
+  parent NULL
+endnode
+node trimesh n5_tprobe_s7_quad
+  parent n5_tprobe_s7
+  ambient 0 0 0
+  diffuse 0 0 0
+  specular 0 0 0
+  shininess 1
+  bitmap n5_tprobe_s7
+  render 1
+  shadow 0
+  beaming 0
+  inheritcolor 0
+  alpha 1
+  transparencyhint 0
+  selfillumcolor 1 1 1
+  tilefade 0
+  rotatetexture 0
+  position 0 0 0.55
+  orientation 0 0 0 0
+  verts 4
+    -0.25 0 -0.125
+    0.25 0 -0.125
+    0.25 0 0.125
+    -0.25 0 0.125
+  tverts 4
+    0 0 0
+    1 0 0
+    1 1 0
+    0 1 0
+  faces 2
+    0 1 2 1 0 1 2 0
+    0 2 3 1 0 2 3 0
+endnode
+endmodelgeom n5_tprobe_s7
+
+newanim impact n5_tprobe_s7
+  length 0.25
+  transtime 0.25
+  animroot n5_tprobe_s7
+node dummy n5_tprobe_s7
+  parent NULL
+endnode
+doneanim impact n5_tprobe_s7
+
+newanim duration n5_tprobe_s7
+  length 1
+  transtime 0.25
+  animroot n5_tprobe_s7
+node dummy n5_tprobe_s7
+  parent NULL
+endnode
+doneanim duration n5_tprobe_s7
+
+donemodel n5_tprobe_s7

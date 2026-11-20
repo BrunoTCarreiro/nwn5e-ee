@@ -1,0 +1,43 @@
+// vsn5bill_c.shd - nwn5e's camera-facing quad (nwn5e-ee #171, TP), cylindrical: stays upright, turns about the world's up
+// Made by nwn5e-ee tools/data/tprobe/build.js (shaderText): change it there and rebuild, not here. A probe's material,
+// n5_tprobe_c<count>.mtr, pairs this vertex shader with the game's lit fragment shader (fslit). The game's standard
+// vertex setup first (its own include, by name), then the quad turned to the camera on every frame - a vertex shader
+// needs no clock, so it turns while the game is paused:
+// - its centre: the mesh node's own origin, m_mv (the model-view matrix: the node's place in the world - the head
+//   attachment's with it - then the camera's) times (0, 0, 0, 1);
+// - its corners: each vertex's offset from that origin, its x across and its z up (the quad is made in its node's
+//   x-z plane), laid along the camera's right and up in view space, at the model's own scale;
+// - right: level with the world (the world's up, +z, is m_view's third column in view space) and across the screen;
+//   up: the world's up, so the quad stands upright and turns about it only;
+// - the normal toward the camera, and no fog or keyhole on it: an additive glow fogged would add the fog's colour
+//   as a box, and the game's own glows (drawn unlit, decal) have neither.
+
+#define SHADER_TYPE 1
+#define FOG 1
+#define KEYHOLING 1
+#define NORMAL_MAP 0
+#define ENVIRONMENT_MAP 0
+#define LIGHTING 1
+
+#include "inc_standard"
+
+void main ()
+{
+    ApplyStandardShader();
+    vec3 centre = (m_mv * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    float scale = length(m_mv[0].xyz);
+    vec3 worldUp = normalize(m_view[2].xyz);
+    vec3 right = cross(worldUp, vec3(0.0, 0.0, 1.0));
+    float across = length(right);
+    right = across > 0.0001 ? right / across : vec3(1.0, 0.0, 0.0);
+    vec3 up = worldUp;
+    vPosView = centre + scale * (vPos.x * right + vPos.z * up);
+    gl_Position = m_proj * vec4(vPosView, 1.0);
+    vVertexNormal = cross(right, up);
+#if FOG == 1
+    fFogFragCoord = 0.0;
+#endif
+#if KEYHOLING == 1
+    fFragCamOffset = 0.0;
+#endif
+}
