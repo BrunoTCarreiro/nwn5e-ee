@@ -3,7 +3,8 @@
 // #172's destruction effects (DE; the owner, 2026-11-20: "yes on all", after the destruction recon) - the game session's
 // call from its death hook (rules_dying.cpp's OnApplyDeath, after the original, for a placeable now dead):
 // - DestructionDebrisVfx(material, size): material-matched debris, for a breakable whose model has no debris of its own
-//   (a "die" with no detonate and chunk emitter, or no "die"). The material from placeables.2da SoundAppType ->
+//   (a "die" with no detonate and chunk emitter, or no "die" - ModelHasDeathDebris, below, answers it: DH). The
+//   material from placeables.2da SoundAppType ->
 //   placeableobjsnds.2da ArmorType (wood; stone; plate = Metal; leather = Cloth; Ethereal or none: nothing), Glass from
 //   the game session's hand list; the size from the row's Label or Destroyed sound (cb_bu_*sml = Small, *lrg = Large).
 // - LightDeathVfx(): a lit light's death - ember sparks, a short rising smoke column and a warm light fading to nothing
@@ -19,6 +20,8 @@
 //   CNWSArea::PlayVisualEffect sends the position as given and the client's CNWCVisualEffect::SetPosition puts the
 //   model there (its ground ray only turns an OrientWithGround effect; these rows have 0).
 // What they look like is the animation session's (data/anim_debris.h, tools/data/debris).
+
+#include <string>
 
 #include "data/anim_debris.h"
 
@@ -38,3 +41,19 @@ inline int DestructionDebrisVfx(DebrisMaterial material, DebrisSize size) {
 
 // The visualeffects.2da row of a lit light's death.
 inline int LightDeathVfx() { return data::kLightDeathRow; }
+
+// DH (#172; agreed with the game session and the owner, 2026-11-20): does the placeable's model already throw debris of
+// its own when it breaks? The game session's destruction trigger (its CNWSPlaceable::DoDamage hook: a placeable reaching
+// 0 HP, once per object) plays ours only when it doesn't:
+//   if (!ModelHasDeathDebris(model)) <apply DestructionDebrisVfx(material, size)>;  LightDeathVfx() for a lit light.
+// `model_resref`: the placeable's model (placeables.2da ModelName), any case.
+// - The rule (data/anim_death_debris.h): its "die" or "dead" animation - its own, else its supermodel chain's, as the
+//   engine plays it - has a "detonate" event, and the model has an Explosion emitter with a chunk model (its chunkName
+//   set). A "die" that only puffs smoke, no detonate, no "die" or "dead": false.
+// - Served first: the model is read through the engine's resource manager (CExoResMan::Get, by data_serving's
+//   ReadGameResource), so the copy the game plays decides - LD's one-burst copies in nwn5e's served folder win over the
+//   game's (the Cot, the Birdbath and Flag3 then have none: they get ours), a module's haks over all.
+// - Cached: one answer a model for the session (a model doesn't change while it runs), logged once ("destruction: ...").
+// - Never throws or crashes: a missing, unreadable or odd model, or a name that is no resref -> false. Server side, on
+//   the game's thread (thread-safe all the same).
+bool ModelHasDeathDebris(const std::string& model_resref);

@@ -2976,3 +2976,51 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     first). Mutations re-run: 14 of 14 C++ breaks caught.
   - **Row** LD-1 (#172): break the Academy's lectern - one burst of debris and smoke, no fountain over the next 2 s; a
     bench unchanged.
+
+## Its own debris or ours: ModelHasDeathDebris (2026-11-20, #172; DH)
+
+  Agreed with the game session and the owner (2026-11-20): the game session's destruction trigger (its
+  CNWSPlaceable::DoDamage hook - a placeable reaching 0 HP, once per object) plays DE's material debris only for a
+  placeable whose model throws none of its own - `if (!ModelHasDeathDebris(model)) DestructionDebrisVfx(material, size)`,
+  and LightDeathVfx() for a lit light. The game session asked the animation side to own the check (it is model parsing).
+  It reads **the served model**, what the game plays: LD's copies win over the game's, so the Cot, the Birdbath and Flag3
+  get ours (the owner: B).
+  - **The call:** `bool ModelHasDeathDebris(const std::string& model_resref)` - src/core/anim_destruction.h, beside
+    DestructionDebrisVfx / LightDeathVfx (src/core/anim_destruction.cpp).
+  - **The rule** (src/data/anim_death_debris.{h,cpp}, a new anim_* data file - vfx_model.* unchanged, its readers used):
+    the model's **"die" or "dead"** (the first of each name, any case) has a **"detonate"** event (any case), and its own
+    geometry has an emitter whose **update is "Explosion" with a chunk model** (its chunkName set; empty or an ASCII
+    model's "NULL" is none; its render isn't looked at) - the recon's classification. Read from nwmain-linux: each
+    ExplosionEmitter registers its "Detonate" handler on the model's instance as it is made
+    (MdlNodeEmitter::InternalCreateInstance -> Detonate(CAurObject*, const char*, void*), which sets the emitter's
+    detonate flag), so a detonate in the animation playing sets off every Explosion emitter of the model - chunks where
+    it has a chunk model, a puff where not. The animations: LD's ReadModelAnimations; the emitters: ReadVfxBinaryModel /
+    ReadVfxAsciiModel.
+  - **Supermodels (beyond the recon):** an animation the model hasn't is its supermodel chain's, as the engine plays it
+    (FindAnimClip's rule, eight models at most, a loop or a missing link ends it); the emitters are always the model's
+    own (a supermodel lends animations, not nodes). 151 of the game's placeable models have chunk emitters of their own,
+    no "die", and a supermodel whose "die" detonates - 72 flags and banners (tnp_flag_d03 by tnp_flag_c01 ...), 59 trees
+    (tnp_tree_a01's), 14 balconies, 4 windows, a scaffold, a bench. The recon counted them "no die"; read this way they
+    keep their own debris and don't get ours on top.
+  - **The counts** over placeables.2da's 1,304 models (36 not in the game): the recon's classification reproduced
+    exactly from the models' own animations - 525 "die" with chunk debris, 181 a puff only, 71 a "die" with none, 491 no
+    "die". The rule: 528 by their own animations (the 525 and the three whose detonates are only in "dead"), 679 as
+    played from the game's files (+151 by a supermodel), **676 as served** (LD's copies take the three's away).
+  - **At run time:** the model's bytes (and its supermodels') through the engine's own resource manager - data_serving's
+    ReadGameResource: CResRef::operator=(const char*), CExoResMan::Get(const CResRef&, 2002) -> shared_ptr<DataBlock>,
+    that shared_ptr's destructor, on *g_pExoResMan - the read the torch flame and the tile models use, so the served
+    folder, the override and a module's haks win as the game finds them. Guarded: the four exports and the resource
+    manager checked before any call (else false, logged); a name that is no resref (1-16 letters, digits, '_') is never
+    handed to the engine; the parse bounds-checked (the readers'); nothing thrown into the game (caught -> false). One
+    answer a model (lower case) for the session under an SRW lock (4,096 at most), logged once:
+    "destruction: plc_k02: die 3 detonates (plc_k02), dead 1 detonate (plc_k02); 4 Explosion emitters, 3 with chunks
+    -> own debris".
+  - **Checks:** test.bat 657 -> 665 (8 new, all failing first on a stub): synthetic compiled and ASCII models - a "die"
+    detonate, a "dead" one alone, a puff only (empty / NULL chunk, a chunk on a Fountain or Single), no detonate (a sound,
+    another animation's, a second "die"), not a model (cut, past the file, garbage, no lookup), supermodels (inherited,
+    own first, the supermodel's emitters not the model's, two deep, ASCII over compiled, a missing link, a loop, the
+    eight-model cap); the game's anchors (the bench PLC_X01, the lectern plc_k02 and the brazier PLC_I05 yes; plc_h10,
+    plc_i02, plc_q03 yes from the game, no as served; plc_cndl01, ptm_candle06, tnp_fire_001 no; tnp_flag_d03 yes by
+    tnp_flag_c01) and the counts. Mutations (a scratch build of the DH tests): 16 of 16 caught (one, the empty lookup
+    unguarded, by the run crashing).
+  - **Not checked in game** (no launch: the game session's trigger calls it).
