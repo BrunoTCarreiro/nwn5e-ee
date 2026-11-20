@@ -2143,7 +2143,13 @@ monster AC by CR.
         0. Test PD-7. Next with the same "yes": the animation session's material debris and lit-light deaths, played
         from the death hook when a model has no debris of its own (on its "anim ready").
       - *Asked:* the heal runs on every hit (0.37.0: a hit puts a light out without breaking it), so a lamp breaks only
-        from one hit of 15 HP plus its hardness - not "like other dressing" (1B).
+        from one hit of 15 HP plus its hardness - not "like other dressing" (1B). Offered: A heal only on a ranged
+        Snuff; B never heal; C as it was. *Decided (owner, 2026-11-20): "don't heal from ranged attacks to snuff, if
+        specific spells or actions turn the light off those should cause damage".*
+      - *Built 0.99.103:* no heal - attacks, ranged Snuffs and dousing spells do their damage; a Snuff by hand (a use)
+        none. Test PD-8. The owner, on 0.99.102: "The lectern still fountained a huge amount of debris and lit
+        chandeliers didn't show embers" - the animation session's (its step 2 brings the embers; the lectern's own
+        debris, options asked there).
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
