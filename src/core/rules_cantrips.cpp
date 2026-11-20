@@ -311,7 +311,8 @@ void Cast(uint32_t self, int spell) {
     } else {
       amount = RollEngineDice(rules::CantripDiceRolled(level, critical), cantrip->die);
     }
-    amount += PotentSpellcastingBonus(object, spell);  // #42 1c: Blessed Strikes' Potent Spellcasting
+    const int potent = PotentSpellcastingBonus(object, spell);  // #42 1c: Blessed Strikes' Potent Spellcasting
+    amount += potent;
     std::string apply = kDamage;
     Replace(&apply, "$TARGET", target);
     Replace(&apply, "$AMOUNT", std::to_string(amount));
@@ -331,9 +332,10 @@ void Cast(uint32_t self, int spell) {
     if (spell == 1056) g_mocked[id] = now + kUntilEndOfNextTurnMs;
     if (g_logged < 60) {
       ++g_logged;
-      Log("cantrips: 0x%08X %s hits 0x%08X - %d damage (%d dice of d%d at level %d%s)", self, cantrip->script, id, amount,
-          spell == 424 ? rules::CantripDice(level) : rules::CantripDiceRolled(level, critical), cantrip->die, level,
-          critical ? ", a Critical Hit" : "");
+      Log("cantrips: 0x%08X %s hits 0x%08X - %d damage (%d dice of d%d at level %d%s%s)", self, cantrip->script, id,
+          amount, spell == 424 ? rules::CantripDice(level) : rules::CantripDiceRolled(level, critical), cantrip->die,
+          level, critical ? ", a Critical Hit" : "",
+          potent > 0 ? (", + " + std::to_string(potent) + " Potent Spellcasting").c_str() : "");
     }
   }
 }

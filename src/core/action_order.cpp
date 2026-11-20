@@ -29,6 +29,7 @@
 #include "action_order.h"
 
 #include <windows.h>
+#include <intrin.h>
 
 #include <stdint.h>
 
@@ -213,11 +214,27 @@ void OnActionManager(void* creature, uint32_t type) {
   }
 }
 
+// 0.99.105, diagnostic (owner, 2026-11-20: "why can't I cast a healing spell on a downed henchman to help them up?" -
+// the log: the cast at the down henchman, mid-fight, waited behind the round's attack and the whole queue was empty
+// 0.4 s later): each action leaving a player character's queue, with its first parameter and the engine function
+// that asked (RunActions: it finished or failed; ClearAllActions: swept), the first 200 a session.
+void TraceRemoval(void* creature, void* node, int is_head, void* caller) {
+  static int logged = 0;
+  if (logged >= 200 || !node || !IsPlayer(creature)) return;
+  ++logged;
+  uintptr_t offset = 0;
+  const char* by = ExportContaining(reinterpret_cast<uintptr_t>(caller), &offset);
+  Log("action trace: 0x%08X action 0x%X (first parameter 0x%X)%s removed by %s+0x%llx", IdOf(creature), ActionOf(node),
+      Field<uint32_t>(node, ee::kActionFirstParam), is_head ? " at the head" : "", by ? by : "?",
+      static_cast<unsigned long long>(offset));
+}
+
 int OnClearAction(void* creature, void* node, int is_head) {
   if (t_keep_attack && ActionOf(node) == ee::kActionAttackObject) {
     t_kept = true;
     return 0;  // ClearAllActions keeps it
   }
+  TraceRemoval(creature, node, is_head, _ReturnAddress());
   return g_clear_action(creature, node, is_head);
 }
 
