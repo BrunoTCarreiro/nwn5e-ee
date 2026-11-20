@@ -212,6 +212,13 @@ void SetRowTexts(uint32_t player, const Held& held) {
 // dark-red disc over the head) - an effect, so it shows paused. 0.99.88-0.99.90 floated it as text instead; 0.99.91
 // took that out (owner: "after a while it stops showing up until the spell is cast and then it just streams in all the
 // buffered values"): the client holds floating text while the game is paused - the usual way to pick.
+// 0.99.100 (the animation session's TF; the owner's per-spell tallies): Magic Missile's blue, Scorching Ray's orange
+// (Eldritch Blast's violet waits on the Warlock).
+TargetCountStyle StyleOf(uint32_t spell) {
+  return spell == static_cast<uint32_t>(rules::kScorchingRay) ? TargetCountStyle::ScorchingRay
+                                                               : TargetCountStyle::MagicMissile;
+}
+
 void SyncCounts(uint32_t player, Held* held, const std::vector<rules::TargetCount>& now) {
   const rules::CountMarkerChanges changes = rules::CountMarkerChangesFor(held->counted, now);
   std::string off;
@@ -221,7 +228,7 @@ void SyncCounts(uint32_t player, Held* held, const std::vector<rules::TargetCoun
            (removed == 1 ? "" : "s") + " removed)";
   }
   for (const rules::TargetCount& one : changes.apply) {
-    const int row = TargetCountMarkerVfx(one.count);  // -1 past 11: the glow alone
+    const int row = TargetCountMarkerVfx(StyleOf(held->order.spell), one.count);  // -1 past 11: the glow alone
     if (row < 0) continue;
     RunScriptChunk(("object t = StringToObject(\"" + Hex(one.id) + "\"); if (GetIsObjectValid(t)) ApplyEffectToObject("
                     "DURATION_TYPE_TEMPORARY, TagEffect(SupernaturalEffect(EffectVisualEffect(" +
@@ -466,6 +473,25 @@ void Update(void* creature) {
 
 void Adjust(void* /*creature*/, SpellOrder* /*order*/, bool from_input) { g_from_input = from_input; }
 
+// 0.99.100 (owner, 2026-11-20: "if the player keeps clicking an enemy after all targets have been assigned the game
+// assigns an attack action. make it so that can't happen while the player is assigning spell targets"): each pick ends
+// EE's targeting mode and the window asks for it again kEnterAfterMs later, so a click in between is a plain click -
+// an attack order (action 0xC). While the player's window is open, its attack orders are refused.
+constexpr uint32_t kActionAttack = 0xC;
+
+bool NoAttackWhilePicking(void* object, uint32_t action, uint32_t /*type1*/, const void* /*param1*/) {
+  if (action != kActionAttack || !object) return false;
+  const auto held = g_held.find(Field<uint32_t>(object, ee::kObjectId));
+  if (held == g_held.end() || !held->second.open) return false;
+  static int logged = 0;
+  if (logged < 5) {
+    ++logged;
+    Log("target window: 0x%08X's attack order refused - it's picking %s's targets", held->first,
+        SpellName(held->second.order.spell));
+  }
+  return true;
+}
+
 bool Guard(void* creature, const SpellOrder& order) {
   const bool input = g_from_input;
   g_from_input = false;
@@ -542,6 +568,7 @@ bool InstallTargetWindow() {
                   AddScriptHandler(kTargetScript, &OnTargetScript) && AddCreatureUpdateListener(&Update) &&
                   AddServerTickListener(&ServerTick);
   InstallClientHover();  // a right-click's target (missing: logged; a right-click then takes nothing back)
+  AddActionGuard(&NoAttackWhilePicking);  // no attack orders while a window is open (logged if it can't hook)
   Log("target window: Magic Missile's darts and Scorching Ray's rays picked one a row before the cast (#171)%s",
       ok ? "" : " - SOME hooks missing");
   return ok;
