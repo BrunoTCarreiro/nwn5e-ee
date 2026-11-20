@@ -1996,6 +1996,22 @@ monster AC by CR.
           or changed and puts on new or changed ones (7 of 7 mutations caught); Refresh syncs them (a temporary
           effect tagged n5tw_count; past 11 the glow alone), Close takes them all off. A model without a head node
           shows the glow only. test.bat 660 ok. Test TC-1 (the animation session's row).
+        - *0.99.95-0.99.98:* the old number stayed drawn about 3 s after its effect went (until unpause, paused):
+          the animation session found the cause - the models' cessation re-attached every frame, then SetEffectDone's
+          linger, on the object's own time - and shipped the models without one (anim 35c1c23, 0.99.96). *TC-1
+          passed (owner, 2026-11-20, on 0.99.98).* The owner picked camera-facing tally marks next (the animation
+          session's TP probe, 0.99.97; per-spell colours to come).
+        - *Asked (owner, 2026-11-20, on TC-1):* "the removal goes in order of application, not by which enemy is
+          hovered on ... while selecting targets every other function of the UI is blocked, I can't even press esc to
+          call up the options screen. Esc should probably cancel the target assignment/spell". A right-click and Esc
+          both end EE's targeting mode as one event with no object. Offered: Esc cancels the spell; right-click A the
+          hovered enemy's dart (the client's hovered object: research), B Shift+click removes, C as it was. *Decided
+          (owner, 2026-11-20): "Esc cancels, right-click A".*
+        - *Built 0.99.99:* client_hover.cpp hooks CNWCObject::MouseOver / MouseOff (found as the first call in
+          CNWCCreature's vtable slots 33 / 34 by RTTI, checked by their first bytes; the Linux build's symbols name
+          them). A cancel within 400 ms of Esc held (the game's window in front) cancels the spell; else the hovered
+          target's latest dart is taken back (rules::TakeBackTarget; 4 of 4 mutations caught). test.bat 661 ok.
+          Tests TW-10, TW-11 (TW-2 superseded).
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
   - *Built 0.99.80 (level 2's build 1a):*
@@ -7053,7 +7069,8 @@ history, DoConsoleHist / g_listHistory, is its developer console's).
   nwn5e.log's first line ("nwn5e-ee 0.99.97 loaded"). Offered: A a `!version` chat command, on demand; B a chat line
   when a game loads; C both. *Decided (owner, 2026-11-20): "A for the version command".*
 - *Built 0.99.98:* `!version` answers "nwn5e: version 0.99.98" - the DLL's kVersion (dllmain.cpp's VersionCommand);
-  its line `version.line` in data/text/en.txt (generated, for review). Test VR-1.
+  its line `version.line` in data/text/en.txt (generated, for review). Test VR-1. *Accepted (owner, 2026-11-20:
+  "close 173"; VR-1 passed).*
 
 ## Test register — the owner's request (2026-11-08, #147)
 
