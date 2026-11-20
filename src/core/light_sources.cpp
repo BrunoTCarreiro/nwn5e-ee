@@ -525,10 +525,9 @@ void Used(uint32_t lamp) {
 void Damaged(uint32_t lamp) {
   Run("object u = GetLastDamager(); int all = GetTotalDamageDealt(); int fire = GetDamageDealtByType(DAMAGE_TYPE_FIRE);"
       "if (fire < 0) fire = 0;"
-      // 0.99.102: not the killing hit's - the engine's heal has no dead check for a placeable, and a breaking light
-      // healed back played no "die" (kDouse).
-      "if (GetCurrentHitPoints(OBJECT_SELF) > 0 && GetCurrentHitPoints(OBJECT_SELF) < GetMaxHitPoints(OBJECT_SELF))"
-      " ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectHeal(GetMaxHitPoints(OBJECT_SELF)), OBJECT_SELF);"
+      // 0.99.103 (owner, 2026-11-20: "don't heal from ranged attacks to snuff, if specific spells or actions turn the
+      // light off those should cause damage"): no heal - a hit wears a light down like other dressing (0.37.0 to
+      // 0.99.102 healed it back, so it broke only from one big hit). A Snuff by hand is a use: no damage.
       "if (GetPlaceableIllumination(OBJECT_SELF) && (all <= 0 || all > fire) && !GetLocalInt(u, \"nwn5e_snuffing\")) {" +
           std::string(kDouse) +
           " if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: you hit \" + GetName(OBJECT_SELF) + \" and put it out\");"
