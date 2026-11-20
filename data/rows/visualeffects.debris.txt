@@ -1,0 +1,22 @@
+# visualeffects.2da - #172's destruction effects (DE; the owner, 2026-11-20: "yes on all", after the destruction recon):
+# material-matched debris for a breakable whose model has none of its own (material m, size s at 2248 + 2 m + s: wood,
+# stone, metal, cloth, glass; small, large) and a lit light's death (2258: ember sparks, a short rising smoke column, a
+# warm light fading out over about 1.5 s). The game's call: core/anim_destruction.h DestructionDebrisVfx(material, size)
+# and LightDeathVfx() (src/data/anim_debris.h kDebrisFirstRow; a test reads this file). One-shot effects (F, no
+# cessation) the game session plays at a location (ApplyEffectAtLocation) - the debris at the placeable's own, the
+# light's death at its light's point - so they outlive the placeable's removal 2 s after its death. The model in all
+# four root columns, so whichever the client picks (on an object by its size) it is this one. nwn5e's own models
+# (data\files\n5_db_*.mdl, from the drafts tools/data/vfx/n5_db_*.vfx; tools/data/debris/build.js), throwing the game's
+# own chunk models by name. After the tallies' 2215-2247 (tests/data/anim_vfx_rows_test.cpp).
+Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node
+2248 NWN5E_DEBRIS_WOOD_S F 0 n5_db_wood_s n5_db_wood_s n5_db_wood_s n5_db_wood_s
+2249 NWN5E_DEBRIS_WOOD_L F 0 n5_db_wood_l n5_db_wood_l n5_db_wood_l n5_db_wood_l
+2250 NWN5E_DEBRIS_STONE_S F 0 n5_db_stone_s n5_db_stone_s n5_db_stone_s n5_db_stone_s
+2251 NWN5E_DEBRIS_STONE_L F 0 n5_db_stone_l n5_db_stone_l n5_db_stone_l n5_db_stone_l
+2252 NWN5E_DEBRIS_METAL_S F 0 n5_db_metal_s n5_db_metal_s n5_db_metal_s n5_db_metal_s
+2253 NWN5E_DEBRIS_METAL_L F 0 n5_db_metal_l n5_db_metal_l n5_db_metal_l n5_db_metal_l
+2254 NWN5E_DEBRIS_CLOTH_S F 0 n5_db_cloth_s n5_db_cloth_s n5_db_cloth_s n5_db_cloth_s
+2255 NWN5E_DEBRIS_CLOTH_L F 0 n5_db_cloth_l n5_db_cloth_l n5_db_cloth_l n5_db_cloth_l
+2256 NWN5E_DEBRIS_GLASS_S F 0 n5_db_glass_s n5_db_glass_s n5_db_glass_s n5_db_glass_s
+2257 NWN5E_DEBRIS_GLASS_L F 0 n5_db_glass_l n5_db_glass_l n5_db_glass_l n5_db_glass_l
+2258 NWN5E_LIGHT_DEATH F 0 n5_db_light n5_db_light n5_db_light n5_db_light

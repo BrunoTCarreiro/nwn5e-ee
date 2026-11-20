@@ -71,12 +71,16 @@ TEST(VisualEffectsRowFilesNeverShareARow) {
   CollectRows("data/looks", ".look.txt", false, &owner, &clashes, &in_looks_range, &files);
   CHECK_EQ(clashes, 0);
   CHECK_EQ(in_looks_range, 0);
-  CHECK_EQ(rows_files >= 9, true);  // visualeffects.txt and its 8 parts (bleed ... stealth, tally)
+  CHECK_EQ(rows_files >= 9, true);  // visualeffects.txt and its 9 parts (bleed ... stealth, tally, debris)
   CHECK_EQ(files - rows_files >= 2, true);
   // #171's final marker (TF): the three spells' tallies, 33 rows from 2215, a file of their own (the first four-disc
   // marker at 2200-2210 and the TP probe at 2211-2214 were retired 2026-11-20: those rows are free)
   for (int row = 2215; row <= 2247; ++row) {
     CHECK_EQ(owner.count(row) == 1 && owner[row] == "visualeffects.tally.txt", true);
   }
-  CHECK_EQ(owner.count(2248), 0u);
+  // #172's destruction effects (DE): the ten debris rows and the light's death, after the tallies, a file of their own
+  for (int row = 2248; row <= 2258; ++row) {
+    CHECK_EQ(owner.count(row) == 1 && owner[row] == "visualeffects.debris.txt", true);
+  }
+  CHECK_EQ(owner.count(2259), 0u);
 }
