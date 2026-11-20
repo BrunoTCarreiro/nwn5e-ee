@@ -48,7 +48,9 @@ for a solid look.)
    starts - and start it again afterwards.
 2. On the bench: **Composer** → a **Spell mesh** project → **Shapes** → for a ground circle **Disc (flat, on the ground)** (or **Ring
    (flat band)**, **Dome (half sphere)**). On its card: **Mapping: From above** (for a disc / ring), **Texture: From the library…** →
-   **type your name** in the picker's box → **Use**.
+   pick it under **Yours** at the top of the list (your `ovr` textures, each marked glow or solid; the list is read again each time
+   it opens, so a texture you just saved is there) → **Use**. The same list serves an emitter's **Texture** in the effect mode, so your
+   texture draws on particles too. (Restart the VFX Bench once after the update that added Yours.)
 3. Adjust on the card: **Radius**, **Colour** (tints a white / grey picture), **Glow** (how much it lights itself), **Opacity**, and
    **Texture motion → Turn** for a slowly rotating circle.
 4. **Play in game** shows it beside your character. To use it in an effect: **Save and build**, **Back to effects**, **+ mesh** and pick
