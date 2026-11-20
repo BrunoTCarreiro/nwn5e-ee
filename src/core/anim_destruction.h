@@ -1,7 +1,7 @@
 #pragma once
 
 // #172's destruction effects (DE; the owner, 2026-11-20: "yes on all", after the destruction recon) - the game session's
-// call from its death hook (rules_dying.cpp's OnApplyDeath, after the original, for a placeable now dead):
+// call from its destruction trigger (its CNWSPlaceable::DoDamage hook: a placeable reaching 0 HP, once per object):
 // - DestructionDebrisVfx(material, size): material-matched debris, for a breakable whose model has no debris of its own
 //   (a "die" with no detonate and chunk emitter, or no "die" - ModelHasDeathDebris, below, answers it: DH). The
 //   material from placeables.2da SoundAppType ->
@@ -47,12 +47,18 @@ inline int LightDeathVfx() { return data::kLightDeathRow; }
 // 0 HP, once per object) plays ours only when it doesn't:
 //   if (!ModelHasDeathDebris(model)) <apply DestructionDebrisVfx(material, size)>;  LightDeathVfx() for a lit light.
 // `model_resref`: the placeable's model (placeables.2da ModelName), any case.
+// - True: the model throws chunks of its own when its "die" plays (or its "dead"). That is what the model does; whether
+//   the death plays it is the game's - a lamp script that turns the death into "off" plays nothing (the game session's
+//   kDouse guard handles that).
 // - The rule (data/anim_death_debris.h): its "die" or "dead" animation - its own, else its supermodel chain's, as the
-//   engine plays it - has a "detonate" event, and the model has an Explosion emitter with a chunk model (its chunkName
-//   set). A "die" that only puffs smoke, no detonate, no "die" or "dead": false.
-// - Served first: the model is read through the engine's resource manager (CExoResMan::Get, by data_serving's
-//   ReadGameResource), so the copy the game plays decides - LD's one-burst copies in nwn5e's served folder win over the
-//   game's (the Cot, the Birdbath and Flag3 then have none: they get ours), a module's haks over all.
+//   engine plays it - has a "detonate" event, and the model has an emitter it sets off that throws something: update
+//   exactly "Explosion" (as the engine compares it), a chunk model named and there, and a birthrate above 0 (or that
+//   animation's key of it). A "die" that only puffs smoke, chunks that throw nothing or aren't there, no detonate, no
+//   "die" or "dead": false.
+// - Served first: the model (its supermodels and chunk models too) is read through the engine's resource manager
+//   (CExoResMan::Get, by data_serving's ReadGameResource), so the copy the game plays decides - LD's one-burst copies in
+//   nwn5e's served folder win over the game's (the Cot, the Birdbath and Flag3 then have none: they get ours), a
+//   module's haks over all.
 // - Cached: one answer a model for the session (a model doesn't change while it runs), logged once ("destruction: ...").
 // - Never throws or crashes: a missing, unreadable or odd model, or a name that is no resref -> false. Server side, on
 //   the game's thread (thread-safe all the same).

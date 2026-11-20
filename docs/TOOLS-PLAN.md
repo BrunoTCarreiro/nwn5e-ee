@@ -2997,8 +2997,10 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     it has a chunk model, a puff where not. The animations: LD's ReadModelAnimations; the emitters: ReadVfxBinaryModel /
     ReadVfxAsciiModel.
   - **Supermodels (beyond the recon):** an animation the model hasn't is its supermodel chain's, as the engine plays it
-    (FindAnimClip's rule, eight models at most, a loop or a missing link ends it); the emitters are always the model's
-    own (a supermodel lends animations, not nodes). 151 of the game's placeable models have chunk emitters of their own,
+    (its FindAnimation: its own, else its supermodel's); the emitters are always the model's own (a supermodel lends
+    animations, not nodes). nwn5e follows eight models at most - its own FindAnimClip's cap; the engine's FindAnimation
+    has none and at the chain's end falls back to the last model's "default" (no game chain is deeper than 2, and no
+    "default" there detonates) - and a loop or a missing link ends it. 151 of the game's placeable models have chunk emitters of their own,
     no "die", and a supermodel whose "die" detonates - 72 flags and banners (tnp_flag_d03 by tnp_flag_c01 ...), 59 trees
     (tnp_tree_a01's), 14 balconies, 4 windows, a scaffold, a bench. The recon counted them "no die"; read this way they
     keep their own debris and don't get ours on top.
@@ -3013,8 +3015,8 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     manager checked before any call (else false, logged); a name that is no resref (1-16 letters, digits, '_') is never
     handed to the engine; the parse bounds-checked (the readers'); nothing thrown into the game (caught -> false). One
     answer a model (lower case) for the session under an SRW lock (4,096 at most), logged once:
-    "destruction: plc_k02: die 3 detonates (plc_k02), dead 1 detonate (plc_k02); 4 Explosion emitters, 3 with chunks
-    -> own debris".
+    "destruction: plc_k02: die 3 detonates (plc_k02), dead 1 detonate (plc_k02); 4 Explosion emitters, 3 with chunks,
+    3 throwing -> own debris" (fix round 1's form).
   - **Checks:** test.bat 657 -> 665 (8 new, all failing first on a stub): synthetic compiled and ASCII models - a "die"
     detonate, a "dead" one alone, a puff only (empty / NULL chunk, a chunk on a Fountain or Single), no detonate (a sound,
     another animation's, a second "die"), not a model (cut, past the file, garbage, no lookup), supermodels (inherited,
@@ -3024,3 +3026,27 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     tnp_flag_c01) and the counts. Mutations (a scratch build of the DH tests): 16 of 16 caught (one, the empty lookup
     unguarded, by the run crashing).
   - **Not checked in game** (no launch: the game session's trigger calls it).
+  - **Fix round 1 (the review approved it; minors before the install):**
+    - **Only debris that shows counts:** an emitter it sets off must throw something - its birthrate above 0, or the
+      animation that sets it off (the "die" or "dead" with the detonate, its own or its supermodel's) keying its
+      birthrate above 0 (plc_x0_jar, plc_x0_myt, pwc_mage_001, pwc_scrt_001: their "die" keys it) - and its chunk model
+      must be there (the same served lookup, a model). Five counted before now don't: plc_x0_cha (the chandelier) and
+      plc_x0_ice (their one chunk emitter, ChunkyWood94, has birthrate 0, unkeyed), plc_trgegg and plc_trgnst
+      (PLC_Chunk_Egg) and px2_e01 (PX2_S01), whose chunk models aren't in the game; px2_b02 / px2_d04 lack one of theirs
+      (PLC_Chunk_M02) and throw their others. The birthrates and their keys are read here (anim_death_debris.cpp: the
+      compiled controller 88 on the geometry's node and in the animation's node tree, by name; an ASCII model's
+      "birthrate" line and its animation's "birthratekey" rows) - the VFX reader gives a compiled emitter without the
+      controller a draft's 10.
+    - **The update's case:** exactly "Explosion", as MdlNodeEmitter::InternalCreateInstance compares it - an ASCII
+      "update explosion" is no Explosion emitter (none of the game's is spelt so).
+    - **The counts now:** the recon's classification unchanged (525 / 181 / 71 / 491); the rule 674 from the game's
+      files, **671 as served** (the 676 less the five).
+    - Wording: the cap (above), the trigger in anim_destruction.h's top comment (the game session's DoDamage hook, not
+      rules_dying.cpp), and what "true" means (the model throws chunks when "die" plays; a lamp script that turns a death
+      into "off" plays nothing - the game session's kDouse guard).
+    - Checks: test.bat 665 -> 668 (3 new - the update's case, only emitters that throw, the game's five and four - and
+      the counts re-pinned; all four failing first on the round-0 rule). Mutations: 29 of 29 caught - round 0's 16
+      (re-aimed at the new code) and 13 new (the birthrate or its keys ignored, a key to 0 taken, either animation's key
+      taken, the chunk model's presence, the VFX reader's default 10, the update's case, an endlist list, an inherited
+      key, a compiled "die"'s keys, the controller, a second ASCII "die"); round 0's M12 (the empty lookup) crashed the
+      run (0xC0000409, the uncaught std::bad_function_call) - it built.

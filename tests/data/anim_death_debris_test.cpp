@@ -26,10 +26,25 @@ namespace {
 
 bool Has(const std::string& text, const std::string& part) { return text.find(part) != std::string::npos; }
 
+// A controller of a node built here: its type, columns, its rows' times and values.
+struct Ctrl {
+  uint32_t type;
+  int columns;
+  std::vector<float> times, values;
+};
+
+// An animation's birthrate keys (controller 88) of one node, by its name: t v rows.
+struct BirthKeys {
+  const char* node;
+  std::vector<float> rows;
+};
+
 // A compiled placeable model laid out as the game's (the readers' terms: a node is its header + 0x10, offsets from byte
-// 12): a root dummy whose children are the emitters (each with one controller, as the game's always have, and its update,
-// render, texture and chunk in the emitter header at the node + 0x60), animations with their events (36 bytes an event:
-// its time, then a 32-byte name) listed in the model header (+0x78, count +0x7C), and its supermodel's name (+0xA8).
+// 12): a root dummy whose children are the emitters (each with its position and birthrate controllers - 12 bytes a key:
+// type, rows, the first time's and value's index, columns - and its update, render, texture and chunk in the emitter
+// header at the node + 0x60), animations with their events (36 bytes an event: its time, then a 32-byte name) and their
+// own node trees (a node keying an emitter's birthrate), listed in the model header (+0x78, count +0x7C), and its
+// supermodel's name (+0xA8).
 struct PlcModel {
   static constexpr size_t kBase = 12;
   std::string b = std::string(0x8000, '\0');
@@ -39,7 +54,7 @@ struct PlcModel {
   explicit PlcModel(const char* name, const char* supermodel = "NULL") {
     Puts(kBase + 8, name);
     Puts(kBase + 0xA8, supermodel);
-    root = Node(name, 0x1);
+    root = Node(name, 0x1, {{8, 3, {0}, {0, 0, 0}}});
     Put32(kBase + 0x48, Off(root));
   }
   static uint32_t Off(size_t node) { return static_cast<uint32_t>(node - 0x10 - kBase); }
@@ -49,38 +64,67 @@ struct PlcModel {
     return at;
   }
   void Put32(size_t at, uint32_t v) { memcpy(&b[at], &v, 4); }
+  void Put16(size_t at, uint16_t v) { memcpy(&b[at], &v, 2); }
   void PutF(size_t at, float v) { memcpy(&b[at], &v, 4); }
   void Puts(size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); }
-  // A node with one controller: its position, 0 0 0 (type 8, one row of 3).
-  size_t Node(const char* name, uint32_t flags) {
+  size_t Node(const char* name, uint32_t flags, const std::vector<Ctrl>& ctrls) {
     const size_t at = Alloc(0x300);
     Puts(at + 0x10, name);
     Put32(at + 0x5C, flags);
-    const size_t keys = Alloc(16), values = Alloc(16);
+    size_t numbers = 0;
+    for (const Ctrl& c : ctrls) numbers += c.times.size() + c.values.size();
+    const size_t keys = Alloc(12 * ctrls.size() + 4), values = Alloc(4 * numbers + 4);
     Put32(at + 0x44, static_cast<uint32_t>(keys - kBase));
-    Put32(at + 0x48, 1);
+    Put32(at + 0x48, static_cast<uint32_t>(ctrls.size()));
     Put32(at + 0x50, static_cast<uint32_t>(values - kBase));
-    Put32(at + 0x54, 4);
-    Put32(keys, 8);
-    b[keys + 4] = 1;   // rows
-    b[keys + 8] = 1;   // the values after the one time
-    b[keys + 10] = 3;  // columns
+    uint16_t used = 0;
+    for (size_t i = 0; i < ctrls.size(); ++i) {
+      const size_t k = keys + 12 * i;
+      Put32(k, ctrls[i].type);
+      Put16(k + 4, static_cast<uint16_t>(ctrls[i].times.size()));
+      Put16(k + 6, used);
+      for (float t : ctrls[i].times) PutF(values + 4 * used++, t);
+      Put16(k + 8, used);
+      for (float v : ctrls[i].values) PutF(values + 4 * used++, v);
+      b[k + 10] = static_cast<char>(ctrls[i].columns);
+    }
+    Put32(at + 0x54, used);
     return at;
   }
-  // An emitter under the root: its update ("Explosion", "Fountain" ...) and chunk model (nullptr: none).
-  void Emitter(const char* name, const char* update, const char* chunk) {
-    const size_t at = Node(name, 0x5);
+  void Children(size_t at, const std::vector<size_t>& children) {
+    const size_t array = Alloc(4 * children.size() + 4);
+    Put32(at + 0x38, static_cast<uint32_t>(array - kBase));
+    Put32(at + 0x3C, static_cast<uint32_t>(children.size()));
+    for (size_t i = 0; i < children.size(); ++i) Put32(array + 4 * i, Off(children[i]));
+  }
+  // An emitter under the root: its update ("Explosion", "Fountain" ...), chunk model (nullptr: none) and birthrate (< 0:
+  // no birthrate controller at all).
+  void Emitter(const char* name, const char* update, const char* chunk, float birthrate = 2.0f) {
+    std::vector<Ctrl> ctrls = {{8, 3, {0}, {0, 0, 0}}};
+    if (birthrate >= 0.0f) ctrls.push_back({88, 1, {0}, {birthrate}});
+    const size_t at = Node(name, 0x5, ctrls);
     Puts(at + 0x60 + 0x18, update);
     Puts(at + 0x60 + 0x38, "Normal");
     Puts(at + 0x60 + 0x78, "fxpa_smoke01");
     if (chunk) Puts(at + 0x60 + 0xB8, chunk);
     kids.push_back(at);
   }
-  // An animation (its own root dummy) with its events.
-  void Anim(const char* name, const std::vector<std::pair<float, const char*>>& events) {
+  // An animation (its own root dummy, and under it a node for each of `births`) with its events.
+  void Anim(const char* name, const std::vector<std::pair<float, const char*>>& events, const std::vector<BirthKeys>& births = {}) {
     const size_t header = Alloc(0x100);
     Puts(header + 8, name);
-    Put32(header + 0x48, Off(Node(name, 0x1)));
+    const size_t top = Node(name, 0x1, {});
+    std::vector<size_t> keyed;
+    for (const BirthKeys& k : births) {
+      Ctrl c{88, 1, {}, {}};
+      for (size_t r = 0; r + 1 < k.rows.size(); r += 2) {
+        c.times.push_back(k.rows[r]);
+        c.values.push_back(k.rows[r + 1]);
+      }
+      keyed.push_back(Node(k.node, 0x5, {c}));
+    }
+    if (!keyed.empty()) Children(top, keyed);
+    Put32(header + 0x48, Off(top));
     b[header + 0x6C] = 5;
     PutF(header + 0x70, 0.167f);
     if (!events.empty()) {
@@ -98,10 +142,7 @@ struct PlcModel {
   // The model's bytes: the root's children and the animations' list written.
   std::string Bytes() {
     PlcModel copy = *this;
-    const size_t children = copy.Alloc(4 * kids.size() + 4);
-    copy.Put32(root + 0x38, static_cast<uint32_t>(children - kBase));
-    copy.Put32(root + 0x3C, static_cast<uint32_t>(kids.size()));
-    for (size_t i = 0; i < kids.size(); ++i) copy.Put32(children + 4 * i, Off(kids[i]));
+    copy.Children(root, kids);
     const size_t list = copy.Alloc(4 * anims.size() + 4);
     copy.Put32(kBase + 0x78, static_cast<uint32_t>(list - kBase));
     copy.Put32(kBase + 0x7C, static_cast<uint32_t>(anims.size()));
@@ -131,18 +172,32 @@ std::string AsciiModel(const std::string& supermodel, const std::string& emitter
          "endmodelgeom PLC_T10\r\n\r\n" + anims + "donemodel PLC_T10\r\n";
 }
 
-std::string AsciiEmitter(const std::string& name, const std::string& update, const std::string& chunk_line) {
+std::string AsciiEmitter(const std::string& name, const std::string& update, const std::string& chunk_line,
+                         const std::string& birthrate = "2") {
   return "node emitter " + name + "\r\n  parent PLC_T10\r\n  update " + update + "\r\n  render Normal\r\n" + chunk_line +
-         "  birthrate 2\r\nendnode\r\n";
+         "  birthrate " + birthrate + "\r\nendnode\r\n";
 }
 
-std::string AsciiAnim(const std::string& name, const std::string& events) {
+// A newanim block: its events, then `nodes` (an animation's node lines, e.g. AsciiBirthKeys).
+std::string AsciiAnim(const std::string& name, const std::string& events, const std::string& nodes = "") {
   return "newanim " + name + " PLC_T10\r\n  length 0.0333333\r\n  transtime 0.25\r\n  animroot PLC_T10\r\n" + events +
-         "node dummy PLC_T10\r\n  parent NULL\r\nendnode\r\ndoneanim " + name + " PLC_T10\r\n\r\n";
+         "node dummy PLC_T10\r\n  parent NULL\r\nendnode\r\n" + nodes + "doneanim " + name + " PLC_T10\r\n\r\n";
 }
 
-// Models handed out by name, as the game's resource manager would.
-ModelBytesLookup Models(const std::map<std::string, std::string>& models) {
+// An animation's node keying an emitter's birthrate: "birthratekey <rows>" and its t v rows ("" rows: an endlist list).
+std::string AsciiBirthKeys(const std::string& emitter, const std::vector<std::string>& rows, bool counted = true) {
+  std::string out = "node emitter " + emitter + "\r\n  parent PLC_T10\r\n  birthratekey" +
+                    (counted ? " " + std::to_string(rows.size()) : std::string()) + "\r\n";
+  for (const std::string& r : rows) out += "    " + r + "\r\n";
+  return out + (counted ? "" : "  endlist\r\n") + "endnode\r\n";
+}
+
+// Models handed out by name, as the game's resource manager would - with the chunk models the tests throw (any bytes: a
+// chunk model only has to be there), unless `chunks` is false.
+ModelBytesLookup Models(std::map<std::string, std::string> models, bool chunks = true) {
+  if (chunks) {
+    for (const char* chunk : {"plc_chunk_w01", "plc_chunk_w02"}) models.emplace(chunk, "chunk");
+  }
   return [models](const std::string& name, std::string* bytes) {
     const auto found = models.find(name);
     if (found == models.end()) return false;
@@ -155,9 +210,10 @@ bool Own(const std::string& bytes, std::string* why = nullptr) { return HasOwnDe
 
 }  // namespace
 
-// The rule's yes: a "die" whose detonate sets off an Explosion emitter with a chunk model - compiled and ASCII, any case.
-// Breaks caught: "die" not read (only "dead"), a detonate or an animation name taken case-sensitively, the chunk name not
-// read, the smoke puff taken for the chunks (or the chunks for a puff), the parts' counts wrong.
+// The rule's yes: a "die" whose detonate sets off an Explosion emitter with a chunk model - compiled and ASCII, the
+// animation and event names in any case. Breaks caught: "die" not read (only "dead"), a detonate or an animation name
+// taken case-sensitively, the chunk name not read, the smoke puff taken for the chunks (or the chunks for a puff), the
+// parts' counts wrong.
 TEST(DeathDebrisChunkDetonateInDie) {
   const std::string compiled = Lectern({{0.033f, "detonate"}, {0.033f, "Detonate"}, {0.1f, "snd_crash"}}, {});
   ModelDeathParts parts;
@@ -173,7 +229,7 @@ TEST(DeathDebrisChunkDetonateInDie) {
   // ASCII, the names in other cases.
   const std::string ascii = AsciiModel("NULL",
                                        AsciiEmitter("ChunkyWood1", "Explosion", "  chunkName PLC_Chunk_W01\r\n") +
-                                           AsciiEmitter("fire!1", "explosion", ""),
+                                           AsciiEmitter("fire!1", "Explosion", ""),
                                        AsciiAnim("DIE", "  event 0.0333333 DETONATE\r\n") + AsciiAnim("dead", ""));
   ModelDeathParts text;
   CHECK_EQ(ReadModelDeathParts(ascii, &text, &error), true);
@@ -295,11 +351,120 @@ TEST(DeathDebrisNotAModel) {
   CHECK_EQ(HasOwnDeathDebris(Models({{"plc_test", whole}}), "", nullptr), false);
 }
 
+// The engine makes an ExplosionEmitter only of a node whose update is exactly "Explosion" (MdlNodeEmitter::
+// InternalCreateInstance compares it case-sensitively): an ASCII "update explosion" or "EXPLOSION" is no Explosion
+// emitter - a detonate sets nothing off. (A compiled model's update is found as "Explosion" itself.) Breaks caught: the
+// update compared in any case.
+TEST(DeathDebrisExplosionIsCaseSensitive) {
+  ModelDeathParts parts;
+  std::string error;
+  for (const char* update : {"explosion", "EXPLOSION"}) {
+    const std::string ascii = AsciiModel("NULL", AsciiEmitter("ChunkyWood1", update, "  chunkName PLC_Chunk_W01\r\n"),
+                                         AsciiAnim("die", "  event 0.0 detonate\r\n"));
+    CHECK_EQ(ReadModelDeathParts(ascii, &parts, &error), true);
+    CHECK_EQ(parts.explosions == 0 && parts.chunk_explosions == 0 && parts.chunk_emitters.empty(), true);
+    CHECK_EQ(Own(ascii), false);
+  }
+  const std::string exact = AsciiModel("NULL", AsciiEmitter("ChunkyWood1", "Explosion", "  chunkName PLC_Chunk_W01\r\n"),
+                                       AsciiAnim("die", "  event 0.0 detonate\r\n"));
+  CHECK_EQ(ReadModelDeathParts(exact, &parts, &error) && parts.explosions == 1 && parts.chunk_explosions == 1, true);
+  CHECK_EQ(Own(exact), true);
+  CHECK_EQ(Own(Lectern({{0.033f, "detonate"}}, {}, "PLC_Chunk_W01", "explosion")), false);
+}
+
+// An emitter counts only when it throws something: its birthrate above 0, or the animation that sets it off (the "die"
+// or "dead" with the detonate - its own or its supermodel's) keying its birthrate above 0 - and when its chunk model is
+// there. The game's: plc_x0_cha's and plc_x0_ice's chunk emitter has birthrate 0 and isn't keyed (nothing thrown);
+// plc_x0_jar's "die" keys its chunk emitter's birthrate; plc_trgegg's PLC_Chunk_Egg isn't in the game. Breaks caught:
+// the birthrate not looked at; a compiled emitter with no birthrate controller taken for one with a rate (the VFX
+// reader's default, 10); a key to 0 taken for one that fires it; a key in another animation ("damage", or a "die" with no
+// detonate while "dead" detonates) taken; an inherited animation's keys not matched to the model's own emitter by name;
+// the chunk model's presence not checked; the parts' emitters read wrong.
+TEST(DeathDebrisOnlyEmittersThatThrow) {
+  using Events = std::vector<std::pair<float, const char*>>;
+  const Events detonate = {{0.033f, "detonate"}}, quiet = {{0.1f, "snd_crash"}};
+  const auto model = [&](float birthrate, const std::vector<BirthKeys>& die_keys, const std::vector<BirthKeys>& dead_keys = {},
+                         bool die_detonates = true, bool dead_detonates = false, const std::vector<BirthKeys>& damage_keys = {}) {
+    PlcModel m("plc_test");
+    m.Emitter("ChunkyWood1", "Explosion", "PLC_Chunk_W01", birthrate);
+    m.Emitter("fire!1", "Explosion", nullptr, 10.0f);
+    m.Anim("damage", {}, damage_keys);
+    m.Anim("die", die_detonates ? detonate : quiet, die_keys);
+    m.Anim("dead", dead_detonates ? detonate : Events(), dead_keys);
+    return m.Bytes();
+  };
+  ModelDeathParts parts;
+  std::string error, why;
+  CHECK_EQ(ReadModelDeathParts(model(2.0f, {}), &parts, &error), true);
+  CHECK_EQ(parts.chunk_emitters.size(), 1u);
+  if (parts.chunk_emitters.size() == 1) {
+    CHECK_EQ(parts.chunk_emitters[0].name == "chunkywood1" && parts.chunk_emitters[0].chunk == "plc_chunk_w01", true);
+    CHECK_EQ(parts.chunk_emitters[0].birthrate == 2.0f, true);
+  }
+  CHECK_EQ(Own(model(2.0f, {})), true);
+  // Birthrate 0, or none at all, and not keyed: nothing thrown.
+  CHECK_EQ(Own(model(0.0f, {}), &why), false);
+  printf("    %s\n", why.c_str());
+  CHECK_EQ(Has(why, "throws nothing"), true);
+  CHECK_EQ(ReadModelDeathParts(model(-1.0f, {}), &parts, &error) && parts.chunk_emitters.size() == 1 &&
+               parts.chunk_emitters[0].birthrate == 0.0f,
+           true);
+  CHECK_EQ(Own(model(-1.0f, {}), &why), false);
+  // The "die" that detonates keys it up: thrown. Keyed only to 0: not.
+  const std::string keyed = model(0.0f, {{"ChunkyWood1", {0.0f, 0.0f, 0.033f, 3.0f}}});
+  CHECK_EQ(ReadModelDeathParts(keyed, &parts, &error) && parts.die_births.count("chunkywood1") == 1 && parts.dead_births.empty(), true);
+  CHECK_EQ(Own(keyed, &why), true);
+  printf("    %s\n", why.c_str());
+  CHECK_EQ(Own(model(0.0f, {{"ChunkyWood1", {0.0f, 0.0f}}})), false);
+  // Keyed where it doesn't fire: in "damage"; in a "die" with no detonate while "dead" detonates. Keyed in the "dead"
+  // that detonates: thrown.
+  CHECK_EQ(Own(model(0.0f, {}, {}, true, false, {{"ChunkyWood1", {0.0f, 3.0f}}})), false);
+  CHECK_EQ(Own(model(0.0f, {{"ChunkyWood1", {0.0f, 3.0f}}}, {}, false, true)), false);
+  const std::string dead_keyed = model(0.0f, {}, {{"chunkywood1", {0.0f, 3.0f}}}, false, true);
+  CHECK_EQ(ReadModelDeathParts(dead_keyed, &parts, &error) && parts.dead_births.count("chunkywood1") == 1, true);
+  CHECK_EQ(Own(dead_keyed), true);
+  // Its chunk model not there: nothing thrown.
+  CHECK_EQ(HasOwnDeathDebris(Models({{"plc_test", model(2.0f, {})}}, false), "plc_test", &why), false);
+  printf("    %s\n", why.c_str());
+  CHECK_EQ(Has(why, "missing"), true);
+  // ASCII: its "birthrate" line, and "birthratekey" lists in the die's emitter node (counted rows, or to an endlist).
+  const auto ascii = [](const std::string& birthrate, const std::string& nodes) {
+    return AsciiModel("NULL", AsciiEmitter("ChunkyWood1", "Explosion", "  chunkName PLC_Chunk_W01\r\n", birthrate),
+                      AsciiAnim("die", "  event 0.0333333 detonate\r\n", nodes));
+  };
+  CHECK_EQ(ReadModelDeathParts(ascii("0", ""), &parts, &error) && parts.chunk_emitters.size() == 1 &&
+               parts.chunk_emitters[0].birthrate == 0.0f && parts.chunk_emitters[0].chunk == "plc_chunk_w01",
+           true);
+  CHECK_EQ(Own(ascii("0", "")), false);
+  CHECK_EQ(Own(ascii("3", "")), true);
+  const std::string ascii_keyed = ascii("0", AsciiBirthKeys("ChunkyWood1", {"0.0 0", "0.0333333 3"}));
+  CHECK_EQ(ReadModelDeathParts(ascii_keyed, &parts, &error) && parts.die_births.count("chunkywood1") == 1, true);
+  CHECK_EQ(Own(ascii_keyed), true);
+  CHECK_EQ(Own(ascii("0", AsciiBirthKeys("ChunkyWood1", {"0.0 0", "0.0333333 3"}, false))), true);
+  CHECK_EQ(Own(ascii("0", AsciiBirthKeys("ChunkyWood1", {"0.0 0", "0.0333333 0"}))), false);
+  // The first "die" of the name is the one played: a second one's key isn't.
+  const std::string second = AsciiModel("NULL", AsciiEmitter("ChunkyWood1", "Explosion", "  chunkName PLC_Chunk_W01\r\n", "0"),
+                                        AsciiAnim("die", "  event 0.0333333 detonate\r\n") +
+                                            AsciiAnim("die", "", AsciiBirthKeys("ChunkyWood1", {"0.0 3"})));
+  CHECK_EQ(ReadModelDeathParts(second, &parts, &error) && parts.die_births.empty(), true);
+  CHECK_EQ(Own(second), false);
+  // An inherited "die" keys the model's own emitter by name.
+  PlcModel base("plc_base");
+  base.Anim("die", detonate, {{"ChunkyWood2", {0.0f, 4.0f}}});
+  PlcModel other("plc_base");
+  other.Anim("die", detonate, {{"ChunkyWood9", {0.0f, 4.0f}}});
+  PlcModel child("plc_test", "plc_base");
+  child.Emitter("ChunkyWood2", "Explosion", "PLC_Chunk_W02", 0.0f);
+  CHECK_EQ(HasOwnDeathDebris(Models({{"plc_test", child.Bytes()}, {"plc_base", base.Bytes()}}), "plc_test", nullptr), true);
+  CHECK_EQ(HasOwnDeathDebris(Models({{"plc_test", child.Bytes()}, {"plc_base", other.Bytes()}}), "plc_test", nullptr), false);
+}
+
 // An animation the model hasn't is its supermodel chain's, as the engine plays it; the emitters are the model's own.
 // The game's flags: tnp_flag_d03 has its chunk emitters but no animation, its "die" (2 detonates) is tnp_flag_c01's.
 // Breaks caught: the supermodel not followed; the supermodel's "die" taken over the model's own; the supermodel's
 // emitters taken for the model's; a chain of two not followed; a missing link or a loop (a -> b -> a) crashing or
-// hanging; the chain followed past eight models.
+// hanging; the chain followed past eight models (nwn5e's own cap, FindAnimClip's - the engine's FindAnimation has none,
+// and no game chain is deeper than 2).
 TEST(DeathDebrisFromTheSupermodel) {
   PlcModel base("plc_base");
   base.Emitter("ChunkyWood1", "Explosion", "PLC_Chunk_W01");
@@ -446,14 +611,43 @@ TEST(DeathDebrisGameAnchors) {
   CHECK_EQ(Has(why, "tnp_flag_c01"), true);
 }
 
+// Debris that shows (the review): the chandelier plc_x0_cha and plc_x0_ice - their one chunk emitter (ChunkyWood94) has
+// birthrate 0 and "die" doesn't key it - and plc_trgegg, plc_trgnst (PLC_Chunk_Egg) and px2_e01 (PX2_S01), whose chunk
+// models aren't in the game, throw nothing: no debris of their own, from the game's files and as served. plc_x0_jar,
+// plc_x0_myt, pwc_mage_001 and pwc_scrt_001, whose "die" keys their chunk emitters' birthrate, do; and px2_b02 / px2_d04,
+// one of whose chunk models (PLC_Chunk_M02) isn't there, throw their others.
+TEST(DeathDebrisGameDebrisThatShows) {
+  const std::string game = GameFolder();
+  if (!std::ifstream(game + "\\data\\nwn_base.key")) {
+    printf("    (no game at %s: skipped)\n", game.c_str());
+    return;
+  }
+  GameModels models(std::wstring(game.begin(), game.end()));
+  const ModelBytesLookup from_game = models.Game(), served = models.Served();
+  for (const char* model : {"plc_x0_cha", "plc_x0_ice", "plc_trgegg", "plc_trgnst", "px2_e01"}) {
+    std::string why;
+    const bool own = HasOwnDeathDebris(served, model, &why);
+    printf("    %s\n", why.c_str());
+    CHECK_EQ(own, false);
+    CHECK_EQ(HasOwnDeathDebris(from_game, model, nullptr), false);
+  }
+  for (const char* model : {"plc_x0_jar", "plc_x0_myt", "pwc_mage_001", "pwc_scrt_001", "px2_b02", "px2_d04"}) {
+    std::string why;
+    const bool own = HasOwnDeathDebris(served, model, &why);
+    printf("    %s\n", why.c_str());
+    CHECK_EQ(own, true);
+  }
+}
+
 // Every placeables.2da model: the recon's classification read from each model's own animations (it followed no
 // supermodel) - "die" with detonate and chunk emitters 525, "die" with a smoke puff only 181, "die" with no debris 71, no
-// "die" 491, 36 not in the game - and the rule's count. By the models' own animations 528: the 525 and the three whose
-// detonates are only in "dead" (the Cot, the Birdbath, Flag3). As the game plays them (an animation a model hasn't is
-// its supermodel's) 679 from the game's files - 151 more, models with chunk emitters of their own and no "die" whose
-// supermodel's "die" detonates: 72 flags and banners (tnp_flag_*, dag_*flag*, pwc_bann_*: tnp_flag_a01 / b01 / c01 /
-// e01 ...), 59 trees (tnp_tree_a01's), 14 balconies, 4 windows, a scaffold and a bench - and 676 as served (the three
-// lose theirs to LD's copies).
+// "die" 491, 36 not in the game - and the rule's count. By the models' own animations and chunk names alone 528: the 525
+// and the three whose detonates are only in "dead" (the Cot, the Birdbath, Flag3). As the game plays them (an animation
+// a model hasn't is its supermodel's) 151 more - models with chunk emitters of their own and no "die" whose supermodel's
+// "die" detonates: 72 flags and banners (tnp_flag_*, dag_*flag*, pwc_bann_*: tnp_flag_a01 / b01 / c01 / e01 ...), 59
+// trees (tnp_tree_a01's), 14 balconies, 4 windows, a scaffold and a bench - less the five whose chunks throw nothing or
+// aren't there (fix round 1: plc_x0_cha, plc_x0_ice, plc_trgegg, plc_trgnst, px2_e01): 674 from the game's files, 671
+// as served (the three lose theirs to LD's copies).
 TEST(DeathDebrisGamePlaceablesCount) {
   const std::string game = GameFolder();
   if (!std::ifstream(game + "\\data\\nwn_base.key")) {
@@ -511,7 +705,7 @@ TEST(DeathDebrisGamePlaceablesCount) {
   CHECK_EQ(none, 71);
   CHECK_EQ(no_die, 491);
   CHECK_EQ(own_rule, 528);
-  CHECK_EQ(rule_game, 679);
-  CHECK_EQ(rule_served, 676);
+  CHECK_EQ(rule_game, 674);
+  CHECK_EQ(rule_served, 671);
   CHECK_EQ(inherited, 151);
 }
