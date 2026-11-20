@@ -3,8 +3,9 @@
 //
 // Builds the marker twice in memory (build.js's build()) and checks, without writing anything:
 // - the files: 11 bars pictures n5_tfbp_NN, 33 glow pictures n5_tfgp_<ss>NN (ss: mm Magic Missile, sr Scorching Ray, eb
-//   Eldritch Blast), each with a TXI, 33 models n5_tf_<ss>NN, the bars' bitmaps n5_tfb_NN and the glows' n5_tfg_<ss>NN
-//   (each a material and a TXI), the vertex shader vsn5bill_sl; names under 17 letters; the same bytes on both builds;
+//   Eldritch Blast), 33 models n5_tf_<ss>NN, the bars' bitmaps n5_tfb_NN and the glows' n5_tfg_<ss>NN (each a material
+//   and a TXI), the vertex shader vsn5bill_sl and the fragment shader fsn5unlit; names under 17 letters; the same bytes
+//   on both builds;
 // - the layout: counts 1-11 as the probe (TP, tools/data/tprobe) lays them out - n less its fives upright bars, a rising
 //   strike over each five's four, inside the picture's margin, centred - stated here in its numbers (and, while the
 //   probe's generator is there, the same as its);
@@ -20,11 +21,13 @@
 //   then 4), and the other way round, over night, grass, snow and sky: a bar's core #010101 on every one, the glow round
 //   it; the two orders differ only on the antialiased rim;
 // - each TXI: the glow's `blending additive`, the bars' `blending default` (alpha-blended: the engine reads only
-//   additive and punchthrough) - no decal (a decal mesh is drawn by the game's own pair, its material dropped); every
-//   TXI `downsamplemax 0` and `downsamplemin 0` (never shrunk by the game's texture quality: the owner), each picture
-//   a TXI of its own with those alone;
-// - each material: our vertex shader vsn5bill_sl, the game's lit fragment shader fslit, texture0 its picture; the bars'
+//   additive and punchthrough), that line alone - no decal (a decal mesh is drawn by the game's own pair, its material
+//   dropped), no downsample line (the engine reads none: fix round 1), no TXI for a picture;
+// - each material: our vertex shader vsn5bill_sl, our unlit fragment shader fsn5unlit, texture0 its picture; the bars'
 //   also `transparency 1` (drawn with the blended meshes, cut at alpha 0.2 - never as an opaque box);
+// - the fragment shader: nwn5e's mark, the game's standard fragment setup with lighting, fog and keyholing off, texture0
+//   times the material's alpha - no light, emission, fog, keyhole or targeting highlight (fix round 1: the picked
+//   target's red glow, an illumination the engine passes on to the marker, tinted the glow through fslit's emission);
 // - each model: nwn5e's mark, two trimeshes - the bars (bitmap n5_tfb_NN, y 0) and the glow (n5_tfg_<ss>NN, y -0.01: 1
 //   cm nearer the camera) - each a 0.5 x 0.25 m quad in its node's x-z plane round its origin, 0.55 m over the head node,
 //   u right and v up, counter-clockwise from -y; lit by itself (ambient, diffuse, specular 0, selfillum 1), alpha 1;
@@ -38,7 +41,8 @@
 //   the screen; never a NaN;
 // - data\rows\visualeffects.tally.txt: rows 2215-2247 naming the 33 models, type D, on the head, OrientWithObject 0;
 // - build.js loads nothing but Node's fs and path (our own art: no font, canvas or image);
-// - data\files holds exactly these bytes (text whatever its line ends: git's autocrlf checks them out CRLF).
+// - data\files holds exactly these bytes (text whatever its line ends: git's autocrlf checks them out CRLF), and no
+//   other file of the marker's names.
 // Exit 0: all pass; 1: a failure (each printed).
 
 "use strict";
@@ -74,6 +78,7 @@ const FIRST_ROW = 2215;
 const W = 256, H = 128;
 const BAR_RGB = [1, 1, 1];  // #010101
 const SHADER = "vsn5bill_sl";
+const FRAGMENT = "fsn5unlit";
 const pad = (n) => String(n).padStart(2, "0");
 const COUNTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const model = (s, n) => `n5_tf_${s.code}${pad(n)}`;
@@ -85,17 +90,17 @@ const barsPicture = (n) => `n5_tfbp_${pad(n)}`;
 // --- the files, and the same bytes twice --------------------------------------------------------------------------
 const first = B.build();
 const second = B.build();
-const expected = [SHADER + ".shd"];
-for (const n of COUNTS) expected.push(barsPicture(n) + ".tga", barsPicture(n) + ".txi", barsBitmap(n) + ".mtr", barsBitmap(n) + ".txi");
+const expected = [SHADER + ".shd", FRAGMENT + ".shd"];
+for (const n of COUNTS) expected.push(barsPicture(n) + ".tga", barsBitmap(n) + ".mtr", barsBitmap(n) + ".txi");
 for (const s of STYLES) {
-  for (const n of COUNTS) expected.push(model(s, n) + ".mdl", glowPicture(s, n) + ".tga", glowPicture(s, n) + ".txi", glowBitmap(s, n) + ".mtr", glowBitmap(s, n) + ".txi");
+  for (const n of COUNTS) expected.push(model(s, n) + ".mdl", glowPicture(s, n) + ".tga", glowBitmap(s, n) + ".mtr", glowBitmap(s, n) + ".txi");
 }
 const got = [...first.keys()].sort();
 if (JSON.stringify(got) !== JSON.stringify(expected.slice().sort())) {
   const extra = got.filter((n) => !expected.includes(n)), missing = expected.filter((n) => !got.includes(n));
   fail("the files: " + got.length + " (extra: " + extra.join(" ") + "; missing: " + missing.join(" ") + ")");
 } else {
-  ok(expected.length + " files: 33 models, 44 pictures (11 bars, 33 glows) each with its TXI, 44 materials and their TXIs, vsn5bill_sl");
+  ok(expected.length + " files: 33 models, 44 pictures (11 bars, 33 glows), 44 materials and their TXIs, vsn5bill_sl, fsn5unlit");
 }
 const longNames = got.filter((n) => n.replace(/\.[^.]+$/, "").length > 16);
 if (longNames.length) fail("names over 16 letters: " + longNames.join(" "));
@@ -382,27 +387,74 @@ const glows = new Map();  // code + n -> px
 // --- the TXIs and materials ------------------------------------------------------------------------------------------
 const txt = (name) => (first.get(name) || Buffer.alloc(0)).toString("latin1");
 {
-  // Never shrunk (the owner, 2026-11-20: "add the downsample lines to my textures too for now"): every TXI here says
-  // downsamplemax 0 and downsamplemin 0; each picture has a TXI of its own with those alone.
-  const KEEP = "downsamplemax 0\ndownsamplemin 0\n";
+  // The TXIs: the blend line alone. No `downsamplemax` / `downsamplemin` (fix round 1, the owner's "2A": this engine
+  // reads neither - no "downsample" string in it), and the pictures carry no TXI of their own.
   const bad = [];
   for (const n of COUNTS) {
-    if (txt(barsBitmap(n) + ".txi") !== "blending default\n" + KEEP) bad.push(barsBitmap(n) + ".txi");
-    if (txt(barsPicture(n) + ".txi") !== KEEP) bad.push(barsPicture(n) + ".txi");
-    if (txt(barsBitmap(n) + ".mtr") !== `customshadervs ${SHADER}\ncustomshaderfs fslit\ntexture0 ${barsPicture(n)}\ntransparency 1\n`) bad.push(barsBitmap(n) + ".mtr");
+    if (txt(barsBitmap(n) + ".txi") !== "blending default\n") bad.push(barsBitmap(n) + ".txi");
+    if (txt(barsBitmap(n) + ".mtr") !== `customshadervs ${SHADER}\ncustomshaderfs ${FRAGMENT}\ntexture0 ${barsPicture(n)}\ntransparency 1\n`) bad.push(barsBitmap(n) + ".mtr");
     for (const s of STYLES) {
-      if (txt(glowBitmap(s, n) + ".txi") !== "blending additive\n" + KEEP) bad.push(glowBitmap(s, n) + ".txi");
-      if (txt(glowPicture(s, n) + ".txi") !== KEEP) bad.push(glowPicture(s, n) + ".txi");
-      if (txt(glowBitmap(s, n) + ".mtr") !== `customshadervs ${SHADER}\ncustomshaderfs fslit\ntexture0 ${glowPicture(s, n)}\n`) bad.push(glowBitmap(s, n) + ".mtr");
+      if (txt(glowBitmap(s, n) + ".txi") !== "blending additive\n") bad.push(glowBitmap(s, n) + ".txi");
+      if (txt(glowBitmap(s, n) + ".mtr") !== `customshadervs ${SHADER}\ncustomshaderfs ${FRAGMENT}\ntexture0 ${glowPicture(s, n)}\n`) bad.push(glowBitmap(s, n) + ".mtr");
     }
   }
-  // and no TXI (or picture) without them, whatever else build() makes
   for (const [name] of first) {
-    if (/\.txi$/.test(name) && (!/(^|\n)downsamplemax 0\n/.test(txt(name)) || !/(^|\n)downsamplemin 0\n/.test(txt(name)))) bad.push(name + " without the downsample lines");
-    if (/\.tga$/.test(name) && !first.has(name.replace(/\.tga$/, ".txi"))) bad.push(name + " without a TXI");
+    if (/downsample/i.test(txt(name))) bad.push(name + " says downsample (the engine reads no such line)");
+    if (/^n5_tf(b|g)p_.*\.txi$/.test(name)) bad.push(name + " (a picture's TXI)");
   }
   if (bad.length) fail("materials / TXIs: " + bad.join(" "));
-  else ok("88 TXIs, each with downsamplemax 0 and downsamplemin 0 (the glows' blending additive, the bars' blending default - no decal; the 44 pictures' those alone) and 44 materials (vsn5bill_sl + fslit + texture0 its picture; the bars' transparency 1)");
+  else ok("44 TXIs, the blend line alone (the glows' blending additive, the bars' blending default; no decal, no downsample line, none for the pictures) and 44 materials (vsn5bill_sl + fsn5unlit + texture0 its picture; the bars' transparency 1)");
+}
+
+// --- the fragment shader ---------------------------------------------------------------------------------------------
+// Unlit (fix round 1, the owner's "1A"): the picked target's red glow is a creature illumination the engine passes on to
+// what's attached to it (Gob::SetIllumination, "propagateillumination") - fslit adds it to the emission, so it tinted
+// the glow under enhanced lighting. Ours reads no light, no emission, no fog, no keyhole and no area-targeting
+// highlight: the game's standard fragment setup with lighting, fog and keyholing off - texture0 in and out of the colour
+// space, cut by the engine's alpha discard (or none, a NO_DISCARD variant) - its alpha times the material's.
+{
+  const WANT = [
+    "#define SHADER_TYPE 2",
+    "#define FOG 0",
+    "#define KEYHOLING 0",
+    "#define LIGHTING 0",
+    "#define NORMAL_MAP 0",
+    "#define SPECULAR_MAP 0",
+    "#define ROUGHNESS_MAP 0",
+    "#define HEIGHT_MAP 0",
+    "#define SELF_ILLUMINATION_MAP 0",
+    "#define ENVIRONMENT_MAP 0",
+    "",
+    '#include "inc_standard"',
+    "",
+    "uniform mediump vec4 materialFrontDiffuse;",
+    "",
+    "void main ()",
+    "{",
+    "    FragmentColor = vec4(1.0, 1.0, 1.0, clamp(materialFrontDiffuse.a, 0.0, 1.0));",
+    "    SetupStandardShaderInputs();",
+    "    ApplyStandardShader();",
+    "    gl_FragColor = FragmentColor;",
+    "}",
+    "",
+  ];
+  const text = txt(FRAGMENT + ".shd");
+  const lines = text.split("\n");
+  const what = [];
+  if (/[^\x0a\x20-\x7e]/.test(text) || text.includes("`")) what.push("not plain ASCII with LF (or a backtick)");
+  if (!lines[0].startsWith("// " + FRAGMENT + ".shd - nwn5e's unlit fragment shader")) what.push("no mark on its first line");
+  const start = lines.indexOf("#define SHADER_TYPE 2");
+  if (start < 0 || lines.slice(0, start).some((l) => l && !l.startsWith("//"))) what.push("its header isn't comments");
+  const have = lines.slice(start);
+  if (JSON.stringify(have) !== JSON.stringify(WANT)) {
+    const at = WANT.findIndex((l, i) => have[i] !== l);
+    what.push("line " + (start + at + 1) + ": " + JSON.stringify(have[at]) + ", not " + JSON.stringify(WANT[at]));
+  }
+  if (/materialFrontEmissive|materialFrontAmbient|ComputeLighting|ApplyFog|ApplyKeyhole|ApplyTargetGroundHighlighting/.test(text.slice(text.indexOf("#define")))) {
+    what.push("reads light, emission, fog, keyhole or the targeting highlight");
+  }
+  if (what.length) fail(FRAGMENT + ".shd: " + what.join("; "));
+  else ok(FRAGMENT + ".shd: unlit - the standard setup with lighting, fog and keyholing off, texture0 times the material's alpha");
 }
 
 // --- the models ------------------------------------------------------------------------------------------------------
@@ -668,8 +720,13 @@ const screen = (p) => {
     if (!fs.existsSync(at)) stale.push(name + " (missing)");
     else if (!B.same(name, fs.readFileSync(at), bytes)) stale.push(name + " (differs)");
   }
+  // and nothing of the marker's the generator no longer makes (a picture's TXI of the first round, say)
+  const ours = /^(n5_tf_|n5_tfb_|n5_tfbp_|n5_tfg_|n5_tfgp_)|^(vsn5bill_sl|fsn5unlit)\./i;
+  for (const name of fs.existsSync(FILES) ? fs.readdirSync(FILES) : []) {
+    if (ours.test(name) && !first.has(name)) stale.push(name + " (left over: the generator doesn't make it)");
+  }
   if (stale.length) fail("data\\files out of step with the generator (node tools\\data\\tally\\build.js): " + stale.slice(0, 8).join(", ") + (stale.length > 8 ? ` ... ${stale.length}` : ""));
-  else ok("data\\files holds the generator's " + first.size + " files");
+  else ok("data\\files holds the generator's " + first.size + " files, and no other of the marker's");
 }
 
 console.log(failures ? "\n" + failures + " failed" : "\nall passed");

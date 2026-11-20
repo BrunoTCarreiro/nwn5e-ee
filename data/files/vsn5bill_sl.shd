@@ -1,6 +1,6 @@
 // vsn5bill_sl.shd - nwn5e's camera-facing layered quad (nwn5e-ee #171, TF): spherical, faces the camera fully, from above too
 // Made by nwn5e-ee tools/data/tally/build.js (shaderText): change it there and rebuild, not here. The target-count
-// marker's materials (n5_tfb_NN, n5_tfg_<ss>NN) pair this vertex shader with the game's lit fragment shader (fslit).
+// marker's materials (n5_tfb_NN, n5_tfg_<ss>NN) pair this vertex shader with our unlit fragment shader (fsn5unlit).
 // The game's standard vertex setup first (its own include, by name), then the quad turned to the camera on every
 // frame - a vertex shader needs no clock, so it turns while the game is paused:
 // - its centre: the mesh node's own origin, m_mv (the model-view matrix: the node's place in the world - the head

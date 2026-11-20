@@ -5,9 +5,9 @@
 # TargetCountMarkerVfx(style, count)): Magic Missile 2215-2225, Scorching Ray 2226-2236, Eldritch Blast 2237-2247. A
 # lasting effect on the head node, upright (OrientWithObject 0), no cessation: two quads our vertex shader (vsn5bill_sl)
 # turns to the camera on every draw, paused too - the bars, black and alpha-blended, and the glow, additive and black
-# where the bars are, 1 cm nearer the camera. nwn5e's own models and art (data\files\n5_tf_*, n5_tfg_*, n5_tfgp_*,
-# n5_tfb_*, n5_tfbp_*, vsn5bill_sl, made by tools/data/tally/build.js). After the probe's 2211-2214
-# (tests/data/anim_vfx_rows_test.cpp).
+# where the bars are, 1 cm nearer the camera - both drawn unlit by our fsn5unlit, so nothing tints them. nwn5e's own
+# models and art (data\files\n5_tf_*, n5_tfg_*, n5_tfgp_*, n5_tfb_*, n5_tfbp_*, vsn5bill_sl, fsn5unlit, made by
+# tools/data/tally/build.js). After the probe's 2211-2214 (tests/data/anim_vfx_rows_test.cpp).
 Label Type_FD OrientWithGround Imp_HeadCon_Node OrientWithObject
 2215 NWN5E_TALLY_MM_1 D 0 n5_tf_mm01 0
 2216 NWN5E_TALLY_MM_2 D 0 n5_tf_mm02 0

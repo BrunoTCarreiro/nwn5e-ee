@@ -19,21 +19,23 @@ marker's and the probe's. The game's call: `TargetCountMarkerVfx(TargetCountStyl
 (`src\core\anim_target_counts.h`; the rows `data::TargetTallyRow`, a test reads this file against it). In game:
 `!vfxnode 2221 600` puts Magic Missile's 7 on you, `!vfxnode off` takes it off.
 
-`build.js` writes 210 files into `data\files`:
+`build.js` writes 167 files into `data\files`:
 
 | files | what |
 |---|---|
 | `n5_tf_<ss>NN.mdl` (33) | the models: two quads each, the bars and the glow |
-| `n5_tfb_NN.mtr` / `.txi`, `n5_tfbp_NN.tga` / `.txi` (11 each) | the bars' material and its TXI (the blend), their picture and its TXI - one per count, the same for the three spells |
-| `n5_tfg_<ss>NN.mtr` / `.txi`, `n5_tfgp_<ss>NN.tga` / `.txi` (33 each) | each glow's material and TXI, picture and its TXI |
+| `n5_tfb_NN.mtr` / `.txi`, `n5_tfbp_NN.tga` (11 each) | the bars' material, its TXI (the blend) and their picture - one per count, the same for the three spells |
+| `n5_tfg_<ss>NN.mtr` / `.txi`, `n5_tfgp_<ss>NN.tga` (33 each) | each glow's material, TXI and picture |
 | `vsn5bill_sl.shd` | the vertex shader: the probe's spherical billboard with the layer's nudge |
+| `fsn5unlit.shd` | the fragment shader: unlit, the picture times the material's alpha |
 
 (`ss`: `mm`, `sr`, `eb`; `NN` the count, 01-11. Every name under 17 letters.)
 
-**Every TXI says `downsamplemax 0` and `downsamplemin 0`** - the bitmaps' (beside their blend line) and the pictures'
-(those two lines alone): the game's texture-quality setting shrinks a texture unless its TXI says so (the owner,
-2026-11-20: "add the downsample lines to my textures too for now"). check.js checks every TXI build.js makes has them,
-and every picture a TXI.
+Each TXI is its blend line alone; the pictures have none. (Fix round 1, the owner's "2A": the first round's
+`downsamplemax 0` / `downsamplemin 0` lines are gone - this engine reads neither: there is no "downsample" string in
+nwmain-linux or nwmain.exe, and the texture TXI's keywords don't include it. check.js fails a TXI that says
+downsample, a picture with a TXI, and any file of the marker's names left in `data\files` that the generator doesn't
+make.)
 
 ## Run
 
@@ -99,8 +101,34 @@ keyhole switched off as the probe's.
 `check.js` runs the shader's lines in JS (`build.js billboard`) over 1800 cameras - all round, low to straight above,
 near and far, looking at the marker and past it, the head anywhere, the model scaled: both layers in the view plane,
 facing the camera, upright, centred, counter-clockwise; the glow nearer at every corner; its picture over the bars'.
-The shader compiled and linked with the game's `fslit` on this machine's GL driver under the engine's header and
-includes, in all 48 combinations of the quality defines (the TP rig: `tmp\animtex\tpdiag\assemble.js`, not in the tree).
+
+## The fragment shader (`fsn5unlit`) - unlit
+
+Fix round 1 (the owner's "1A"). The picked target's red glow (`VFX_DUR_GLOW_LIGHT_RED`) is a creature illumination:
+`ApplySelfIllumination` -> `CNWCCreature::Hilite` (1, 0.4, 0.4) -> `RefreshHilite` -> `Gob::SetIllumination(...,
+propagate)`, which sends "propagateillumination" to the Gobs attached to the creature - the marker's too. The game's lit
+`fslit` adds it to the emission, so with enhanced lighting (gamma correction, the game's default) the glow turned pale,
+amber or magenta over a picked target. So both quads are drawn by our own fragment shader, which reads no light:
+
+- **Inputs:** `texUnit0` / `texture0Bound` (texture0, white when none is bound), `materialFrontDiffuse` - only its alpha:
+  the mesh's alpha, any fade with it (`GLRender::ConnectShaderData` looks it up for every program and
+  `GLRender::SetUniforms` uploads the material's colours whenever they change, the alpha as it is; `inc_lighting`
+  declares it only with lighting on, so `fsn5unlit` declares it itself) - and the engine's `fAlphaDiscardValue`.
+- **What it does:** the game's standard fragment setup (`#include "inc_standard"`, `SetupStandardShaderInputs()`,
+  `ApplyStandardShader()`) with `LIGHTING`, `FOG` and `KEYHOLING` 0, starting from white at the material's alpha:
+  texture0 into the colour space and back (the picture exactly, gamma correction or not), multiplied in, and cut by
+  the engine's alpha discard (`AlphaDiscard`: alpha <= 0.2 for the blended bars, nothing for the additive glow; no
+  `discard` at all in a NO_DISCARD variant) - as the game's own shaders are.
+- **What it leaves out:** lights, emission (where the illumination comes in), fog, the keyhole and the area-targeting
+  highlight (`ApplyTargetGroundHighlighting` runs only with a view position, which needs lighting, fog or keyholing:
+  so TP's faint box inside a spell's shape is gone too).
+- **Output:** `gl_FragColor` = (texture0.rgb, texture0.a x the material's alpha).
+
+The bars use it too: black can't be tinted, but `fslit`'s targeting highlight would grey them inside a spell's shape,
+and one program serves both layers. Both shaders compiled and linked together on this machine's GL driver under the
+engine's header and the game's includes in all 48 combinations of the quality defines (the TP rig:
+`tmp\animtex\tpdiag\assemble.js`, not in the tree); `materialFrontDiffuse`, `texUnit0` and `fAlphaDiscardValue` active,
+`materialFrontEmissive` and the targeting uniforms not; a broken copy fails all 48.
 
 ## The art
 
@@ -115,6 +143,11 @@ distance to each segment); no font, no image (`build.js` loads only `fs` and `pa
   `glow(e) x (1 - cover)` on their rim.
 
 On a bright ground (snow, sky) the additive glow washes out - the black bars don't: they read the more. On a dark one the
-glow outlines the bars. The models: ambient, diffuse, specular 0, selfillum 1, alpha 1 (`fslit` gives the picture
-exactly, day and night); only impact and duration, never a cessation (a removed marker would linger, TC-1) and never one
-of length 0; no keys (a key waits for the clock, stopped while paused); no emitter.
+glow outlines the bars. **Far off** - once a bar is under about a pixel wide, at the pictures' small mip levels - the
+bars' averaged alpha falls to 0.2 or under and is cut, while the glow keeps its black slots where the bars were: on snow
+or sky those show the background, so far away the tally reads as gaps in the glow rather than black bars. Near enough
+for a bar to be a pixel wide or more it reads as drawn.
+
+The models: ambient, diffuse, specular 0, selfillum 1, alpha 1 (the material's alpha is what `fsn5unlit` takes); only
+impact and duration, never a cessation (a removed marker would linger, TC-1) and never one of length 0; no keys (a key
+waits for the clock, stopped while paused); no emitter.

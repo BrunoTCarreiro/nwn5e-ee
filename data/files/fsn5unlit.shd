@@ -1,0 +1,30 @@
+// fsn5unlit.shd - nwn5e's unlit fragment shader (nwn5e-ee #171, TF): its texture, times the material's alpha
+// Made by nwn5e-ee tools/data/tally/build.js (fragmentShaderText): change it there and rebuild, not here. The
+// target-count marker's materials (n5_tfb_NN, n5_tfg_<ss>NN) pair it with our vertex shader vsn5bill_sl. Nothing
+// lights it: no light, no emission - so a creature's illumination passed on to the marker (the picked target's red
+// glow) can't tint it - no fog, no keyhole, no area-targeting highlight. The game's standard fragment setup (its own
+// include, by name) with lighting, fog and keyholing off: texture0 in and out of the colour space, cut by the engine's
+// alpha discard as its own shaders are; its alpha times the material's (the mesh's alpha, any fade with it).
+
+#define SHADER_TYPE 2
+#define FOG 0
+#define KEYHOLING 0
+#define LIGHTING 0
+#define NORMAL_MAP 0
+#define SPECULAR_MAP 0
+#define ROUGHNESS_MAP 0
+#define HEIGHT_MAP 0
+#define SELF_ILLUMINATION_MAP 0
+#define ENVIRONMENT_MAP 0
+
+#include "inc_standard"
+
+uniform mediump vec4 materialFrontDiffuse;
+
+void main ()
+{
+    FragmentColor = vec4(1.0, 1.0, 1.0, clamp(materialFrontDiffuse.a, 0.0, 1.0));
+    SetupStandardShaderInputs();
+    ApplyStandardShader();
+    gl_FragColor = FragmentColor;
+}

@@ -357,11 +357,13 @@ TEST(TargetTallyRowsFileNamesTheModels) {
 // node, counter-clockwise seen from -y; the bars on the plane (y 0), the glow 1 cm in front (y -0.01: nearer the camera,
 // so the bars' depth never cuts it - it is black where the bars are). Each lit by itself alone (selfillum 1, ambient and
 // diffuse 0), alpha 1, nothing keyed, no emitter, no cessation (a removed marker would linger). Their materials: our
-// vertex shader, the game's fslit, texture0 the layer's picture; the glow's TXI additive, the bars' not (alpha-blended:
-// black can't be added) and their material see-through (`transparency 1`: drawn with the blended meshes, cut at alpha
-// 0.2 - never as an opaque box). Every TXI, the pictures' too, says downsamplemax 0 and downsamplemin 0.
+// vertex shader and our unlit fragment shader fsn5unlit (fix round 1: nothing tints it - the picked target's red glow
+// reached fslit's emission), texture0 the layer's picture; the glow's TXI additive, the bars' not (alpha-blended: black
+// can't be added) and their material see-through (`transparency 1`: drawn with the blended meshes, cut at alpha 0.2 -
+// never as an opaque box). Each TXI the blend line alone; the pictures have none.
 TEST(TargetTallyModelsAreTwoFaceOnLayers) {
   CHECK_EQ(std::filesystem::exists("data/files/vsn5bill_sl.shd"), true);
+  CHECK_EQ(std::filesystem::exists("data/files/fsn5unlit.shd"), true);
   for (int s = 0; s < 3; ++s) {
     for (int count = 1; count <= 11; ++count) {
       const std::string name = data::TargetTallyModel(s, count);
@@ -416,16 +418,14 @@ TEST(TargetTallyModelsAreTwoFaceOnLayers) {
         // Its material and TXI, found by the bitmap's name.
         const std::vector<std::string> mtr = TextLines(ReadText("data/files/" + p.bitmap + ".mtr"));
         const std::string picture = is_glow ? "n5_tfgp_" + data::TargetTallyStyleCode(s) + Two(count) : "n5_tfbp_" + Two(count);
-        std::vector<std::string> want = {"customshadervs vsn5bill_sl", "customshaderfs fslit", "texture0 " + picture};
+        std::vector<std::string> want = {"customshadervs vsn5bill_sl", "customshaderfs fsn5unlit", "texture0 " + picture};
         if (!is_glow) want.push_back("transparency 1");
         CHECK_EQ(mtr == want, true);
         CHECK_EQ(std::filesystem::exists("data/files/" + picture + ".tga"), true);
-        // Its TXI and its picture's, each never shrunk by the game's texture quality (the owner, 2026-11-20).
-        const std::vector<std::string> keep = {"downsamplemax 0", "downsamplemin 0"};
-        std::vector<std::string> want_txi = {is_glow ? "blending additive" : "blending default"};
-        want_txi.insert(want_txi.end(), keep.begin(), keep.end());
+        // Its TXI: the blend line alone (fix round 1: no downsample lines - the engine reads none); no TXI for the picture.
+        const std::vector<std::string> want_txi = {is_glow ? "blending additive" : "blending default"};
         CHECK_EQ(TextLines(ReadText("data/files/" + p.bitmap + ".txi")) == want_txi, true);
-        CHECK_EQ(TextLines(ReadText("data/files/" + picture + ".txi")) == keep, true);
+        CHECK_EQ(std::filesystem::exists("data/files/" + picture + ".txi"), false);
       }
       CHECK_EQ(found_bars, 1);
       CHECK_EQ(found_glow, 1);

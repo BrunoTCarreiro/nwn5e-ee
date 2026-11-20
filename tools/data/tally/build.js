@@ -18,17 +18,20 @@
 // TOOLS-PLAN.md), so the glow always comes second; nearer the camera, the bars' depth never cuts it; black where they
 // are, it leaves them black. Should the order ever turn round, the result is the same but for the antialiased rim
 // (check.js composites both).
+// Both quads are drawn unlit by our own fragment shader fsn5unlit (fix round 1, the owner's "1A"): the picked target's
+// red glow is a creature illumination the engine passes on to what's attached to it, and the game's lit fslit adds it
+// to the emission - it tinted the glow under enhanced lighting. Ours outputs texture0 times the material's alpha, nothing
+// from lights, emission, fog, keyhole or the area-targeting highlight.
 // The files (data\files): for the 11 counts and the 3 spells (ss: mm Magic Missile, sr Scorching Ray, eb Eldritch Blast) -
 // - n5_tf_<ss>NN.mdl: an ASCII effect model, the two quads (0.5 x 0.25 m, in their node's x-z plane round its origin),
 //   the node 0.55 m over the head node; no keys, no emitter, no cessation;
-// - n5_tfb_NN.mtr / .txi and n5_tfbp_NN.tga / .txi (256 x 128, 32-bit): the bars' material, its TXI (the blend), the
-//   picture and the picture's TXI;
-// - n5_tfg_<ss>NN.mtr / .txi and n5_tfgp_<ss>NN.tga / .txi (256 x 128, 32-bit, alpha 255): the glow's;
-// - vsn5bill_sl.shd: the probe's spherical billboard (vsn5bill_s) with the layer's nudge toward the eye.
-// Every TXI says `downsamplemax 0` and `downsamplemin 0`: never shrunk by the game's texture quality (the owner).
+// - n5_tfb_NN.mtr / .txi and n5_tfbp_NN.tga (256 x 128, 32-bit): the bars' material, its TXI (the blend) and picture;
+// - n5_tfg_<ss>NN.mtr / .txi and n5_tfgp_<ss>NN.tga (256 x 128, 32-bit, alpha 255): the glow's;
+// - vsn5bill_sl.shd: the probe's spherical billboard (vsn5bill_s) with the layer's nudge toward the eye;
+// - fsn5unlit.shd: the unlit fragment shader.
 // The layout is the probe's (layout(): bars, a five four bars struck through), drawn here from strokes - no font, no
 // picture of anyone's. The bytes follow from this file alone: the same on every run (check.js checks it), so the outputs
-// are committed. Run from anywhere; it writes only these 210 files, and only those whose bytes changed.
+// are committed. Run from anywhere; it writes only these 167 files, and only those whose bytes changed.
 
 "use strict";
 const fs = require("fs");
@@ -44,6 +47,7 @@ const STYLES = [
 const COUNTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const FIRST_ROW = 2215;  // data/rows/visualeffects.tally.txt; src/data/anim_target_count.h kTargetTallyFirstRow
 const SHADER = "vsn5bill_sl";
+const FRAGMENT = "fsn5unlit";
 const pad = (n) => String(n).padStart(2, "0");
 const modelName = (s, n) => `n5_tf_${s.code}${pad(n)}`;
 const glowBitmap = (s, n) => `n5_tfg_${s.code}${pad(n)}`;
@@ -173,7 +177,7 @@ function shaderText() {
   return [
     `// ${SHADER}.shd - nwn5e's camera-facing layered quad (nwn5e-ee #171, TF): spherical, faces the camera fully, from above too`,
     "// Made by nwn5e-ee tools/data/tally/build.js (shaderText): change it there and rebuild, not here. The target-count",
-    "// marker's materials (n5_tfb_NN, n5_tfg_<ss>NN) pair this vertex shader with the game's lit fragment shader (fslit).",
+    "// marker's materials (n5_tfb_NN, n5_tfg_<ss>NN) pair this vertex shader with our unlit fragment shader (fsn5unlit).",
     "// The game's standard vertex setup first (its own include, by name), then the quad turned to the camera on every",
     "// frame - a vertex shader needs no clock, so it turns while the game is paused:",
     "// - its centre: the mesh node's own origin, m_mv (the model-view matrix: the node's place in the world - the head",
@@ -217,6 +221,53 @@ function shaderText() {
     "#if KEYHOLING == 1",
     "    fFragCamOffset = 0.0;",
     "#endif",
+    "}",
+    "",
+  ].join("\n");
+}
+
+// The fragment shader, unlit (fix round 1, the owner's "1A"). Its inputs, from the game's own shaders (fst / fslit,
+// inc_standard, inc_common, inc_lighting; read in memory, values only) and the engine (GLRender::ConnectShaderData looks
+// up materialFrontDiffuse for every program; GLRender::SetUniforms uploads the material's colours to it whenever they
+// change, SetUniformColorFromSRGB - the alpha as it is): with LIGHTING, FOG and KEYHOLING 0 the standard setup
+// (SetupStandardShaderInputs, ApplyStandardShader) takes texture0 (white when none is bound) into the colour space and
+// back, multiplies it into FragmentColor and runs the engine's alpha discard (AlphaDiscard: fAlphaDiscardValue, 0.2 for
+// the blended meshes, -1 for the additive; `discard` itself gone in a NO_DISCARD variant) - and nothing else: no light,
+// no emission (where the creature's illumination comes in), no fog, no keyhole, and no area-targeting highlight (its
+// position isn't set up without lighting, fog or keyholing). FragmentColor starts as white at the material's alpha:
+// inc_lighting declares materialFrontDiffuse only with lighting on, so it's declared here - the mesh's alpha, any fade
+// with it.
+function fragmentShaderText() {
+  return [
+    `// ${FRAGMENT}.shd - nwn5e's unlit fragment shader (nwn5e-ee #171, TF): its texture, times the material's alpha`,
+    "// Made by nwn5e-ee tools/data/tally/build.js (fragmentShaderText): change it there and rebuild, not here. The",
+    "// target-count marker's materials (n5_tfb_NN, n5_tfg_<ss>NN) pair it with our vertex shader vsn5bill_sl. Nothing",
+    "// lights it: no light, no emission - so a creature's illumination passed on to the marker (the picked target's red",
+    "// glow) can't tint it - no fog, no keyhole, no area-targeting highlight. The game's standard fragment setup (its own",
+    "// include, by name) with lighting, fog and keyholing off: texture0 in and out of the colour space, cut by the engine's",
+    "// alpha discard as its own shaders are; its alpha times the material's (the mesh's alpha, any fade with it).",
+    "",
+    "#define SHADER_TYPE 2",
+    "#define FOG 0",
+    "#define KEYHOLING 0",
+    "#define LIGHTING 0",
+    "#define NORMAL_MAP 0",
+    "#define SPECULAR_MAP 0",
+    "#define ROUGHNESS_MAP 0",
+    "#define HEIGHT_MAP 0",
+    "#define SELF_ILLUMINATION_MAP 0",
+    "#define ENVIRONMENT_MAP 0",
+    "",
+    '#include "inc_standard"',
+    "",
+    "uniform mediump vec4 materialFrontDiffuse;",
+    "",
+    "void main ()",
+    "{",
+    "    FragmentColor = vec4(1.0, 1.0, 1.0, clamp(materialFrontDiffuse.a, 0.0, 1.0));",
+    "    SetupStandardShaderInputs();",
+    "    ApplyStandardShader();",
+    "    gl_FragColor = FragmentColor;",
     "}",
     "",
   ].join("\n");
@@ -315,31 +366,27 @@ function model(s, n) {
   return Buffer.from(lines.join("\n"), "latin1");
 }
 
-// The materials, found by the meshes' bitmap names: our vertex shader, the game's lit fragment shader (ambient, diffuse,
-// specular 0 and selfillum 1: the picture exactly, day and night), texture0 the layer's picture. The bars' also
-// `transparency 1`: never opaque (Material::GetIsOpaque), so drawn with the blended meshes - a pixel at alpha 0.2 or
-// under cut, the rest blended - not as an opaque box whatever the picture's alpha is taken for.
-const barsMaterial = (n) => `customshadervs ${SHADER}\ncustomshaderfs fslit\ntexture0 ${barsPicture(n)}\ntransparency 1\n`;
-const glowMaterial = (s, n) => `customshadervs ${SHADER}\ncustomshaderfs fslit\ntexture0 ${glowPicture(s, n)}\n`;
-// Never shrunk: the game's texture-quality setting downsamples a texture unless its TXI says these (the owner,
-// 2026-11-20: "add the downsample lines to my textures too for now"). On every TXI here, and each picture gets a TXI of
-// its own with them alone.
-const KEEP_SIZE = "downsamplemax 0\ndownsamplemin 0\n";
+// The materials, found by the meshes' bitmap names: our vertex shader, our unlit fragment shader (the picture exactly,
+// day and night, whatever lights or illuminates the creature), texture0 the layer's picture. Both layers unlit: the
+// glow so the picked target's red glow can't tint it; the bars too - black can't be tinted, but fslit's area-targeting
+// highlight would grey them inside a spell's shape, and one program serves both. The bars' also `transparency 1`: never
+// opaque (Material::GetIsOpaque), so drawn with the blended meshes - a pixel at alpha 0.2 or under cut, the rest blended
+// - not as an opaque box whatever the picture's alpha is taken for.
+const barsMaterial = (n) => `customshadervs ${SHADER}\ncustomshaderfs ${FRAGMENT}\ntexture0 ${barsPicture(n)}\ntransparency 1\n`;
+const glowMaterial = (s, n) => `customshadervs ${SHADER}\ncustomshaderfs ${FRAGMENT}\ntexture0 ${glowPicture(s, n)}\n`;
 // The TXIs under the bitmap names - the only place the engine takes a mesh's blend from (MV): the glow's additive; the
-// bars' says so plainly (the engine reads only additive and punchthrough: anything else keeps its alpha blend). No
-// decal on either: a decal mesh is drawn by the game's own unlit pair and its material dropped (SHP-8).
-const GLOW_TXI = "blending additive\n" + KEEP_SIZE;
-const BARS_TXI = "blending default\n" + KEEP_SIZE;
-// The pictures' own TXIs (texture0's, read by the texture itself - its size, filter, clamp; never the blend): the
-// downsample lines alone.
-const PICTURE_TXI = KEEP_SIZE;
+// bars' says so plainly (the engine reads only additive and punchthrough: anything else keeps its alpha blend). That
+// line alone: no decal (a decal mesh is drawn by the game's own unlit pair and its material dropped, SHP-8), and no
+// downsample lines (fix round 1, the owner's "2A": this engine reads none - no "downsample" string in it). The pictures
+// have no TXI.
+const GLOW_TXI = "blending additive\n";
+const BARS_TXI = "blending default\n";
 
 // Every file, by name: the bytes this file makes.
 function build() {
   const files = new Map();
   for (const n of COUNTS) {
     files.set(barsPicture(n) + ".tga", tga(barsPixels(n)));
-    files.set(barsPicture(n) + ".txi", Buffer.from(PICTURE_TXI, "latin1"));
     files.set(barsBitmap(n) + ".mtr", Buffer.from(barsMaterial(n), "latin1"));
     files.set(barsBitmap(n) + ".txi", Buffer.from(BARS_TXI, "latin1"));
   }
@@ -347,12 +394,12 @@ function build() {
     for (const n of COUNTS) {
       files.set(modelName(s, n) + ".mdl", model(s, n));
       files.set(glowPicture(s, n) + ".tga", tga(glowPixels(s, n)));
-      files.set(glowPicture(s, n) + ".txi", Buffer.from(PICTURE_TXI, "latin1"));
       files.set(glowBitmap(s, n) + ".mtr", Buffer.from(glowMaterial(s, n), "latin1"));
       files.set(glowBitmap(s, n) + ".txi", Buffer.from(GLOW_TXI, "latin1"));
     }
   }
   files.set(SHADER + ".shd", Buffer.from(shaderText(), "latin1"));
+  files.set(FRAGMENT + ".shd", Buffer.from(fragmentShaderText(), "latin1"));
   return files;
 }
 
@@ -366,8 +413,8 @@ function same(name, onDisk, bytes) {
   return Buffer.compare(onDisk, bytes) === 0;
 }
 
-module.exports = { build, layout, billboard, shaderText, same, STYLES, COUNTS, FIRST_ROW, SHADER, TEX_W, TEX_H, BAR_RGB,
-  GLOW_PEAK, GLOW_REACH, HALF, MARGIN, QUAD_W, QUAD_H, CENTRE_M, GLOW_FRONT };
+module.exports = { build, layout, billboard, shaderText, fragmentShaderText, same, STYLES, COUNTS, FIRST_ROW, SHADER, FRAGMENT,
+  TEX_W, TEX_H, BAR_RGB, GLOW_PEAK, GLOW_REACH, HALF, MARGIN, QUAD_W, QUAD_H, CENTRE_M, GLOW_FRONT };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
