@@ -510,6 +510,7 @@ dying.tests_dying_roll_1_20 | generated | nwn5e: tests - !dying roll <1-20> (the
 # --- src/core/rules_features.cpp (lines) ---------------------------------------------------------------------
 features.features_shows_the_2024_class | generated | nwn5e: !features shows the 2024 class features (class_features=faithful).
 features.no_character | generated | nwn5e: no character.
+version.line | generated | nwn5e: version {version}
 features.no_2024_class | generated | nwn5e: no 2024 class.
 
 # --- src/core/rules_fighter.cpp (lines) ----------------------------------------------------------------------

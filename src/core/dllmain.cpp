@@ -6,10 +6,15 @@
 #include <windows.h>
 #include <shlwapi.h>
 
+#include <string>
+#include <vector>
+
+#include "chat.h"
 #include "config.h"
 #include "hooks.h"
 #include "log.h"
 #include "dev_seam.h"
+#include "player_text.h"
 
 #pragma comment(lib, "shlwapi.lib")
 
@@ -109,7 +114,13 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.99.97";
+constexpr const char* kVersion = "0.99.98";
+
+// #173 (owner, 2026-11-20: "is there a way in-game to check the installed version?" - "A for the version command"):
+// "!version" answers with this DLL's version.
+std::vector<std::string> VersionCommand(void* /*creature*/, const std::string& /*args*/) {
+  return {PlayerText("version.line", {{"version", kVersion}})};
+}
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -161,6 +172,7 @@ void Start(HMODULE self) {
   InstallFeatCadenceRules();
   InstallAbilityRules();
   InstallFeatureRules();
+  AddChatCommand("!version", &VersionCommand);
   InstallFighterRules();
   InstallBarbarianRules();
   InstallBarbarianStrikes();
