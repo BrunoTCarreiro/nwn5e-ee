@@ -2156,7 +2156,13 @@ monster AC by CR.
       - *Built 0.99.103:* no heal - attacks, ranged Snuffs and dousing spells do their damage; a Snuff by hand (a use)
         none. Test PD-8. The owner, on 0.99.102: "The lectern still fountained a huge amount of debris and lit
         chandeliers didn't show embers" - the animation session's (its step 2 brings the embers; the lectern's own
-        debris, options asked there).
+        debris, options asked there). *Decided (owner, 2026-11-20): "For the lectern A"* (one-burst copies of the 16
+        fountaining models); the Cot, Birdbath and Flag3, *"B"* (they get the material debris).
+      - *Built 0.99.106:* anim 5d6076e (DE: debris rows 2248-2258 and the light death; LD: the 16 one-burst copies, built
+        from the owner's game; DH: ModelHasDeathDebris, the served model) wired: CNWSPlaceable::DoDamage hooked - a
+        placeable at 0 HP once, on the next server frame its material's debris when its model has none of its own
+        (rules::DebrisMaterialFor, IsGlassLabel, DebrisSizeFor; 12 of 12 mutations caught), and a light lit as it broke
+        its death at its light's point. test.bat 688 ok. Tests DE-1, DE-2, LD-1 (the animation session's).
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
