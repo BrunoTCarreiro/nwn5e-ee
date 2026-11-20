@@ -2135,6 +2135,15 @@ monster AC by CR.
         their slots no longer count (rules::DressingScriptCounts), nor the clickability n5_lamp_use brings
         (rules::ClickableByNwn5e); the tile flames' stand-ins stay Plot. The room's benches and vases are part of
         its tile models (tic01), not placeables: nothing to break. 9 of 9 mutations caught. Test PD-6.
+        *PD-6 and PD-1b passed (owner, 2026-11-20).*
+      - *0.99.102 (the animation session's destruction recon; the owner, 2026-11-20: "yes on all"):* on a light's
+        killing hit n5_lamp_hit healed it back (the engine's heal has no dead check for a placeable) and played the
+        "off" animation over the model's own "die" (its debris and sound; PLC_I05, the Academy's brazier); Shatter's
+        blast and the spell douse queued the same. kDouse plays "off" only above 0 hit points, Damaged heals only above
+        0. Test PD-7. Next with the same "yes": the animation session's material debris and lit-light deaths, played
+        from the death hook when a model has no debris of its own (on its "anim ready").
+      - *Asked:* the heal runs on every hit (0.37.0: a hit puts a light out without breaking it), so a lamp breaks only
+        from one hit of 15 HP plus its hardness - not "like other dressing" (1B).
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
