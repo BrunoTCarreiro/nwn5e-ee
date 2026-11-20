@@ -45,3 +45,21 @@ __pycache__/
 # A library texture's copy without its decal mark (DC: a still shape's, n5l_<hash>.tga / .dds / .txi) - the game's art,
 # copied from the player's own game at build time, so never committed:
 /data/files/n5l_*
+# One burst (LD; tools/data/oneburst.js): the game's 16 placeable models whose looping "dead" re-fires a detonate, built
+# from the player's own game without it and served under their own names - the game's models, so never committed:
+/data/files/plc_c03.mdl
+/data/files/plc_c04.mdl
+/data/files/plc_c10.mdl
+/data/files/plc_h10.mdl
+/data/files/plc_i02.mdl
+/data/files/plc_k02.mdl
+/data/files/plc_q03.mdl
+/data/files/plc_x0_fgs.mdl
+/data/files/plc_x0_grw.mdl
+/data/files/plc_x0_tds.mdl
+/data/files/plc_x0_wds.mdl
+/data/files/pwc_mage_001.mdl
+/data/files/px2_b04.mdl
+/data/files/px2_c10.mdl
+/data/files/px2_e01.mdl
+/data/files/px2_g02.mdl

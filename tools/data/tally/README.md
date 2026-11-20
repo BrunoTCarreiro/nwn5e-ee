@@ -2,7 +2,7 @@
 
 #171's target window puts a marker over each picked target: how many darts or rays are assigned to it. It was four discs
 with a number round the head (`tools\data\tcount`), then a probe of glowing tally marks on one quad our own vertex shader
-turns to the camera (`tools\data\tprobe`, rows 2211-2214). The owner, 2026-11-20, after the probe: the face-on (spherical)
+turns to the camera (`tools\data\tprobe`, rows 2211-2214); both retired 2026-11-20 and in git history. The owner, 2026-11-20, after the probe: the face-on (spherical)
 style - "camera level for max readability for every angle" - and "for now let's keep your generated style, but can we
 do it black on blue/orange/violet glow for magic missile, scorching ray and eldritch blast respectively?". This is that:
 **black tally bars on the spell's glow, facing the camera from every angle**, for counts 1-11 in three looks.
@@ -47,7 +47,7 @@ node tools\data\tally\check.js
 `build.js` writes only those files, and only those whose bytes changed (a text file that differs only in its line ends is
 unchanged: git's autocrlf checks them out CRLF). `check.js` builds twice in memory, checks everything below, then that
 `data\files` and the rows file are in step. Exit 0 or 1; it writes nothing. The outputs are committed for the reasons in
-`tools\data\tcount\README.md` (nwn5e's own art from numbers in this file, no game file, fixed names). 44 pictures of
+the retired `tools\data\tcount\README.md` (in git history; nwn5e's own art from numbers in this file, no game file, fixed names). 44 pictures of
 256 x 128 x 4 bytes: 5.8 MB.
 
 ## Why two quads
@@ -84,7 +84,7 @@ grass, snow and sky.
 
 ## The shader (`vsn5bill_sl`)
 
-The probe's spherical billboard (`vsn5bill_s`; its inputs and maths: `tools\data\tprobe\README.md`), with one term
+The probe's spherical billboard (`vsn5bill_s`; its inputs and maths: the retired `tools\data\tprobe\README.md`, in git history), with one term
 more. After `ApplyStandardShader()`: centre = `m_mv * (0, 0, 0, 1)` (the node's origin in view space, following the
 head); right = the world's up (`m_view`'s third column) x view +z, normalised; up = view +z x right (the screen's up);
 then

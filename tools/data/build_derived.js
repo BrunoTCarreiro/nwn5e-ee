@@ -37,6 +37,13 @@
 //   Steam folder; nwn5e-tools NWN5E_TOOLS, else beside this repo; the reader NWN5E_MDLMESH, else build\floatdisk\
 //   mdlmesh.exe, built with floatdisk\build_mdlmesh.bat (VS 2019 Build Tools) when missing or older than its sources.
 //
+// - One burst (LD; the owner, 2026-11-20: "For the lectern A"): the game's 16 placeable models whose looping "dead"
+//   re-fires a detonate (oneburst.js's MODELS: the lectern's among them) - each the game's own model, read from the
+//   player's game, with that animation's detonate events taken out (mdlmesh --drop-events) and every other byte as it
+//   was, in the form the game has it (compiled, or ASCII for two) - written into --out under its own name, which nwn5e
+//   serves over the game's. Owned there by its name (only this makes them; the game's model fixes the bytes); git-ignored.
+//   One the game hasn't, or whose "dead" has no detonate now, is skipped and said.
+//
 // Exit codes: 0 done; 2 a prerequisite missing - nwn5e-tools, the game, the mesh reader - one line saying which and how
 // to fix it; 1 anything else (a refused build, rows that disagree, a file in the way). build.bat stops on either, unless
 // NWN5E_DERIVED=skip.
@@ -49,6 +56,7 @@ const F = require("./floatdisk/floatdisk.js");
 const R = require("./floatdisk/reader.js");
 const W = require("./floatdisk/files.js");
 const P = require("./composer/project.js");
+const O = require("./oneburst.js");
 
 const REPO = path.resolve(__dirname, "..", "..");
 const ROWS = path.join(REPO, "data", "rows");
@@ -217,6 +225,18 @@ function main() {
       "or, for a build that won't be installed, NWN5E_DERIVED=skip builds without the game-derived models (build.bat)."].join("\n"));
   }
 
+  // One burst (LD): the game's placeable models whose looping "dead" re-fires a detonate, without it, under their own
+  // names. The game's resources as the generators read them (spell_bench\game_data.js: its keys, ovr\ over them).
+  const res = require(path.join(TOOLS, "spell_bench", "game_data.js")).resources(pre.game);
+  const burst = O.derive({ models: O.MODELS, res, reader: pre.reader });
+  for (const { model, why } of burst.skipped) say(`build_derived: one burst: skipped ${model} - ${why}`);
+  const forms = ["compiled", "ascii"].map((f) => [f, burst.files.filter((x) => x.form === f).length]).filter(([, n]) => n).map(([f, n]) => `${n} ${f}`);
+  const taken = burst.files.reduce((n, x) => n + x.dropped, 0);
+  say(`build_derived: one burst (tools/data/oneburst.js): ${burst.files.length} of the game's placeable models, their looping "${O.ANIM}" ` +
+    `without its ${O.EVENT} (${taken} event${taken === 1 ? "" : "s"})${forms.length ? ", " + forms.join(", ") : ""}`);
+  const ONE_BURST = new Set(O.MODELS.map((m) => m.toLowerCase() + ".mdl"));
+  built.push({ gen: { label: "one burst", oneBurst: true }, files: burst.files.map((x) => ({ name: x.name, bytes: x.bytes })) });
+
   // The files into --out, under the generators' ownership rule: a model or .pwk carrying its generator's mark, a texture
   // its made.txt lists in data\files, a baked texture by its name (files.js's "baked"), a shape's soft texture - or an
   // Additive one's TXI (M1b) - by its name (files.js's "shape"), a moving texture's material by its n5u_ name (M2:
@@ -228,17 +248,20 @@ function main() {
   const isMaterial = (name) => /\.(mtr|tga|dds|txi)$/i.test(name) && F.MOTION_TEXTURE.test(name.replace(/\.(mtr|tga|dds|txi)$/i, ""));
   const isCopy = (name) => /\.(tga|dds|txi)$/i.test(name) && !!F.COPY_TEXTURE && F.COPY_TEXTURE.test(name.replace(/\.(tga|dds|txi)$/i, ""));
   const isShader = (name) => name.toLowerCase() === F.MOTION_SHADER + ".shd";
+  // A one-burst copy (LD): kind "oneburst", owned by its name - one of oneburst.js's MODELS (only it makes them in a
+  // build's data\files, and the game's model fixes the bytes).
   const writes = [], byName = new Map();
   for (const { gen, files } of built) {
-    const owned = W.ownership({ repo: REPO, manifest: gen.made, mark: gen.mark, kinds: { texture: (w) => gen.made.has("data/files/" + path.basename(w.file)) } });
+    const owned = gen.oneBurst ? (w) => ONE_BURST.has(path.basename(w.file).toLowerCase())
+      : W.ownership({ repo: REPO, manifest: gen.made, mark: gen.mark, kinds: { texture: (w) => gen.made.has("data/files/" + path.basename(w.file)) } });
     for (const f of files) {
       const had = byName.get(f.name.toLowerCase());
       if (had) {
         if (!had.bytes.equals(f.bytes)) throw new Error(`${f.name}: ${had.gen.label} and ${gen.label} both make it, differently`);
         continue;
       }
-      const kind = F.carriesMark(f.bytes, gen.mark) ? "text" : isBake(f.name) ? "baked" : isShape(f.name) ? "shape" : isMaterial(f.name) ? "material"
-        : isCopy(f.name) ? "copy" : isShader(f.name) ? "shader" : "texture";
+      const kind = gen.oneBurst ? "oneburst" : F.carriesMark(f.bytes, gen.mark) ? "text" : isBake(f.name) ? "baked" : isShape(f.name) ? "shape"
+        : isMaterial(f.name) ? "material" : isCopy(f.name) ? "copy" : isShader(f.name) ? "shader" : "texture";
       const w = { file: path.join(OUT, f.name), bytes: f.bytes, kind, owned, gen };
       byName.set(f.name.toLowerCase(), w);
       writes.push(w);
