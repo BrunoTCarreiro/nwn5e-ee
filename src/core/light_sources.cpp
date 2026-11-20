@@ -191,7 +191,10 @@
 #include "config.h"
 #include "data/vfx_model.h"
 #include "data_serving.h"
+#include "anim_destruction.h"
+#include "rules/breaking.h"
 #include "rules/object_attack.h"
+#include "server_tick.h"
 #include "rules/skills.h"
 #include "creature.h"
 #include "creature_update.h"
@@ -1124,8 +1127,105 @@ int BlastPutsOutLights(uint32_t self, float radius, const char* what) {
   return out;
 }
 
+// #172 DE / DH (0.99.106; the owner, 2026-11-20: "yes on all", on the animation session's destruction recon; the Cot,
+// Birdbath and Flag3: "B"): a placeable reaching 0 HP throws debris - its model's own when it has some
+// (ModelHasDeathDebris, the served model), else the animation session's for its material and size
+// (DestructionDebrisVfx; rules::DebrisMaterialFor / DebrisSizeFor) - and a light lit as it breaks, its death
+// (LightDeathVfx) at its light's point. CNWSPlaceable::DoDamage only takes the hit points (+0xe0; a plot one none): the
+// death follows, the engine removing it 2 s later, so the effects play on the next server frame, at locations, and
+// outlive it.
+namespace {
+
+using PlaceableDamageFn = void (*)(void* placeable, int damage);
+constexpr const char* kPlaceableDoDamage = "?DoDamage@CNWSPlaceable@@UEAAXH@Z";
+PlaceableDamageFn g_placeable_damage = nullptr;
+
+struct Breaking {
+  uint32_t id = 0;
+  size_t appearance = 0;
+  bool lit = false;  // lit as the hit came (a hit puts a light out at once)
+};
+std::vector<Breaking> g_breaking;
+std::unordered_set<uint32_t> g_broken;
+
+void PlaceableDoDamage(void* placeable, int damage) {
+  const bool lit = placeable && Lit(placeable);
+  g_placeable_damage(placeable, damage);
+  if (!placeable || Field<int16_t>(placeable, ee::kObjectCurrentHitPoints) > 0) return;
+  const uint32_t id = Field<uint32_t>(placeable, ee::kObjectId);
+  if (g_broken.size() > 4096) g_broken.clear();
+  if (!g_broken.insert(id).second) return;  // once an object
+  g_breaking.push_back(Breaking{id, Field<uint16_t>(placeable, kPlaceableAppearance), lit});
+}
+
+std::string Cell(const std::vector<std::string>& column, size_t row) { return row < column.size() ? column[row] : ""; }
+
+void PlayBreaking() {
+  if (g_breaking.empty()) return;
+  std::vector<Breaking> now;
+  now.swap(g_breaking);
+  static const std::vector<std::string> models = GameTableColumn("placeables", "ModelName");
+  static const std::vector<std::string> labels = GameTableColumn("placeables", "Label");
+  static const std::vector<std::string> sounds = GameTableColumn("placeables", "SoundAppType");
+  static const std::vector<std::string> offset_x = GameTableColumn("placeables", "LightOffsetX");
+  static const std::vector<std::string> offset_y = GameTableColumn("placeables", "LightOffsetY");
+  static const std::vector<std::string> offset_z = GameTableColumn("placeables", "LightOffsetZ");
+  static const std::vector<std::string> armor = GameTableColumn("placeableobjsnds", "ArmorType");
+  static const std::vector<std::string> destroyed = GameTableColumn("placeableobjsnds", "Destroyed");
+  static int logged = 0;
+  for (const Breaking& one : now) {
+    if (!ObjectById(one.id)) continue;
+    const std::string model = Cell(models, one.appearance);
+    const std::string sound_cell = Cell(sounds, one.appearance);
+    const size_t sound = sound_cell.empty() ? armor.size() : static_cast<size_t>(atoi(sound_cell.c_str()));
+    const int material = rules::DebrisMaterialFor(Cell(armor, sound).c_str(),
+                                                  rules::IsGlassLabel(Cell(labels, one.appearance).c_str()));
+    const int size = rules::DebrisSizeFor(Cell(destroyed, sound).c_str());
+    const bool own = ModelHasDeathDebris(model);
+    const int debris = own || material < 0 ? -1
+                                           : DestructionDebrisVfx(static_cast<DebrisMaterial>(material),
+                                                                  static_cast<DebrisSize>(size));
+    const int light = one.lit ? LightDeathVfx() : -1;
+    if (debris >= 0 || light >= 0) {
+      // The light's point: its offset turned by the facing (NWScript's sin / cos take degrees), else 1 m up.
+      const std::string ox = Cell(offset_x, one.appearance), oy = Cell(offset_y, one.appearance),
+                        oz = Cell(offset_z, one.appearance);
+      const bool has_offset = !oz.empty();
+      std::string code = "vector p = GetPosition(OBJECT_SELF); float f = GetFacing(OBJECT_SELF); object a = "
+                         "GetArea(OBJECT_SELF);";
+      if (debris >= 0) {
+        code += "ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(" + std::to_string(debris) +
+                "), GetLocation(OBJECT_SELF));";
+      }
+      if (light >= 0) {
+        code += has_offset ? "float x = " + Num(static_cast<float>(atof(ox.c_str()))) + "; float y = " +
+                                 Num(static_cast<float>(atof(oy.c_str()))) + "; vector q = p + Vector(x * cos(f) - y "
+                                 "* sin(f), x * sin(f) + y * cos(f), " + Num(static_cast<float>(atof(oz.c_str()))) + ");"
+                           : "vector q = p + Vector(0.0, 0.0, 1.0);";
+        code += "ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(" + std::to_string(light) +
+                "), Location(a, q, f));";
+      }
+      Run(code, one.id, "a breaking placeable's debris");
+    }
+    if (logged < 30) {
+      ++logged;
+      Log("destruction: 0x%08X (placeables.2da row %zu, %s) breaks - %s%s", one.id, one.appearance, model.c_str(),
+          own ? "its own debris" : debris >= 0 ? ("debris row " + std::to_string(debris)).c_str() : "no debris (no material)",
+          one.lit ? ("; a lit light: its death, row " + std::to_string(light)).c_str() : "");
+    }
+  }
+}
+
+}  // namespace
+
 void InstallLightSources() {
   g_map_light = g_config.map_light < 10 ? 10 : g_config.map_light > 100 ? 100 : g_config.map_light;
+  // #172 DE / DH: a breaking placeable's debris and a lit light's death (visual only, every mode).
+  if (HookExport("CNWSPlaceable::DoDamage (a breaking placeable's debris, a lit light's death)", kPlaceableDoDamage,
+                 reinterpret_cast<void*>(&PlaceableDoDamage), reinterpret_cast<void**>(&g_placeable_damage)) &&
+      AddServerTickListener(&PlayBreaking)) {
+    Log("destruction: a placeable breaking throws its model's debris, or its material's (#172)");
+  }
   if (g_config.light_sources) {
     // The placeables' scripts nwn5e names (script_hooks.cpp runs them).
     AddScriptHandler(kUseScript, [](uint32_t self) { Used(self); });
