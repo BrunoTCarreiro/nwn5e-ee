@@ -2011,7 +2011,14 @@ monster AC by CR.
           CNWCCreature's vtable slots 33 / 34 by RTTI, checked by their first bytes; the Linux build's symbols name
           them). A cancel within 400 ms of Esc held (the game's window in front) cancels the spell; else the hovered
           target's latest dart is taken back (rules::TakeBackTarget; 4 of 4 mutations caught). test.bat 661 ok.
-          Tests TW-10, TW-11 (TW-2 superseded).
+          Tests TW-10, TW-11 (TW-2 superseded). *TW-10 and TW-11 passed (owner, 2026-11-20: "works").*
+        - *0.99.100 (owner, 2026-11-20: "if the player keeps clicking an enemy after all targets have been assigned
+          the game assigns an attack action. make it so that can't happen while the player is assigning spell
+          targets"):* each pick ends EE's targeting mode and the window asks for it again 60 ms later, so a click in
+          between is a plain click - an attack order. An action guard refuses the player's attack orders (action 0xC)
+          while its window is open. In the same install the per-spell tallies (anim TF, f3f8337; nwn5e-tools 141321e):
+          Magic Missile blue, Scorching Ray orange (StyleOf; Eldritch Blast's violet waits on the Warlock). test.bat
+          665 ok. Tests TW-12, TF-1 to TF-3 (the animation session's).
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
   - *Built 0.99.80 (level 2's build 1a):*
