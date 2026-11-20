@@ -457,5 +457,5 @@ only), n5u_....txi beside it: blending additive - ...`; `--json`'s material gain
 | `reader.js` | reads the parts' meshes (a shape's from `floatdisk.js`) and the textures from the game or beside a file, and bakes a dyed part's PLT (what `build.js` and the VFX Bench share) |
 | `files.js` | the file plumbing this `build.js` and the Composer's share: the options, loading nwn5e-tools, a dyed part's bakes, a shape's soft texture, a moving texture's materials and shader, a library texture's copy (DC), shipping your own textures, the one ownership rule they write by |
 | `check_build.js` | checks `build.js` end to end on a temporary copy (needs the game) |
-| `mdlmesh.cpp`, `build_mdlmesh.bat` | the mesh reader, built from the repo's `src\data\vfx_model.cpp` into `build\floatdisk\` |
+| `mdlmesh.cpp`, `build_mdlmesh.bat` | the mesh reader, built from the repo's `src\data\vfx_model.cpp` into `build\floatdisk\`; also reads a model's animations and events (`--anims`) and takes an animation's events out (`--drop-events`) for `..\oneburst.js` (LD) |
 | `made.txt` | the textures the generator wrote (they can't carry its mark), and the moving textures' shader, `data/files/vsn5uvmove.shd` (committed whole; never called unused) |
