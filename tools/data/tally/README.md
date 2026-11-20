@@ -27,7 +27,7 @@ marker's and the probe's. The game's call: `TargetCountMarkerVfx(TargetCountStyl
 | `n5_tfb_NN.mtr` / `.txi`, `n5_tfbp_NN.tga` (11 each) | the bars' material, its TXI (the blend) and their picture - one per count, the same for the three spells |
 | `n5_tfg_<ss>NN.mtr` / `.txi`, `n5_tfgp_<ss>NN.tga` (33 each) | each glow's material, TXI and picture |
 | `vsn5bill_sl.shd` | the vertex shader: the probe's spherical billboard with the layer's nudge |
-| `fsn5unlit.shd` | the fragment shader: unlit, the picture times the material's alpha |
+| `fsn5unlit.shd` | the fragment shader: unlit, the picture's own colour and alpha |
 
 (`ss`: `mm`, `sr`, `eb`; `NN` the count, 01-11. Every name under 17 letters.)
 
@@ -110,24 +110,28 @@ propagate)`, which sends "propagateillumination" to the Gobs attached to the cre
 `fslit` adds it to the emission, so with enhanced lighting (gamma correction, the game's default) the glow turned pale,
 amber or magenta over a picked target. So both quads are drawn by our own fragment shader, which reads no light:
 
-- **Inputs:** `texUnit0` / `texture0Bound` (texture0, white when none is bound), `materialFrontDiffuse` - only its alpha:
-  the mesh's alpha, any fade with it (`GLRender::ConnectShaderData` looks it up for every program and
-  `GLRender::SetUniforms` uploads the material's colours whenever they change, the alpha as it is; `inc_lighting`
-  declares it only with lighting on, so `fsn5unlit` declares it itself) - and the engine's `fAlphaDiscardValue`.
+- **Inputs:** `texUnit0` / `texture0Bound` (texture0, white when none is bound) and the engine's `fAlphaDiscardValue`.
+  No material term: `materialFrontDiffuse` is not declared and is inactive in every variant (see "No material alpha").
 - **What it does:** the game's standard fragment setup (`#include "inc_standard"`, `SetupStandardShaderInputs()`,
-  `ApplyStandardShader()`) with `LIGHTING`, `FOG` and `KEYHOLING` 0, starting from white at the material's alpha:
+  `ApplyStandardShader()`) with `LIGHTING`, `FOG` and `KEYHOLING` 0, starting from opaque white:
   texture0 into the colour space and back (the picture exactly, gamma correction or not), multiplied in, and cut by
   the engine's alpha discard (`AlphaDiscard`: alpha <= 0.2 for the blended bars, nothing for the additive glow; no
   `discard` at all in a NO_DISCARD variant) - as the game's own shaders are.
 - **What it leaves out:** lights, emission (where the illumination comes in), fog, the keyhole and the area-targeting
   highlight (`ApplyTargetGroundHighlighting` runs only with a view position, which needs lighting, fog or keyholing:
   so TP's faint box inside a spell's shape is gone too).
-- **Output:** `gl_FragColor` = (texture0.rgb, texture0.a x the material's alpha).
+- **Output:** `gl_FragColor` = texture0 (rgb and alpha), nothing else.
+- **No material alpha (TA, the owner's "go ahead with the shader fix for the tally"):** the picked target's red glow also
+  makes the creature translucent, and what is attached to it inherits that - most likely through the mesh's material
+  alpha (the mesh's alpha times the part's), which `fsn5unlit` once multiplied in - so the tally marks went faint over a
+  picked enemy (fine over an untranslucent PC, TF-1 / TF-2). The alpha is now the picture's alone, so the marker stays
+  solid over a translucent target. The cost: a material alpha can't fade the marker - it has no keys and no cessation, so
+  nothing ever faded it.
 
 The bars use it too: black can't be tinted, but `fslit`'s targeting highlight would grey them inside a spell's shape,
 and one program serves both layers. Both shaders compiled and linked together on this machine's GL driver under the
 engine's header and the game's includes in all 48 combinations of the quality defines (the TP rig:
-`tmp\animtex\tpdiag\assemble.js`, not in the tree); `materialFrontDiffuse`, `texUnit0` and `fAlphaDiscardValue` active,
+`tmp\animtex\tpdiag\assemble.js`, not in the tree); `texUnit0` and `fAlphaDiscardValue` active, `materialFrontDiffuse`,
 `materialFrontEmissive` and the targeting uniforms not; a broken copy fails all 48.
 
 ## The art
@@ -148,6 +152,6 @@ bars' averaged alpha falls to 0.2 or under and is cut, while the glow keeps its 
 or sky those show the background, so far away the tally reads as gaps in the glow rather than black bars. Near enough
 for a bar to be a pixel wide or more it reads as drawn.
 
-The models: ambient, diffuse, specular 0, selfillum 1, alpha 1 (the material's alpha is what `fsn5unlit` takes); only
+The models: ambient, diffuse, specular 0, selfillum 1, alpha 1 (`fsn5unlit` reads no material alpha: the picture's alone); only
 impact and duration, never a cessation (a removed marker would linger, TC-1) and never one of length 0; no keys (a key
 waits for the clock, stopped while paused); no emitter.

@@ -411,7 +411,8 @@ const txt = (name) => (first.get(name) || Buffer.alloc(0)).toString("latin1");
 // what's attached to it (Gob::SetIllumination, "propagateillumination") - fslit adds it to the emission, so it tinted
 // the glow under enhanced lighting. Ours reads no light, no emission, no fog, no keyhole and no area-targeting
 // highlight: the game's standard fragment setup with lighting, fog and keyholing off - texture0 in and out of the colour
-// space, cut by the engine's alpha discard (or none, a NO_DISCARD variant) - its alpha times the material's.
+// space, cut by the engine's alpha discard (or none, a NO_DISCARD variant) - its alpha the texture's alone: no material
+// term, so an alpha inherited from the picked target (its red glow makes it translucent) can't fade the marker (TA).
 {
   const WANT = [
     "#define SHADER_TYPE 2",
@@ -427,11 +428,9 @@ const txt = (name) => (first.get(name) || Buffer.alloc(0)).toString("latin1");
     "",
     '#include "inc_standard"',
     "",
-    "uniform mediump vec4 materialFrontDiffuse;",
-    "",
     "void main ()",
     "{",
-    "    FragmentColor = vec4(1.0, 1.0, 1.0, clamp(materialFrontDiffuse.a, 0.0, 1.0));",
+    "    FragmentColor = vec4(1.0);",
     "    SetupStandardShaderInputs();",
     "    ApplyStandardShader();",
     "    gl_FragColor = FragmentColor;",
@@ -453,8 +452,11 @@ const txt = (name) => (first.get(name) || Buffer.alloc(0)).toString("latin1");
   if (/materialFrontEmissive|materialFrontAmbient|ComputeLighting|ApplyFog|ApplyKeyhole|ApplyTargetGroundHighlighting/.test(text.slice(text.indexOf("#define")))) {
     what.push("reads light, emission, fog, keyhole or the targeting highlight");
   }
+  if (/materialFront|materialBack|fMaterialAlpha/i.test(text.slice(text.indexOf("#define")))) {
+    what.push("takes a material term (its alpha must be the texture's alone)");
+  }
   if (what.length) fail(FRAGMENT + ".shd: " + what.join("; "));
-  else ok(FRAGMENT + ".shd: unlit - the standard setup with lighting, fog and keyholing off, texture0 times the material's alpha");
+  else ok(FRAGMENT + ".shd: unlit - the standard setup with lighting, fog and keyholing off, texture0 alone (colour and alpha, no material term)");
 }
 
 // --- the models ------------------------------------------------------------------------------------------------------
