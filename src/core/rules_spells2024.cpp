@@ -143,6 +143,7 @@
 #include "hooks.h"
 #include "item_use.h"
 #include "light_sources.h"
+#include "rules/object_attack.h"
 #include "log.h"
 #include "mastery.h"
 #include "movement_rate.h"
@@ -902,11 +903,25 @@ if (GetIsObjectValid(t)) {
 SetLocalString(OBJECT_SELF, "n5s_hits", r);
 )nss";
 
+// 0.99.104: a ray's beam at an object (its attack rolled in the DLL, against the object's AC); its object type, 0 gone.
+const char* const kObjectRay = R"nss(
+object t = StringToObject("$TARGET");
+int k = 0;
+if (GetIsObjectValid(t)) {
+  k = GetObjectType(t);
+  SignalEvent(t, EventSpellCastAt(OBJECT_SELF, $ROW, TRUE));
+  DelayCommand($DELAY, ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectBeam(VFX_BEAM_FIRE, OBJECT_SELF,
+               BODY_NODE_HAND), t, 0.6));
+}
+SetLocalInt(OBJECT_SELF, "n5s_kind", k);
+)nss";
+constexpr int kObjectTypePlaceable = 64;  // NWScript OBJECT_TYPE_PLACEABLE
+
 // #171 (owner, 2026-11-18: Q3 B): Scorching Ray - three rays and one more a slot level above 2 (rules::TargetRowsFor),
 // each its own ranged spell attack, 2d6 Fire (doubled dice on a Critical Hit), a ray every quarter second. A player
 // character's window picked each ray's target; otherwise every ray at the cast's target. A ray at an unlit fire light
 // lights it (owner: "for style points, one should also be able to use scorching ray to light fire light sources";
-// light_sources.cpp's FirePlayAt), with no attack roll.
+// light_sources.cpp's FirePlayAt) - since 0.99.104 on a hit, its attack against the object's AC (below).
 void ScorchingRay(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
   std::vector<uint32_t> rays = TakeWindowTargets(self, spell.row);
   const bool picked = !rays.empty();
@@ -923,14 +938,48 @@ void ScorchingRay(uint32_t self, void* caster, const rules::Spell2024& spell, in
     char head[48];
     snprintf(head, sizeof head, "%sray %zu at 0x%x: ", i ? "; " : "", i + 1, id);
     log += head;
-    if (!CreatureById(id)) {  // a light
+    if (!CreatureById(id)) {
+      // 0.99.104 (owner, 2026-11-20: "scorching rays are still attacks you should still be able to attack placeables.
+      // Also when using scorching ray on a lightable object the ray itself doesn't seem to show"): an object takes the
+      // ray as a creature does - its beam, an attack roll (against its SRD Armor Class by substance: SRD 5.2.1,
+      // Breaking Objects), 2d6 Fire on a hit; an unlit fire light a ray hits catches (lit before the damage lands, so
+      // a light the hit breaks plays its own death last).
+      std::string code = kObjectRay;
+      Replace(&code, "$TARGET", IdHex(id));
+      Replace(&code, "$ROW", std::to_string(spell.row));
+      Replace(&code, "$DELAY", Float(delay));
+      Run(code, self, spell.script);
+      const int kind = engine::GetLocalInt(caster, "n5s_kind");
+      if (kind == 0) {
+        log += "gone";
+        continue;
+      }
+      int bonus = 0;
+      const char* source = nullptr;
+      SpellAttackCasting(caster, &bonus, &source);
+      const int armor_class = kind == kObjectTypePlaceable ? PlaceableArmorClass(id) : rules::ObjectArmorClass("");
+      const int d20 = RollEngineDice(1, 20);
+      const int result = rules::AttackAgainstObject(d20, bonus, armor_class);
+      char roll[64];
+      snprintf(roll, sizeof roll, "an object, AC %d - d20 %d + %d: ", armor_class, d20, bonus);
+      log += roll;
+      if (result == 0) {
+        log += "a miss";
+        continue;
+      }
       const int lit = FirePlayAt(self, id, rules::FirePlay::kLight, 0);
       if (lit == 1) {
         void* light = GameObjectById(id);
         TellPlayer(self, PlayerText("spells2024.scorching_ray_lights",
                                     {{"name", light ? engine::GetLocalString(light, "n5c_name") : std::string()}}));
       }
-      log += lit == 1 ? "lit" : lit == 0 ? "already lit" : "not a light";
+      const bool critical = result == 2;
+      const int dice = rules::CriticalDice(spell.dice, critical);
+      const int amount = RollEngineDice(dice, spell.die);
+      const bool landed =
+          Damage(self, spell, IdHex(id), amount, spell.damage_type, "VFX_IMP_FLAME_S", look, delay + 0.3f);
+      log += std::string(critical ? "a Critical Hit: " : "a hit: ") + Dice(dice, spell.die) + " = " +
+             std::to_string(amount) + " Fire" + (landed ? "" : " - no damage (plot)") + (lit == 1 ? "; lit" : "");
       continue;
     }
     std::string code = kRay;

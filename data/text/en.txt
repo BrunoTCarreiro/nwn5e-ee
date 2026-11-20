@@ -751,7 +751,6 @@ target_window.clear | generated | x
 target_window.ok | generated | OK
 target_window.cancel | generated | Cancel
 target_window.full | generated | nwn5e: {spell} - every row has a target; take one back first.
-target_window.not_light | generated | nwn5e: {name} isn't an unlit fire light a ray can light.
 target_window.no_target | generated | nwn5e: {spell} - no target picked; nothing cast.
 target_window.cancelled | generated | nwn5e: {spell} cancelled - nothing spent.
 spells2024.scorching_ray_lights | generated | nwn5e: Scorching Ray lights the {name}.

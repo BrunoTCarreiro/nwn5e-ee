@@ -8,8 +8,8 @@
 // held - the order guard refuses it, so nothing is spent - and, on the server's next frame, a window opens: one
 // row a dart or ray (3, one more a slot level above the spell's), row 1 the creature it was cast at. EE's targeting
 // mode (EnterTargetingMode, the module's OnPlayerTarget event: nwn5e's n5_target, the module's own script chained) picks
-// the rest: a creature fills the next empty row (the same creature again is another dart or ray); for Scorching Ray an
-// unlit fire light too (a lamp, a brazier, a torch bracket, a tile flame's stand-in: light_sources.cpp's). Each picked
+// the rest: a creature fills the next empty row (the same creature again is another dart or ray); for Scorching Ray any
+// placeable too (0.99.104; an unlit fire light it hits catches: a lamp, a brazier, a tile flame's stand-in). Each picked
 // target glows (VFX_DUR_AURA_RED_LIGHT, tagged). [x] empties a row; a right-click (the event with no object) takes back
 // the latest dart of the target under the cursor, Esc cancels the spell (0.99.99). OK casts it again as it was ordered - ActionCastSpellAtObject at the first row's target
 // with its metamagic, its domain level (#36's slot) and its class - and the rows ride with it to the spell's script
@@ -358,21 +358,6 @@ void OnWindowEvent(const NuiEvent& event) {
   }
 }
 
-// Whether `id` is an unlit fire light nwn5e handles (its scripts or a tile flame's stand-in).
-bool UnlitLight(uint32_t player, uint32_t id) {
-  void* pc = CreatureById(player);
-  if (!pc) return false;
-  RunScriptChunk(("object o = StringToObject(\"" + Hex(id) + "\");"
-                  "int f = GetStringLeft(GetTag(o), 11) == \"nwn5e_flame\";"
-                  "int lamp = GetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_DAMAGED) == \"n5_lamp_hit\" ||"
-                  " GetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_USED) == \"n5_lamp_use\";"
-                  "int out = f ? GetLocalInt(o, \"nwn5e_torch_out\") : !GetPlaceableIllumination(o);"
-                  "SetLocalInt(OBJECT_SELF, \"n5tw_l\", (f || lamp) && out);")
-                     .c_str(),
-                 player);
-  return engine::GetLocalInt(pc, "n5tw_l") != 0;
-}
-
 void Pick(uint32_t player, Held* held) {
   void* pc = CreatureById(player);
   if (!pc) return;
@@ -406,8 +391,10 @@ void Pick(uint32_t player, Held* held) {
     EnterTargeting(player, spell);  // the ground, or nothing a dart or ray takes
     return;
   }
-  if (kind == kObjectTypePlaceable && (spell != rules::kScorchingRay || !UnlitLight(player, id))) {
-    TellPlayer(player, PlayerText("target_window.not_light", {{"name", NameOf(player, id)}}));
+  // 0.99.104 (owner, 2026-11-20: "scorching rays are still attacks you should still be able to attack placeables"):
+  // a ray takes any placeable (its attack against the object's AC, rules_spells2024.cpp); a dart only a creature (Magic
+  // Missile's targeting mode offers no other).
+  if (kind == kObjectTypePlaceable && spell != rules::kScorchingRay) {
     EnterTargeting(player, spell);
     return;
   }

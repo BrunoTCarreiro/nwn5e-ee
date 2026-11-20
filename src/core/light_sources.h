@@ -29,3 +29,7 @@ int FirePlayAt(uint32_t caster, uint32_t target, rules::FirePlay mode, int dim_s
 
 // Any object of the server by id (CNWSObject*: a placeable, an area of effect ...), null if none (0.73.0, #131).
 void* GameObjectById(uint32_t id);
+
+// #171 0.99.104: a placeable's SRD Armor Class (rules::ObjectArmorClass) by its substance - its appearance's
+// placeables.2da SoundAppType, that row's placeableobjsnds.2da ArmorType. The caller knows `id` is a placeable.
+int PlaceableArmorClass(uint32_t id);

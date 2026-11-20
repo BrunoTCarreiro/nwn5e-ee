@@ -191,6 +191,7 @@
 #include "config.h"
 #include "data/vfx_model.h"
 #include "data_serving.h"
+#include "rules/object_attack.h"
 #include "rules/skills.h"
 #include "creature.h"
 #include "creature_update.h"
@@ -1072,6 +1073,16 @@ void RadialActivate(void* menu) {
 void CreatingFireLight(bool on) { g_creating_fire_light = on; }
 
 void* GameObjectById(uint32_t id) { return ObjectById(id); }
+
+int PlaceableArmorClass(uint32_t id) {
+  static const std::vector<std::string> sounds = GameTableColumn("placeables", "SoundAppType");
+  static const std::vector<std::string> armor = GameTableColumn("placeableobjsnds", "ArmorType");
+  void* placeable = ObjectById(id);
+  const size_t row = placeable ? Field<uint16_t>(placeable, kPlaceableAppearance) : sounds.size();
+  const size_t sound = row < sounds.size() && !sounds[row].empty() ? static_cast<size_t>(atoi(sounds[row].c_str()))
+                                                                   : armor.size();
+  return rules::ObjectArmorClass(sound < armor.size() ? armor[sound].c_str() : "");
+}
 
 int BlastPutsOutLights(uint32_t self, float radius, const char* what) {
   if (!g_config.light_sources || radius <= 0.0f) return 0;
