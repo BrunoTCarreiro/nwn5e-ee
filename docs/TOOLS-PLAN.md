@@ -2707,3 +2707,49 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
   - Tests: 6 in test.bat (the mapping and bounds, the names, the rows file, the four discs as the bench reads them and
     their draft round trip, the clash check), 6 mutations caught; check.js's 8 mutations caught. Rows TC-1 (in game,
     paused) and TC-2 (the VFX Bench) with the game session's wiring.
+
+## The marker's probe: glowing tally marks on a quad our vertex shader turns to the camera (2026-11-19, #171; TP)
+
+  The owner, 2026-11-19, on the four-disc marker: "glowing tally marks that always face the camera, is that possible?" -
+  then "go with the probe, white-gold on red". A probe beside the marker (2200-2210 and n5_tcnt_* unchanged); if picked,
+  all 11 follow. tools/data/tprobe (build.js, check.js, README.md - the full reading there).
+  - **The route:** a particle faces the camera but isn't born while paused (TC); a mesh is drawn at once, and a vertex
+    shader runs on every draw with no clock. So one quad whose EE material (`.mtr`, found by the mesh's bitmap name)
+    names our vertex shader with the game's lit fragment shader, as the moving textures (vsn5uvmove, TMO-1 / MV), and
+    the blend from a TXI under the same name (MV: the only place the engine reads a mesh's blend).
+  - **The shader's inputs, read (values only):** the game's `vslit` is its defines, `inc_standard`,
+    `ApplyStandardShader()`; with lighting on, `inc_common` declares `m_mv` (model-view), `m_proj`, `m_view`, `vPos`,
+    and the varyings `vPosView`, `vVertexNormal`; `inc_transform` writes `vPosView = m_mv vPos`, `gl_Position = m_proj
+    vPosView`; `inc_fog` / `inc_keyhole` write `fFogFragCoord` / `fFragCamOffset` (the latter only with
+    `KEYHOLING_ENABLED`). The engine (nwmain-linux): `GLRender::ConnectShaderData` looks up `m_mv`, `m_m`, `m_view`,
+    `m_proj` ... for every program; `GLRender::SetUniforms` uploads `m_view` = the stack's view, `m_mv` = view x model;
+    the model matrix at a mesh's draw is the Gob's (its attachment moves it to the head node every frame, paused too)
+    times each part's position, turn and scale (`Gob::PartDraw` pushes them before the part draws). So `m_mv (0,0,0,1)`
+    is the mesh node's origin in view space, following the head. The engine's shader header: `#version 330 core`, the
+    quality defines, `varying` as out / in.
+  - **The billboard** (vsn5bill_s / _c, after `ApplyStandardShader()`): centre = the node's origin (0.55 m over the
+    head node); the world's up in view space = `m_view`'s third column; right = up x view +z, normalised (straight
+    above: the screen's x); up = view +z x right (**spherical**: in the view plane, facing the camera fully, from above
+    too) or the world's up (**cylindrical**: upright, turning about it only); `vPosView = centre + scale (vPos.x right +
+    vPos.z up)` - the quad made round its node's origin in the x-z plane - `gl_Position` again, the normal right x up;
+    `fFogFragCoord = 0`, `fFragCamOffset = 0` (no fog box round an additive glow, no keyhole: as the game's decal glows
+    and the four discs). Counter-clockwise, facing the camera: the front face from any side.
+  - **Fragment shader `fslit`, not `fst`:** `fst` multiplies by `globalColor`, set to white only for a decal mesh;
+    `fslit` with ambient, diffuse, specular 0 and selfillum 1 gives the texture exactly (specular colour from albedo x
+    diffuse = 0), the same by day and night. **No `decal`** in the TXI: a decal mesh is drawn by vsvt / fst, its
+    material dropped (SHP-8). `blending additive` also makes the mesh not opaque (`Material::GetIsOpaque`), so it's drawn
+    with the see-through ones.
+  - **Art:** n5_tally_03 / _07, 256 x 128, 32-bit, alpha 255: white-gold #fff2c0 bars, 10 px, in a soft glow of the
+    picked glow's red (VFX_DUR_GLOW_LIGHT_RED = progfx 408 AlphaLightRed, 1.0 0.4 0.4), black border; a five = four bars
+    and a rising strike; every count 1-11 fits (checked). Own strokes, no font.
+  - **Files and rows:** data/files n5_tprobe_s3 / c3 / s7 / c7 (.mdl one 0.5 x 0.25 m quad, .mtr, .txi), n5_tally_03 /
+    _07, vsn5bill_s / _c; rows 2211 (spherical 3), 2212 (cylindrical 3), 2213 / 2214 (the same, 7) in
+    data/rows/visualeffects.tprobe.txt (a file of its own: the marker's test wants exactly 11 rows in tcount's), type D,
+    head node, OrientWithObject 0; no keys, no cessation.
+  - **Checks:** check.js (the files, determinism, the art and layout, the TXI / MTR / model / shader lines, the shader's
+    maths in JS over 1080 cameras, the rows, data/files in step): 38 of 38 mutations caught. The clash test sees
+    2211-2214 in tprobe's file (it failed first). Both shaders compiled and linked with fslit by this machine's GL
+    driver (a 3.3 core context) under the engine's header with every include expanded from the game's shaders, in all
+    48 combinations of the quality defines; the game's own vslit + fslit pass the same rig, a broken copy of ours fails.
+  - **Unproven until TP-1 in game:** that the quad faces the camera and turns while paused; that the probe looks as
+    the art does (additive on the scene); which way reads better.
