@@ -82,5 +82,9 @@ TEST(VisualEffectsRowFilesNeverShareARow) {
   for (int row = 2215; row <= 2247; ++row) {
     CHECK_EQ(owner.count(row) == 1 && owner[row] == "visualeffects.tally.txt", true);
   }
-  CHECK_EQ(owner.count(2248), 0u);
+  // #172's destruction effects (DE): the ten debris rows and the light's death, after the tallies, a file of their own
+  for (int row = 2248; row <= 2258; ++row) {
+    CHECK_EQ(owner.count(row) == 1 && owner[row] == "visualeffects.debris.txt", true);
+  }
+  CHECK_EQ(owner.count(2259), 0u);
 }
