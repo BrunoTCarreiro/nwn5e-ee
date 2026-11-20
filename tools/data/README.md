@@ -3,7 +3,8 @@
 `build_derived.js` builds the models made from the game's own art - the Floating Disk's and the Composer's placeables -
 and a dyed part's baked texture, from their recipes, from your own game, into a build's folder. The repo doesn't keep
 them. It carries a shape's soft texture (`n5s_*`) with the models too, as it carries a bake, and a moving texture's
-material (`n5u_*.mtr`) with the shader it names.
+material (`n5u_*.mtr`) with the shader it names. And it builds the game's 16 placeable models that break with a
+fountain of debris, without it ("One burst", below).
 
 ## Why
 
@@ -37,7 +38,9 @@ remove the six files from main"**:
 - any library texture's copy: `n5l_*` (DC: a still shape's decal or flipbook texture - MV: a moving one's too -
   `.tga` / `.dds` and its `.txi` -
   the game's picture under our own name with its TXI minus `decal`, + `clamp 2`: the Floating Disk's README, "A library
-  texture's copy"), the game's own art, so never committed.
+  texture's copy"), the game's own art, so never committed;
+- the 16 one-burst models, each by its name (`plc_k02.mdl` and the rest: "One burst", below) - the game's own models,
+  changed, so never committed.
 
 The generators' own runs (the VFX Bench's Save and build) still write them into `data\files`, where they stay,
 ignored. What's made from scratch stays committed: the `.pwk` files, `n5t_forcedisk.tga`, the rows, and the moving
@@ -79,6 +82,9 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
   - MV: a moving shape's too, its material's texture0 -
   the game's picture with its TXI minus `decal`, + `clamp 2` within one repeat) comes out with the model that names it,
   owned by its `n5l_` name; a still Soft shape's clamped soft texture (its own `n5s_` name) with its TXI (`clamp 2`).
+- **The one-burst models** (`oneburst.js`, "One burst" below): the game's 16 placeable models whose looping "dead"
+  re-fires a detonate, each without it, under its own name - owned in `--out` by that name. It says how many, and which
+  it skipped.
 - **Spell meshes are skipped**, and it says so. Their drafts live in the VFX Bench's saved folder, and the dev layer
   writes their models when the game runs.
 - **A project never built is skipped**, and it says so. That's one with no `data\rows\placeables.<name>.txt` and no
@@ -95,9 +101,11 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
 - **Never a file it didn't make.** In `--out` it keeps the generators' rule: a model or `.pwk` is overwritten only
   when it carries its generator's mark, a texture only when that generator's `made.txt` lists it, a baked texture, a
   shape's soft texture, a moving texture's material or a library texture's copy by its name (only the generators make
-  `n5p_`, `n5s_`, `n5u_` and `n5l_` names, and the name fixes the bytes), the shader by its first line.
+  `n5p_`, `n5s_`, `n5u_` and `n5l_` names, and the name fixes the bytes), the shader by its first line, a one-burst
+  model by its name (one of `oneburst.js`'s 16: only it makes them there, and the game's model fixes the bytes).
   Any other file in the way stops it. Every file is checked before any is written.
-- **What it says:** a line per generator (its files, whether its rows agree), a line per file (`written` or
+- **What it says:** a line per generator (its files, whether its rows agree), one for the one-burst models (how many,
+  how many events taken out, compiled and ASCII) and one per model it skipped, a line per file (`written` or
   `unchanged`), then a total.
 - **`--check`** builds and checks everything in the scratch folders, writes nothing into `--out`, and says what it
   would write (`would write` or `unchanged`).
@@ -114,6 +122,39 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
 | 1 | anything else: a refused build, rows that disagree, a file in `--out` it didn't make, no `--out` |
 
 build.bat stops on either (above).
+
+## One burst
+
+The owner, 2026-11-20, on the Academy's lectern (PLC_K02), which "fountained a huge amount of debris" when broken: "For
+the lectern A" - the game's models that fountain, served without it, built from the owner's game and never committed.
+
+- **Why they fountain.** A broken placeable's debris is its model's own "die" animation: its `detonate` events set off
+  its Explosion emitters (the chunk models, a smoke puff). The client plays "die" once, then loops "dead" until the
+  server deletes the object 2 s later. 16 of the game's placeable models have a `detonate` in that "dead" too, so every
+  loop (the lectern's is 0.033 s long) throws the debris again for those 2 s.
+- **The 16** (`oneburst.js`'s `MODELS`): `plc_c03`, `plc_c04`, `plc_c10`, `plc_h10`, `plc_i02`, `plc_k02`, `plc_q03`,
+  `plc_x0_fgs`, `plc_x0_grw`, `plc_x0_tds`, `plc_x0_wds`, `pwc_mage_001`, `px2_b04`, `px2_c10`, `px2_e01`, `px2_g02` -
+  every model `placeables.2da` names whose "dead" has a `detonate` and which has an Explosion emitter for it to set off.
+  One more has a `detonate` in "dead" and no emitter (`plc_x0_grs`): nothing to fountain, left as the game's. The check
+  recomputes the list from the game and fails when it drifts (a game update).
+- **The copy:** the game's model (its keys, `ovr\` over them, as the generators read the game), with every `detonate`
+  event of its "dead" animation taken out by the repo's own model code (`src\data\vfx_model.cpp`'s
+  `DropAnimationEvents`, run through `mdlmesh --drop-events`) - nothing else. Written in the form the game has it:
+  - **compiled** for 14: changed in place, as the held torch's flame is (`PatchEmitter`: the game's compiled model with
+    its emitter changed, written under its own name). The "dead" header's events array becomes the one the game's own
+    models keep for an animation with none (offset, count and allocated count 0 - the bench's, `PLC_X01`), its freed
+    entries zeroed; every other byte is the game's. In all 16 every "dead" event is a `detonate`.
+  - **ASCII** for 2 (`plc_c10`, `pwc_mage_001`: the game has them as text): the "dead" block's `event ... detonate`
+    lines taken out, every other line and line end as the game's.
+  - The "die" is untouched - its `detonate`s, its emitters and their keys - so the piece breaks with that burst once.
+- **Served** as the game's model's own name in the build's `data\files`; nwn5e copies `data\files` into its served
+  folder, which the engine reads over the game's keys (src\core\data_serving.cpp) - where the torch's flame goes too.
+- **No burst left on three:** `plc_h10` (Cot), `plc_i02` (Birdbath) and `plc_q03` (Flag3) have no event in their
+  "die" - their debris lives only in "dead" (the Cot's and the Flag's "dead" also sinks the mesh, their "die" holds it
+  sunk: the two look swapped) - so without it they break with no debris: the mesh still sinks under the floor and the
+  Destroyed sound plays. Moving their "dead" detonates into "die" would give them one burst; the owner's call.
+- **Skipped, and said:** a listed model the game hasn't, or whose "dead" has no `detonate` now (a game update fixed it -
+  the game's own is right then). The build goes on; the check fails until the list is updated.
 
 ## Check
 
@@ -142,4 +183,11 @@ build.bat stops on either (above).
   - rows that disagree, or a recipe edited without its rows, give exit 1 and say which;
   - a spell mesh is skipped, a refused build and a file in the way give exit 1, and each missing prerequisite gives
     exit 2;
+  - one burst: the 16 aren't at `HEAD` and are git-ignored (another game model isn't); they're the game's fountains,
+    recomputed from its `placeables.2da` and models (it fails, naming them, when the game's differ); each copy is the
+    game's model with its "dead"'s `detonate`s taken out - its "die" (events, emitters) and every other animation as the
+    game's, a compiled one's every byte but the "dead"'s events and their three fields, an ASCII one's every line but
+    the "dead" block's `detonate` lines - 14 compiled and 2 ASCII; without them (the copy's `oneburst.js` listing none)
+    the build writes every other file byte for byte the same; a listed model the game hasn't, or whose "dead" has no
+    `detonate`, is skipped and said; a file of a one-burst name in `--out` is rewritten;
   - the real worktree is untouched.

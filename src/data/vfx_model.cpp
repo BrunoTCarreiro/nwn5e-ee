@@ -2231,6 +2231,164 @@ int PatchEmitter(std::string* bytes, const std::string& emitter_name, const std:
   return changed;
 }
 
+namespace {
+
+// --- One burst (LD): a model's animations and their events.
+constexpr size_t kEventSize = 36;     // a compiled event: its time (f32), then a 32-byte name
+constexpr uint32_t kListMost = 4096;  // the most animations or events a list may have, as ReadVfxBinaryModel takes one
+
+// Compiled: its first 4 bytes 0 (an ASCII model starts with text), as every reader tells them.
+bool IsCompiled(const std::string& bytes) { return bytes.size() >= 4 && Bytes{bytes}.U32(0) == 0; }
+
+bool ReadCompiledAnimations(const std::string& bytes, std::vector<ModelAnimation>* anims, std::string* error) {
+  const Bytes m{bytes};
+  if (bytes.size() < kModelBase + 0x80) {
+    *error = "too short for a compiled model";
+    return false;
+  }
+  const uint32_t list = m.U32(kModelBase + 0x78), count = m.U32(kModelBase + 0x7C);
+  if (count > kListMost || kModelBase + list + 4ull * count > bytes.size()) {
+    *error = "its animations' list runs past the file";
+    return false;
+  }
+  for (uint32_t i = 0; i < count; ++i) {
+    ModelAnimation a;
+    a.header = kModelBase + m.U32(kModelBase + list + 4ull * i);
+    if (a.header + 0xC4 > bytes.size()) {
+      *error = "animation " + std::to_string(i) + "'s header runs past the file";
+      return false;
+    }
+    a.name = m.Str(a.header + 8, 64);
+    a.length = m.F32(a.header + 0x70);
+    const uint32_t at = m.U32(a.header + 0xB8), n = m.U32(a.header + 0xBC);
+    if (n > 0) {
+      a.event_at = kModelBase + at;
+      if (n > kListMost || a.event_at + kEventSize * n > bytes.size()) {
+        *error = "the events of " + (a.name.empty() ? "animation " + std::to_string(i) : a.name) + " run past the file";
+        return false;
+      }
+      for (uint32_t e = 0; e < n; ++e) a.events.push_back({m.F32(a.event_at + kEventSize * e), m.Str(a.event_at + kEventSize * e + 4, 32)});
+    }
+    anims->push_back(a);
+  }
+  return true;
+}
+
+// An ASCII model's lines, each with its own line end.
+std::vector<std::string> LinesOf(const std::string& text) {
+  std::vector<std::string> lines;
+  for (size_t at = 0; at < text.size();) {
+    const size_t end = text.find('\n', at);
+    const size_t next = end == std::string::npos ? text.size() : end + 1;
+    lines.push_back(text.substr(at, next - at));
+    at = next;
+  }
+  return lines;
+}
+
+// Where an ASCII model's event line is: its line, its animation, its place among that animation's events.
+struct EventLine {
+  size_t line, anim, event;
+};
+
+// An ASCII model's newanim blocks: each one's name, its length and event lines (an animation's own, not a node's - between
+// node and endnode), and where each event line is.
+bool ReadAsciiAnimations(const std::vector<std::string>& lines, std::vector<ModelAnimation>* anims, std::vector<EventLine>* where,
+                         std::string* error) {
+  bool model = false;
+  long inside = -1;
+  int depth = 0;
+  for (size_t i = 0; i < lines.size(); ++i) {
+    const std::vector<std::string> w = Words(lines[i]);
+    if (w.empty() || w[0][0] == '#') continue;
+    const std::string key = Lower(w[0]);
+    if (key == "newmodel") {
+      model = true;
+    } else if (key == "newanim") {
+      anims->push_back(ModelAnimation());
+      anims->back().name = w.size() > 1 ? w[1] : "";
+      inside = static_cast<long>(anims->size()) - 1;
+      depth = 0;
+    } else if (key == "doneanim") {
+      inside = -1;
+    } else if (inside < 0) {
+      continue;
+    } else if (key == "node") {
+      ++depth;
+    } else if (key == "endnode") {
+      depth = std::max(0, depth - 1);
+    } else if (depth == 0 && key == "length" && w.size() > 1) {
+      (*anims)[inside].length = ToFloat(w[1]);
+    } else if (depth == 0 && key == "event" && w.size() > 2) {
+      ModelAnimation& a = (*anims)[inside];
+      where->push_back({i, static_cast<size_t>(inside), a.events.size()});
+      a.events.push_back({ToFloat(w[1]), w[2]});
+    }
+  }
+  if (!model) {
+    *error = "not a model: neither compiled nor an ASCII one's newmodel";
+    return false;
+  }
+  return true;
+}
+
+}  // namespace
+
+bool ReadModelAnimations(const std::string& bytes, std::vector<ModelAnimation>* anims, std::string* error) {
+  anims->clear();
+  error->clear();
+  std::vector<EventLine> where;
+  const bool ok = IsCompiled(bytes) ? ReadCompiledAnimations(bytes, anims, error) : ReadAsciiAnimations(LinesOf(bytes), anims, &where, error);
+  if (!ok) anims->clear();
+  return ok;
+}
+
+int DropAnimationEvents(std::string* bytes, const std::string& anim, const std::string& event) {
+  if (!bytes) return 0;
+  std::vector<ModelAnimation> anims;
+  std::string error;
+  const std::string want_anim = Lower(anim), want_event = Lower(event);
+  int dropped = 0;
+  if (IsCompiled(*bytes)) {
+    if (!ReadCompiledAnimations(*bytes, &anims, &error)) return 0;
+    std::set<size_t> done;  // a header listed twice is changed once
+    for (const ModelAnimation& a : anims) {
+      if (Lower(a.name) != want_anim || a.events.empty() || !done.insert(a.header).second) continue;
+      std::vector<std::string> kept;
+      for (size_t e = 0; e < a.events.size(); ++e) {
+        if (Lower(a.events[e].name) != want_event) kept.push_back(bytes->substr(a.event_at + kEventSize * e, kEventSize));
+      }
+      const size_t gone = a.events.size() - kept.size();
+      if (gone == 0) continue;
+      for (size_t e = 0; e < a.events.size(); ++e) {
+        bytes->replace(a.event_at + kEventSize * e, kEventSize, e < kept.size() ? kept[e] : std::string(kEventSize, '\0'));
+      }
+      const uint32_t count = static_cast<uint32_t>(kept.size());
+      const uint32_t offset = kept.empty() ? 0 : static_cast<uint32_t>(a.event_at - kModelBase);
+      memcpy(&(*bytes)[a.header + 0xB8], &offset, 4);
+      memcpy(&(*bytes)[a.header + 0xBC], &count, 4);
+      memcpy(&(*bytes)[a.header + 0xC0], &count, 4);
+      dropped += static_cast<int>(gone);
+    }
+    return dropped;
+  }
+  const std::vector<std::string> lines = LinesOf(*bytes);
+  std::vector<EventLine> where;
+  if (!ReadAsciiAnimations(lines, &anims, &where, &error)) return 0;
+  std::set<size_t> drop;
+  for (const EventLine& at : where) {
+    if (Lower(anims[at.anim].name) == want_anim && Lower(anims[at.anim].events[at.event].name) == want_event) drop.insert(at.line);
+  }
+  if (drop.empty()) return 0;
+  std::string out;
+  out.reserve(bytes->size());
+  for (size_t i = 0; i < lines.size(); ++i) {
+    if (!drop.count(i)) out += lines[i];
+  }
+  *bytes = out;
+  return static_cast<int>(drop.size());
+}
+
 std::vector<uint8_t> TileFillLightsOff(int width, int height, const std::vector<TileLight>& lights, bool strict) {
   if (width <= 0 || height <= 0 || width > 64 || height > 64) return {};
   const size_t tiles = static_cast<size_t>(width) * height;

@@ -2836,3 +2836,34 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
   - **Candidates to retire (the owner's call):** the four discs (rows 2200-2210, data/files n5_tcnt_01..11 .mdl / .tga
     / .txi, tools/data/tcount, data::TargetCountRow / TargetCountModel and their tests) and the probe (rows 2211-2214,
     n5_tprobe_s3 / c3 / s7 / c7 .mdl / .mtr / .txi, n5_tally_03 / _07, vsn5bill_s / _c, tools/data/tprobe).
+
+## One burst: the game's fountaining placeables served without the "dead" loop's detonate (2026-11-20, #172; LD)
+
+  The owner, 2026-11-20, on the Academy's lectern (PLC_K02), which "fountained a huge amount of debris" when broken (the
+  DB recon: a placeable's debris is its model's "die"; the client then loops "dead" for the 2 s until the server deletes
+  it, and 16 of the game's placeable models carry a detonate in that "dead", so every loop re-fires the chunks and
+  smoke): "For the lectern A" - copies of those 16 without the "dead" loop's detonate, built from the owner's game at
+  build time and never committed. tools/data/README.md, "One burst", has the full reading.
+  - **The 16** (tools/data/oneburst.js `MODELS`): plc_c03, plc_c04, plc_c10, plc_h10, plc_i02, plc_k02, plc_q03,
+    plc_x0_fgs, plc_x0_grw, plc_x0_tds, plc_x0_wds, pwc_mage_001, px2_b04, px2_c10, px2_e01, px2_g02 - every
+    placeables.2da model whose "dead" has a detonate and which has an Explosion emitter for it (plc_x0_grs has the
+    detonate and no emitter: left as the game's). check_derived.js recomputes it from the game and fails on drift.
+  - **Made and served:** build_derived.js (build.bat unchanged) reads each from the game (its keys, ovr\ over them) and
+    takes the "dead" animation's detonate events out through the repo's own model code - src/data/vfx_model.cpp's new
+    `ReadModelAnimations` / `DropAnimationEvents`, run by mdlmesh's new `--anims` / `--drop-events` - then writes it
+    under its own name into the build's data\files (git-ignored by name, owned there by name). nwn5e serves data\files
+    over the game's keys, where the held torch's flame (`GenerateTorchFlames`) goes. **Compiled for 14, as the torch's:**
+    the game's bytes changed in place, the "dead" header's events array made the one the game keeps for an animation
+    with none (offset, count, allocated count 0), its freed entries zeroed; **ASCII for 2** (plc_c10, pwc_mage_001 are
+    text in the game): the "dead" block's detonate lines taken out. Every other byte or line is the game's: the "die",
+    its detonates, emitters and keys, the other animations. 34 events in all (every "dead" event of the 16 is one).
+  - **Checks:** test.bat 4 new tests (the compiled "dead" compacted and emptied, nothing else touched; a cut file or
+    text refused; the ASCII block's lines) - 650 tests. check_derived.js: the list against the game; each copy against
+    the game's model (animations, events, emitters, every other byte / line); without them every other derived file
+    byte for byte the same; skips said; a one-burst name in --out rewritten.
+  - **Three break with no debris now:** plc_h10 (Cot), plc_i02 (Birdbath) and plc_q03 (Flag3) have no event in "die" -
+    their debris is only in "dead" (the Cot's and the Flag's "dead" also sinks the mesh: "die" and "dead" look swapped).
+    Literal A leaves them no burst (the mesh still sinks, the Destroyed sound plays). Moving their "dead" detonates into
+    "die" would give them one: the owner's call.
+  - **Row** LD-1 (#172): break the Academy's lectern - one burst of debris and smoke, no fountain over the next 2 s; a
+    bench unchanged.

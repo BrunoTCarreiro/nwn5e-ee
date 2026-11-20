@@ -340,4 +340,40 @@ std::vector<uint8_t> TileFillLightsOff(int width, int height, const std::vector<
 int PatchEmitter(std::string* bytes, const std::string& emitter_name, const std::vector<std::pair<uint32_t, float>>& values,
                  uint32_t clear_flags);
 
+// --- One burst (LD; the owner, 2026-11-20: "For the lectern A"). A broken placeable's debris is its model's own "die"
+// animation: its detonate events set off its Explosion emitters (chunks, a smoke puff). The client then loops "dead"
+// until the server deletes the object, 2 s later - and 16 of the game's placeable models have a detonate in that "dead"
+// too, so every loop throws the debris again: a fountain. tools/data/oneburst.js builds copies of them, the game's own
+// model with that event taken out (tools/data/README.md, "One burst").
+
+// An event of a model's animation: its time (seconds) and its name ("detonate": the Explosion emitters burst).
+struct ModelEvent {
+  float time = 0.0f;
+  std::string name;
+};
+
+// A model's animation as the model has it - a compiled one's from its header (its name at +0x08, its length +0x70, its
+// events' array +0xB8 with their count +0xBC: 36 bytes an event, its time then a 32-byte name), an ASCII one's from its
+// newanim block (its length and event lines, not a node's).
+struct ModelAnimation {
+  std::string name;
+  float length = 0.0f;
+  std::vector<ModelEvent> events;
+  size_t header = 0;    // compiled: its header's offset in the file (0: an ASCII model's)
+  size_t event_at = 0;  // compiled: its events' offset in the file (0: none - the game's models keep offset 0 then)
+};
+
+// A model's animations in its own order: a compiled one's as the model header lists them (+0x78, count +0x7C - as
+// ReadVfxBinaryModel takes them), an ASCII one's newanim blocks. False and why when it's neither, or a list or an array
+// runs past the file.
+bool ReadModelAnimations(const std::string& bytes, std::vector<ModelAnimation>* anims, std::string* error);
+
+// Every `anim` animation's events named `event` (both case-blind) taken out of a model, in place, every other byte as it
+// was. Compiled: the events kept move up in the array in their order, the entries freed are zeroed, and the count and
+// the allocated count (+0xBC, +0xC0) become the kept ones' - none kept, the array's offset (+0xB8) 0 too, as the game's
+// own models keep an animation with no events. ASCII: those event lines leave the animation's newanim block (a node's
+// lines stay). The number taken out: 0 when there's none (or `bytes` isn't a model ReadModelAnimations reads), nothing
+// changed.
+int DropAnimationEvents(std::string* bytes, const std::string& anim, const std::string& event);
+
 }  // namespace data

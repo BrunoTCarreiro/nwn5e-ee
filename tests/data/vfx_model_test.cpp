@@ -3982,3 +3982,215 @@ TEST(VfxReadsTheModelsOwnAnimations) {
   CHECK_EQ(ReadVfxBinaryModel(build(false, false), &unlisted, &error) && unlisted.emitters.size() == 1, true);
   CHECK_EQ(NoneOfTheGamesKeys(unlisted) && unlisted.emitters[0].keys.empty() && Milli(unlisted.seconds) == 8000 && Milli(unlisted.lengths[0]) == 0, true);
 }
+
+// --- One burst (LD; the owner, 2026-11-20: "For the lectern A"): a placeable model's looping "dead" loses its detonate
+// events, so it breaks with its "die" burst once (tools/data/oneburst.js).
+namespace {
+
+// An animation's events in a model built here (KfModel): the array (36 bytes an event: its time, then a 32-byte name)
+// and the header's offset, count and allocated count (+0xB8, +0xBC, +0xC0), as the game's models lay them out.
+void PutEvents(KfModel* m, size_t header, const std::vector<std::pair<float, const char*>>& events) {
+  const size_t array = m->Alloc(36 * events.size());
+  for (size_t i = 0; i < events.size(); ++i) {
+    m->PutF(array + 36 * i, events[i].first);
+    m->Puts(array + 36 * i + 4, events[i].second);
+  }
+  m->Put32(header + 0xB8, static_cast<uint32_t>(array - KfModel::kBase));
+  m->Put32(header + 0xBC, static_cast<uint32_t>(events.size()));
+  m->Put32(header + 0xC0, static_cast<uint32_t>(events.size()));
+}
+
+uint32_t U32At(const std::string& b, size_t at) {
+  uint32_t v = 0;
+  memcpy(&v, &b[at], 4);
+  return v;
+}
+
+// The lectern's shape (PLC_K02), built here: an Explosion emitter; "damage" (no events), "die" (two detonates and a
+// sound), "dead" - `dead` its events - and "default" (no events). -> the model; `dead_header` its "dead" header's offset.
+std::string FountainModel(const std::vector<std::pair<float, const char*>>& dead, size_t* dead_header) {
+  KfModel m("plc_test");
+  const size_t root = m.Node("plc_test", 0x1, {{8, 3, {0}, {0, 0, 0}}});
+  const size_t chunks = m.Node("ChunkyWood1", 0x5, {{88, 1, {0}, {2}}});
+  m.Emitter(chunks);
+  m.Puts(chunks + 0x60 + 0x18, "Explosion");
+  m.Children(root, {chunks});
+  m.Put32(KfModel::kBase + 0x48, static_cast<uint32_t>(root - 0x10 - KfModel::kBase));
+  m.Anim("damage", 0.133f, 0.0f, root);
+  m.Anim("die", 0.167f, 0.0f, root);
+  PutEvents(&m, m.anims.back(), {{0.033f, "detonate"}, {0.033f, "detonate"}, {0.1f, "snd_crash"}});
+  m.Anim("dead", 0.033f, 0.0f, root);
+  *dead_header = m.anims.back();
+  if (!dead.empty()) PutEvents(&m, m.anims.back(), dead);
+  m.Anim("default", 0.0f, 0.25f, root);
+  m.List();
+  return m.b;
+}
+
+// "name time name time ..." of an animation's events, to compare in one line.
+std::string EventsText(const ModelAnimation& a) {
+  std::string out;
+  for (const ModelEvent& e : a.events) out += (out.empty() ? "" : " ") + e.name + " " + std::to_string(Milli(e.time));
+  return out;
+}
+
+}  // namespace
+
+// A compiled model's "dead" loses its detonates, nothing else. Breaks caught: the die's detonates taken too (the burst
+// lost); another event of the dead's lost, or the kept one left in its slot after a hole (the engine reads the first
+// `count`); the count or the allocated count left as they were; a freed entry left with "detonate" in it; a name taken
+// case-blind on one side only ("DEAD", "Detonate"); any byte outside the dead's array and its three fields changed; the
+// file's length changed; a second run changing anything.
+TEST(OneBurstCompiledDeadLosesItsDetonates) {
+  size_t dead_header = 0;
+  const std::string game = FountainModel({{0.033f, "detonate"}, {0.0f, "snd_dead"}, {0.033f, "Detonate"}}, &dead_header);
+  std::vector<ModelAnimation> anims;
+  std::string error;
+  CHECK_EQ(ReadModelAnimations(game, &anims, &error), true);
+  CHECK_EQ(anims.size(), 4u);
+  if (anims.size() != 4) return;
+  CHECK_EQ(anims[0].name == "damage" && anims[1].name == "die" && anims[2].name == "dead" && anims[3].name == "default", true);
+  CHECK_EQ(Milli(anims[1].length), 167);
+  CHECK_EQ(EventsText(anims[1]) == "detonate 33 detonate 33 snd_crash 100", true);
+  CHECK_EQ(EventsText(anims[2]) == "detonate 33 snd_dead 0 Detonate 33", true);
+  CHECK_EQ(anims[0].events.empty() && anims[0].event_at == 0 && anims[3].events.empty(), true);
+  CHECK_EQ(anims[2].header, dead_header);
+  const size_t array = anims[2].event_at;
+  CHECK_EQ(array, KfModel::kBase + U32At(game, dead_header + 0xB8));
+
+  std::string copy = game;
+  CHECK_EQ(DropAnimationEvents(&copy, "DEAD", "detonate"), 2);
+  CHECK_EQ(copy.size(), game.size());
+  std::vector<ModelAnimation> after;
+  CHECK_EQ(ReadModelAnimations(copy, &after, &error), true);
+  CHECK_EQ(after.size(), 4u);
+  if (after.size() != 4) return;
+  CHECK_EQ(EventsText(after[2]) == "snd_dead 0", true);
+  CHECK_EQ(EventsText(after[1]) == "detonate 33 detonate 33 snd_crash 100", true);  // the die's burst kept
+  CHECK_EQ(after[2].event_at, array);  // the array where it was, the kept event first
+  CHECK_EQ(U32At(copy, dead_header + 0xBC), 1u);
+  CHECK_EQ(U32At(copy, dead_header + 0xC0), 1u);
+  CHECK_EQ(copy.compare(array, 36, game, array + 36, 36), 0);  // the kept entry's own 36 bytes, moved up
+  CHECK_EQ(copy.substr(array + 36, 72) == std::string(72, '\0'), true);
+  // Every other byte as it was.
+  int outside = 0;
+  for (size_t i = 0; i < game.size(); ++i) {
+    const bool fields = i >= dead_header + 0xB8 && i < dead_header + 0xC4, entries = i >= array && i < array + 3 * 36;
+    if (copy[i] != game[i] && !fields && !entries) ++outside;
+  }
+  CHECK_EQ(outside, 0);
+  // Again: nothing more to take out, nothing changed.
+  const std::string once = copy;
+  CHECK_EQ(DropAnimationEvents(&copy, "dead", "detonate"), 0);
+  CHECK_EQ(copy == once, true);
+  // Not there: an animation the model hasn't, an event it hasn't - 0, nothing changed.
+  CHECK_EQ(DropAnimationEvents(&copy, "off", "detonate"), 0);
+  CHECK_EQ(DropAnimationEvents(&copy, "dead", "snd_crash"), 0);
+  CHECK_EQ(copy == once, true);
+}
+
+// A "dead" with only detonates (the lectern's: one) ends with no events, as the game's own models keep an animation with
+// none (the bench's "dead": offset 0, count 0, allocated 0). Breaks caught: the offset kept (an empty array that points
+// somewhere); the count or the allocated count not 0; the freed entries left as they were.
+TEST(OneBurstCompiledDeadOfOnlyDetonatesEndsEmpty) {
+  size_t dead_header = 0;
+  const std::string game = FountainModel({{0.033f, "detonate"}, {0.0f, "detonate"}}, &dead_header);
+  std::vector<ModelAnimation> anims;
+  std::string error;
+  CHECK_EQ(ReadModelAnimations(game, &anims, &error) && anims.size() == 4, true);
+  if (anims.size() != 4) return;
+  const size_t array = anims[2].event_at;
+  std::string copy = game;
+  CHECK_EQ(DropAnimationEvents(&copy, "dead", "DETONATE"), 2);
+  CHECK_EQ(U32At(copy, dead_header + 0xB8), 0u);
+  CHECK_EQ(U32At(copy, dead_header + 0xBC), 0u);
+  CHECK_EQ(U32At(copy, dead_header + 0xC0), 0u);
+  CHECK_EQ(copy.substr(array, 72) == std::string(72, '\0'), true);
+  std::vector<ModelAnimation> after;
+  CHECK_EQ(ReadModelAnimations(copy, &after, &error) && after.size() == 4, true);
+  if (after.size() != 4) return;
+  CHECK_EQ(after[2].events.empty() && after[2].event_at == 0, true);
+  CHECK_EQ(EventsText(after[1]) == "detonate 33 detonate 33 snd_crash 100", true);
+  // A "dead" with no events at all (the bench's): nothing to take out.
+  size_t bench_dead = 0;
+  std::string bench = FountainModel({}, &bench_dead);
+  const std::string kept = bench;
+  CHECK_EQ(DropAnimationEvents(&bench, "dead", "detonate"), 0);
+  CHECK_EQ(bench == kept, true);
+}
+
+// Not a model it reads: nothing changed, false and why. Breaks caught: a list or an array running past the file read
+// anyway (a crash on a cut file); text with no newmodel taken for an ASCII model.
+TEST(OneBurstNotAModel) {
+  std::vector<ModelAnimation> anims;
+  std::string error;
+  CHECK_EQ(ReadModelAnimations("", &anims, &error), false);
+  CHECK_EQ(ReadModelAnimations("hello\r\nworld\r\n", &anims, &error), false);
+  size_t dead_header = 0;
+  std::string cut = FountainModel({{0.033f, "detonate"}}, &dead_header);
+  std::vector<ModelAnimation> whole;
+  CHECK_EQ(ReadModelAnimations(cut, &whole, &error) && whole.size() == 4, true);
+  if (whole.size() != 4) return;
+  cut.resize(whole[2].event_at + 10);  // the dead's array cut short
+  CHECK_EQ(ReadModelAnimations(cut, &anims, &error), false);
+  CHECK_EQ(error.empty(), false);
+  const std::string kept = cut;
+  CHECK_EQ(DropAnimationEvents(&cut, "dead", "detonate"), 0);
+  CHECK_EQ(cut == kept, true);
+  // A "dead" whose events' count runs its array past the file's end: refused, nothing changed.
+  std::string over = FountainModel({{0.033f, "detonate"}}, &dead_header);
+  const uint32_t many = 1000;  // 36,000 bytes from its array: past the 32 KB file
+  memcpy(&over[dead_header + 0xBC], &many, 4);
+  CHECK_EQ(ReadModelAnimations(over, &anims, &error), false);
+  if (!ReadModelAnimations(over, &anims, &error)) {
+    const std::string kept_over = over;
+    CHECK_EQ(DropAnimationEvents(&over, "dead", "detonate"), 0);
+    CHECK_EQ(over == kept_over, true);
+  }
+  std::string text = "just text\r\n";
+  CHECK_EQ(DropAnimationEvents(&text, "dead", "detonate"), 0);
+  CHECK_EQ(DropAnimationEvents(nullptr, "dead", "detonate"), 0);
+}
+
+// An ASCII model (PLC_C10's, the game's, is one) loses the dead block's detonate lines, nothing else. Breaks caught: the
+// die's or the damage's detonate lines taken (another block's); a node's line taken; the line ends changed (CRLF kept);
+// "newanim DEAD" or "Detonate" missed; the lengths and events read wrong.
+TEST(OneBurstAsciiDeadLosesItsDetonates) {
+  const std::string head =
+      "# Exported from somewhere\r\nnewmodel PLC_T10\r\nsetsupermodel PLC_T10 NULL\r\nclassification Character\r\n"
+      "beginmodelgeom PLC_T10\r\nnode dummy PLC_T10\r\n  parent NULL\r\nendnode\r\nnode emitter ChunkyWood1\r\n  parent PLC_T10\r\n"
+      "  update Explosion\r\n  chunkName PLC_Chunk_W01\r\nendnode\r\nendmodelgeom PLC_T10\r\n\r\n";
+  const std::string die =
+      "newanim die PLC_T10\r\n  length 0.0333333\r\n  transtime 0.25\r\n  animroot PLC_T10\r\n  event 0.0333333 detonate\r\n"
+      "  event 0.0333333 detonate\r\nnode dummy PLC_T10\r\n  parent NULL\r\nendnode\r\ndoneanim die PLC_T10\r\n\r\n";
+  const std::string damage =
+      "newanim damage PLC_T10\r\n  length 0.0\r\n  transtime 0.0\r\n  animroot PLC_T10\r\n  event 0.0 detonate\r\n"
+      "node dummy PLC_T10\r\n  parent NULL\r\nendnode\r\ndoneanim damage PLC_T10\r\n\r\n";
+  const auto dead = [](bool detonates) {
+    return std::string("newanim DEAD PLC_T10\r\n  length 0.0333333\r\n  transtime 0.25\r\n  animroot PLC_T10\r\n") +
+           (detonates ? "  event 0.0 detonate\r\n" : "") + "  event 0.0 snd_dead\r\n" + (detonates ? "\tevent 0.0 Detonate\r\n" : "") +
+           "node dummy PLC_T10\r\n  parent NULL\r\nendnode\r\ndoneanim DEAD PLC_T10\r\n\r\n";
+  };
+  const std::string game = head + die + damage + dead(true) + "donemodel PLC_T10\r\n";
+  std::vector<ModelAnimation> anims;
+  std::string error;
+  CHECK_EQ(ReadModelAnimations(game, &anims, &error), true);
+  CHECK_EQ(anims.size(), 3u);
+  if (anims.size() != 3) return;
+  CHECK_EQ(anims[0].name == "die" && anims[1].name == "damage" && anims[2].name == "DEAD", true);
+  CHECK_EQ(Milli(anims[0].length) == 33 && Milli(anims[2].length) == 33 && anims[0].header == 0, true);
+  CHECK_EQ(EventsText(anims[0]) == "detonate 33 detonate 33", true);
+  CHECK_EQ(EventsText(anims[2]) == "detonate 0 snd_dead 0 Detonate 0", true);
+  std::string copy = game;
+  CHECK_EQ(DropAnimationEvents(&copy, "dead", "detonate"), 2);
+  CHECK_EQ(copy == head + die + damage + dead(false) + "donemodel PLC_T10\r\n", true);
+  std::vector<ModelAnimation> after;
+  CHECK_EQ(ReadModelAnimations(copy, &after, &error) && after.size() == 3, true);
+  if (after.size() != 3) return;
+  CHECK_EQ(EventsText(after[2]) == "snd_dead 0" && EventsText(after[0]) == "detonate 33 detonate 33" &&
+               EventsText(after[1]) == "detonate 0",
+           true);
+  const std::string once = copy;
+  CHECK_EQ(DropAnimationEvents(&copy, "dead", "detonate"), 0);
+  CHECK_EQ(copy == once, true);
+}

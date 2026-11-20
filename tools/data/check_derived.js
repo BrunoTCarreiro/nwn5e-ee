@@ -8,6 +8,9 @@
 // and data\rows, data\looks from HEAD as git checks them out (git cat-file --filters), never the worktree's: the owner's
 // uncommitted Composer edits are not the baseline. data\files is empty; the build's folder is <copy>\build\data\files.
 // The real worktree's data\ and tools\data\ are never written - the last check says so.
+// One burst (LD): the 16 placeable models oneburst.js lists are the game's own fountains (recomputed from the game); each
+// comes out as the game's model with its "dead"'s detonates taken out and nothing else changed; without them the build
+// writes every other file the same, byte for byte.
 "use strict";
 const assert = require("assert");
 const crypto = require("crypto");
@@ -18,6 +21,7 @@ const { spawnSync } = require("child_process");
 const F = require("./floatdisk/floatdisk.js");
 const P = require("./composer/project.js");
 const R = require("./floatdisk/reader.js");
+const O = require("./oneburst.js");
 
 const REPO = path.resolve(__dirname, "..", "..");
 const argv = process.argv.slice(2);
@@ -89,6 +93,8 @@ const FLOATDISK = ["c_n5fd_empty.mdl", "c_n5fd_large.mdl", "c_n5fd_med.mdl", "c_
   "plc_n5fd_large.mdl", "plc_n5fd_large.pwk", "plc_n5fd_med.mdl", "plc_n5fd_med.pwk", "plc_n5fd_small.mdl", "plc_n5fd_small.pwk"];
 const GAME_DERIVED = ["c_n5fd_empty.mdl", "c_n5fd_large.mdl", "c_n5fd_med.mdl", "c_n5fd_small.mdl", "plc_n5fd_large.mdl", "plc_n5fd_med.mdl",
   "plc_n5fd_small.mdl"];
+// One burst (LD): the game's models served without their "dead"'s detonate - the game's own, never committed, git-ignored.
+const ONE_BURST = O.MODELS.map((m) => m + ".mdl");
 const AT_HEAD = new Set(headFiles("data/files").map((rel) => path.posix.basename(rel)));
 // .gitignore's rules for a data\files name (--no-index: the rule, whether or not the file is tracked).
 const ignored = (name) => spawnSync("git", ["check-ignore", "-q", "--no-index", "data/files/" + name], { cwd: REPO, windowsHide: true }).status === 0;
@@ -149,6 +155,12 @@ for (const rel of [...headFiles("tools/data/floatdisk"), ...headFiles("tools/dat
   put(rel, /\.(js|bat|cpp)$/i.test(rel) ? fs.readFileSync(path.join(REPO, ...rel.split("/"))) : checkedOut(rel));
 }
 if (fs.existsSync(path.join(__dirname, "build_derived.js"))) put("tools/data/build_derived.js", fs.readFileSync(path.join(__dirname, "build_derived.js")));
+const ONE_BURST_JS = path.join(root, "tools", "data", "oneburst.js");  // LD: the copy's, the worktree's code
+put("tools/data/oneburst.js", fs.readFileSync(path.join(__dirname, "oneburst.js")));
+// The copy's oneburst.js listing `models` instead (null: back to the worktree's), for a build without - or with other -
+// one-burst models.
+const oneBurstListing = (models) => fs.writeFileSync(ONE_BURST_JS, models === null ? fs.readFileSync(path.join(__dirname, "oneburst.js"))
+  : `"use strict";\nmodule.exports = Object.assign({}, require(${JSON.stringify(path.join(__dirname, "oneburst.js"))}), { MODELS: ${JSON.stringify(models)} });\n`);
 for (const rel of [...headFiles("data/rows"), ...headFiles("data/looks")]) put(rel, checkedOut(rel));
 fs.mkdirSync(FILES, { recursive: true });
 
@@ -214,6 +226,14 @@ try {
     for (const f of ["plc_n5fd_small.pwk", "n5t_forcedisk.tga", "plc_n5crates_1.pwk", "n5_bleed.mdl", "n5t_mark01.tga"]) {
       assert.ok(!ignored(f), f + " is git-ignored");
     }
+    // One burst (LD): the game's 16 models, served changed, are never committed - git-ignored by name, in any case; a
+    // game model not on the list isn't (nothing else of the game's is ignored by a broad rule).
+    assert.strictEqual(ONE_BURST.length, 16);
+    for (const f of [...ONE_BURST, "PLC_K02.MDL"]) {
+      assert.ok(!AT_HEAD.has(f.toLowerCase()), f + " is committed at HEAD");
+      assert.ok(ignored(f), f + " isn't git-ignored");
+    }
+    for (const f of ["plc_x01.mdl", "plc_x0_grs.mdl", "plc_k02.pwk"]) assert.ok(!ignored(f), f + " is git-ignored");
     const say = (list) => [...new Set(list.map((x) => x.rev))].map((rev) => list.filter((x) => x.rev === rev).map((x) => x.name).join(", ") + ` at ${rev}^`).join("; ");
     const compared = LAST.filter((x) => x.bytes), not = LAST.filter((x) => !x.bytes);
     console.log(`     ${EXPECTED.size} files at HEAD made by a generator (${EXPECTED.size - FLOATDISK_AT_HEAD.length} by the Composer's placeable projects)` +
@@ -246,6 +266,7 @@ try {
         continue;
       }
       assert.ok(ignored(name), `${name}: built, not committed at HEAD, and not git-ignored`);
+      if (ONE_BURST.includes(name)) continue;  // the game's model, its "dead" changed: the one-burst checks below
       const got = fs.readFileSync(path.join(OUT, name));
       if (named(name)) {
         const by = NAMES.filter((m) => m.endsWith(".mdl") && fs.readFileSync(path.join(OUT, m), "latin1").includes(`\r\n  bitmap ${stem(name)}\r\n`));
@@ -263,6 +284,10 @@ try {
     console.log(`     the Floating Disk's dyed parts baked: ${bakes.join(", ") || "none"}; its shapes' textures: ${shapes.join(", ") || "none"}`);
     for (const name of disk) assert.ok(NAMES.includes(name), name + " wasn't built");
     assert.match(r.out, new RegExp(`the Floating Disk \\(tools/data/floatdisk/composition\\.json\\): ${disk.length} files; its rows agree`));
+    // One burst (LD): the 16, none skipped - 14 compiled and 2 ASCII, as the game has them.
+    for (const name of ONE_BURST) assert.ok(NAMES.includes(name), name + " wasn't built");
+    assert.match(r.out, /^build_derived: one burst \(tools\/data\/oneburst\.js\): 16 of the game's placeable models, their looping "dead" without its detonate \(\d+ events\), 14 compiled, 2 ascii$/m);
+    assert.ok(!/one burst: skipped/.test(r.out), r.out);
     assert.match(total(r), new RegExp(`^build_derived: ${NAMES.length} files in build/data/files: ${NAMES.length} written, 0 unchanged$`));
     assert.deepStrictEqual(repoCopy(), before, "the copy's tools\\ or data\\ changed");
   });
@@ -274,6 +299,131 @@ try {
     assert.ok(Object.values(states(r)).every((s) => s === "unchanged") && Object.keys(states(r)).length === NAMES.length, JSON.stringify(states(r)));
     assert.match(total(r), new RegExp(`: 0 written, ${NAMES.length} unchanged$`));
     assert.deepStrictEqual(snapshot(OUT), before);
+  });
+
+  // --- One burst (LD) -------------------------------------------------------------------------------------------------
+  const GAME_RES = GAME_DATA.resources(GAME);
+  check("LD: oneburst.js's 16 are the game's fountains - every placeables.2da model whose looping \"dead\" has a detonate and an Explosion emitter it sets off", () => {
+    const f = O.fountains({ res: GAME_RES, reader: READER, twoDa: GAME_DATA.twoDa });
+    const listed = [...O.MODELS].sort();
+    const added = f.fountains.filter((m) => !listed.includes(m)), gone = listed.filter((m) => !f.fountains.includes(m));
+    assert.deepStrictEqual(f.fountains, listed, `the game's differ from oneburst.js's MODELS - new: ${added.join(", ") || "none"}; ` +
+      `no longer: ${gone.join(", ") || "none"}`);
+    console.log(`     ${f.fountains.length} fountains; a detonate in "dead" that sets nothing off (left as the game's): ${f.idle.join(", ") || "none"}`);
+  });
+
+  check("LD: each one-burst copy is the game's model with its \"dead\"'s detonates taken out - its \"die\" (events, emitters), every other animation and every other byte as the game's", () => {
+    const list = [];
+    for (const model of O.MODELS) list.push({ bytes: GAME_RES(model, 2002) }, { bytes: fs.readFileSync(path.join(OUT, model + ".mdl")) });
+    const read = O.readModels(READER, list);
+    const forms = {};
+    let taken = 0;
+    O.MODELS.forEach((model, i) => {
+      const game = list[2 * i].bytes, copy = list[2 * i + 1].bytes, g = read[2 * i], c = read[2 * i + 1];
+      const say = (what) => `${model}: ${what}`;
+      assert.ok(!g.error && !c.error, say("unreadable - " + (g.error || c.error)));
+      assert.strictEqual(c.form, g.form, say("its form changed"));
+      forms[g.form] = (forms[g.form] || 0) + 1;
+      assert.ok(O.bursts(g), say("no Explosion emitter"));
+      assert.deepStrictEqual(c.emitters, g.emitters, say("its emitters changed"));
+      assert.ok(g.anims.some((a) => a.name.toLowerCase() === "die"), say("no die"));
+      assert.strictEqual(c.anims.length, g.anims.length, say("its animations changed"));
+      g.anims.forEach((ga, k) => {
+        const ca = c.anims[k];
+        assert.deepStrictEqual([ca.name, ca.length, ca.header], [ga.name, ga.length, ga.header], say(`animation ${k} changed`));
+        if (ga.name.toLowerCase() !== O.ANIM) {
+          assert.deepStrictEqual(ca.events, ga.events, say(`its ${ga.name}'s events changed`));  // the die's burst kept
+          return;
+        }
+        const left = ga.events.filter((e) => e.name.toLowerCase() !== O.EVENT);
+        assert.ok(left.length < ga.events.length, say("the game's \"dead\" has no detonate"));
+        assert.deepStrictEqual(ca.events, left, say("its \"dead\" isn't the game's without its detonates"));
+        taken += ga.events.length - left.length;
+      });
+      assert.strictEqual(O.deadDetonates(c), 0, say("a detonate left in its \"dead\""));
+      if (g.form === "compiled") {
+        // Every byte as the game's but the "dead"'s events (their array) and its three fields - as the game's own models
+        // keep an animation with no events (offset, count and allocated count 0), or with the ones kept.
+        assert.strictEqual(copy.length, game.length, say("its length changed"));
+        const dead = g.anims.filter((a) => a.name.toLowerCase() === O.ANIM);
+        const allowed = (o) => dead.some((a) => (o >= a.header + 0xB8 && o < a.header + 0xC4) || (o >= a.eventAt && o < a.eventAt + 36 * a.count));
+        for (let o = 0; o < game.length; o++) {
+          if (copy[o] !== game[o] && !allowed(o)) assert.fail(say(`byte ${o} changed, outside its "dead"'s events`));
+        }
+        for (const a of dead) {
+          const kept = a.events.filter((e) => e.name.toLowerCase() !== O.EVENT).length;
+          assert.deepStrictEqual([copy.readUInt32LE(a.header + 0xB8), copy.readUInt32LE(a.header + 0xBC), copy.readUInt32LE(a.header + 0xC0)],
+            kept ? [game.readUInt32LE(a.header + 0xB8), kept, kept] : [0, 0, 0], say("its \"dead\"'s event fields"));
+        }
+      } else {
+        // ASCII: the game's text without the "dead" block's detonate lines (an animation's own, not a node's), every other
+        // line as it was, its line ends too.
+        let inDead = false, depth = 0;
+        const want = game.toString("latin1").split(/(?<=\n)/).filter((line) => {
+          const w = line.trim().split(/\s+/), k = (w[0] || "").toLowerCase();
+          if (k === "newanim") {
+            inDead = (w[1] || "").toLowerCase() === O.ANIM;
+            depth = 0;
+          } else if (k === "doneanim") {
+            inDead = false;
+          } else if (inDead && k === "node") {
+            depth++;
+          } else if (inDead && k === "endnode") {
+            depth--;
+          }
+          return !(inDead && depth === 0 && k === "event" && (w[2] || "").toLowerCase() === O.EVENT);
+        }).join("");
+        assert.ok(copy.equals(Buffer.from(want, "latin1")), say("isn't the game's text without its \"dead\"'s detonate lines"));
+      }
+    });
+    assert.deepStrictEqual(forms, { ascii: 2, compiled: 14 });
+    console.log(`     16 models (14 compiled, 2 ASCII): ${taken} detonates taken out of their "dead"; their "die" and other animations, ` +
+      "emitters and every other byte the game's");
+  });
+
+  check("LD: nothing else in the derived output changes - without the one-burst models the build writes every other file the same, byte for byte", () => {
+    const base = path.join(root, "build0", "files");
+    try {
+      oneBurstListing([]);
+      const r = derive(["--out", base]);
+      done(r);
+      assert.match(r.out, /^build_derived: one burst \(tools\/data\/oneburst\.js\): 0 of the game's placeable models, /m);
+      const without = fs.readdirSync(base).sort();
+      assert.deepStrictEqual(without, NAMES.filter((n) => !ONE_BURST.includes(n)));
+      for (const name of without) assert.ok(fs.readFileSync(path.join(base, name)).equals(fs.readFileSync(path.join(OUT, name))), name + " differs");
+      console.log(`     ${without.length} other files, byte for byte`);
+    } finally {
+      oneBurstListing(null);
+      fs.rmSync(path.join(root, "build0"), { recursive: true, force: true });
+    }
+  });
+
+  check("LD: a listed model the game hasn't, or whose \"dead\" has no detonate, is skipped and said; a file of a one-burst name in --out is rewritten", () => {
+    const fresh = path.join(root, "build4", "files");
+    try {
+      oneBurstListing(["plc_k02", "plc_x01", "plc_nope"]);  // the lectern; the bench (one burst already); none such
+      const r = derive(["--out", fresh]);
+      done(r);
+      assert.match(r.out, /^build_derived: one burst: skipped plc_x01 - the game's own has no detonate in its "dead" now - served as the game has it$/m);
+      assert.match(r.out, /^build_derived: one burst: skipped plc_nope - not in the game$/m);
+      assert.match(r.out, /^build_derived: one burst \(tools\/data\/oneburst\.js\): 1 of the game's placeable models, their looping "dead" without its detonate \(1 event\), 1 compiled$/m);
+      assert.ok(!fs.existsSync(path.join(fresh, "plc_x01.mdl")) && !fs.existsSync(path.join(fresh, "plc_nope.mdl")), "a skipped model written");
+      assert.ok(fs.readFileSync(path.join(fresh, "plc_k02.mdl")).equals(fs.readFileSync(path.join(OUT, "plc_k02.mdl"))));
+    } finally {
+      oneBurstListing(null);
+      fs.rmSync(path.join(root, "build4"), { recursive: true, force: true });
+    }
+    // In --out a file of a one-burst model's name is the build's (only it makes them there; the game fixes the bytes).
+    const lectern = path.join(OUT, "plc_k02.mdl"), kept = fs.readFileSync(lectern);
+    try {
+      fs.writeFileSync(lectern, "not the lectern");
+      const w = derive(["--out", OUT]);
+      done(w);
+      assert.deepStrictEqual(Object.entries(states(w)).filter(([, x]) => x !== "unchanged"), [["plc_k02.mdl", "written"]]);
+      assert.ok(fs.readFileSync(lectern).equals(kept));
+    } finally {
+      fs.writeFileSync(lectern, kept);  // the later checks' --out as built, whatever happened
+    }
   });
 
   check("--check writes nothing and says what it would write", () => {
