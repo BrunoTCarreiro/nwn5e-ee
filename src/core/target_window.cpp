@@ -10,8 +10,8 @@
 // mode (EnterTargetingMode, the module's OnPlayerTarget event: nwn5e's n5_target, the module's own script chained) picks
 // the rest: a creature fills the next empty row (the same creature again is another dart or ray); for Scorching Ray an
 // unlit fire light too (a lamp, a brazier, a torch bracket, a tile flame's stand-in: light_sources.cpp's). Each picked
-// target glows (VFX_DUR_GLOW_LIGHT_RED, tagged). [x] empties a row; a right-click or Esc (the event with no object)
-// takes back the latest pick. OK casts it again as it was ordered - ActionCastSpellAtObject at the first row's target
+// target glows (VFX_DUR_GLOW_LIGHT_RED, tagged). [x] empties a row; a right-click (the event with no object) takes back
+// the latest dart of the target under the cursor, Esc cancels the spell (0.99.99). OK casts it again as it was ordered - ActionCastSpellAtObject at the first row's target
 // with its metamagic, its domain level (#36's slot) and its class - and the rows ride with it to the spell's script
 // (TakeWindowTargets: an empty row the last target picked's); Cancel (or the window's close) casts nothing. A click on
 // the window can end the targeting mode first (the event with no object): a click within kClickAfterCancelMs of one
@@ -31,6 +31,7 @@
 
 #include "action_guard.h"
 #include "anim_target_counts.h"
+#include "client_hover.h"
 #include "chat.h"
 #include "config.h"
 #include "creature.h"
@@ -55,6 +56,8 @@ constexpr const char* kTargetScript = "n5_target";  // the module's OnPlayerTarg
 constexpr ULONGLONG kSentForMs = 60000;             // OK to the spell's script: the cast must run within this
 constexpr ULONGLONG kClickAfterCancelMs = 600;      // a window click this soon after a cancel event undoes it
 constexpr ULONGLONG kQuietMs = 1000;                // a closed window's leftover targeting events, swallowed
+constexpr ULONGLONG kEscapeWithinMs = 400;          // a targeting cancel this soon after Esc was down is Esc's
+constexpr ULONGLONG kHoverLeftWithinMs = 250;       // a right-click's target: under the cursor, or just left
 constexpr int kObjectTypeCreature = 1;              // NWScript OBJECT_TYPE_CREATURE
 constexpr int kObjectTypePlaceable = 64;            // NWScript OBJECT_TYPE_PLACEABLE
 
@@ -80,6 +83,22 @@ std::unordered_map<uint32_t, int> g_events;         // each player's targeting e
 std::unordered_map<uint32_t, ULONGLONG> g_quiet;    // a window just closed: its targeting events swallowed until
 bool g_from_input = false;                          // the order being guarded came from a player's input
 bool g_module_event = false;                        // n5_target set as the module's OnPlayerTarget
+
+// Esc and a right-click both end EE's targeting mode as the same event (no object). In single-player the game's window
+// is this process's: Esc held while it's in front, noted each server frame and at the event, tells them apart.
+ULONGLONG g_escape_at = 0;
+
+void NoteEscape() {
+  if ((GetAsyncKeyState(VK_ESCAPE) & 0x8000) == 0) return;
+  DWORD process = 0;
+  GetWindowThreadProcessId(GetForegroundWindow(), &process);
+  if (process == GetCurrentProcessId()) g_escape_at = GetTickCount64();
+}
+
+bool EscapeRecently() {
+  NoteEscape();
+  return g_escape_at != 0 && GetTickCount64() - g_escape_at <= kEscapeWithinMs;
+}
 
 std::string Hex(uint32_t id) {
   char text[16];
@@ -350,14 +369,25 @@ void Pick(uint32_t player, Held* held) {
   const uint32_t id =
       static_cast<uint32_t>(strtoul(engine::GetLocalString(pc, "n5tw_o").c_str(), nullptr, 16));
   const int spell = static_cast<int>(held->order.spell);
-  if (id == 0 || id == ee::kObjectInvalid) {  // a right-click or Esc: the latest pick back
-    if (!held->rows.picked.empty()) {
-      const int row = held->rows.picked.back();
-      held->undo_id = held->rows.rows[static_cast<size_t>(row)];
-      held->undo_row = rules::TakeBackLatest(&held->rows);
+  if (id == 0 || id == ee::kObjectInvalid) {  // the targeting mode ended with no object: Esc or a right-click
+    // 0.99.99 (owner, 2026-11-20: "Esc cancels, right-click A"): Esc cancels the spell, nothing spent; a right-click
+    // takes back the latest dart of the target under the cursor (client_hover.h), whatever was picked after it.
+    if (EscapeRecently()) {
+      Log("target window: 0x%08X Esc - the spell cancelled", player);
+      Cancel(player);
+      return;
+    }
+    const uint32_t hovered = HoveredObject(kHoverLeftWithinMs);
+    const int row = rules::TakeBackTarget(&held->rows, hovered);
+    if (row >= 0) {
+      held->undo_id = hovered;
+      held->undo_row = row;
       held->undo_at = GetTickCount64();
       Refresh(player, held);
     }
+    Log("target window: 0x%08X right-click over 0x%x - %s", player, hovered,
+        row >= 0 ? ("row " + std::to_string(row + 1) + " taken back").c_str()
+                 : (hovered ? "it holds no dart or ray" : "nothing under the cursor"));
     EnterTargeting(player, spell);
     return;
   }
@@ -468,6 +498,7 @@ void ServerTick() {
     g_enter.clear();
     return;
   }
+  NoteEscape();
   for (auto& one : g_held) {
     if (one.second.open) continue;
     one.second.open = true;
@@ -510,6 +541,7 @@ bool InstallTargetWindow() {
   const bool ok = AddSpellOrderAdjuster(&Adjust) && AddSpellOrderGuard(&Guard) && AddNuiWindow(kWindow, &OnWindowEvent) &&
                   AddScriptHandler(kTargetScript, &OnTargetScript) && AddCreatureUpdateListener(&Update) &&
                   AddServerTickListener(&ServerTick);
+  InstallClientHover();  // a right-click's target (missing: logged; a right-click then takes nothing back)
   Log("target window: Magic Missile's darts and Scorching Ray's rays picked one a row before the cast (#171)%s",
       ok ? "" : " - SOME hooks missing");
   return ok;

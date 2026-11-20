@@ -1,6 +1,7 @@
 #include "rules/target_rows.h"
 
 #include <algorithm>
+#include <iterator>
 
 #include "rules/spells2024.h"
 
@@ -48,6 +49,18 @@ int TakeBackLatest(TargetRows* rows) {
   rows->picked.pop_back();
   rows->rows[static_cast<size_t>(row)] = 0;
   return row;
+}
+
+int TakeBackTarget(TargetRows* rows, uint32_t id) {
+  if (!rows) return -1;  // (`picked` lists filled rows only: an id 0 matches none)
+  for (auto it = rows->picked.rbegin(); it != rows->picked.rend(); ++it) {
+    const int row = *it;
+    if (rows->rows[static_cast<size_t>(row)] != id) continue;
+    rows->rows[static_cast<size_t>(row)] = 0;
+    rows->picked.erase(std::next(it).base());
+    return row;
+  }
+  return -1;
 }
 
 bool RestoreRow(TargetRows* rows, int row, uint32_t id) {

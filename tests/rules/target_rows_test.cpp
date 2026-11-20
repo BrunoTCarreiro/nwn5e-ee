@@ -149,6 +149,27 @@ TEST(TargetRowsCountsByTarget) {
   CHECK_EQ(static_cast<int>(CountsByTarget(empty).size()), 0);
 }
 
+// 0.99.99 (owner, 2026-11-20: "the removal goes in order of application, not by which enemy is hovered on" - "right-click
+// A"): a right-click takes back the latest dart of the target under the cursor, whatever was picked after it.
+TEST(TargetRowsTakeBackTarget) {
+  TargetRows t = MakeTargetRows(5, 5);  // rows: a(5) b(6) a(5) c(7), one empty
+  CHECK_EQ(AddTarget(&t, 6), true);
+  CHECK_EQ(AddTarget(&t, 5), true);
+  CHECK_EQ(AddTarget(&t, 7), true);
+  CHECK_EQ(TakeBackTarget(&t, 5), 2);  // a's latest is row 3, though c was picked after it
+  CHECK_EQ(t.rows[2], 0u);
+  CHECK_EQ(t.rows[0], 5u);             // a's first stays
+  CHECK_EQ(t.rows[3], 7u);             // c stays
+  CHECK_EQ(static_cast<int>(t.picked.size()), 3);
+  CHECK_EQ(t.picked.back(), 3);        // c is still the latest pick
+  CHECK_EQ(TakeBackTarget(&t, 5), 0);  // then a's first
+  CHECK_EQ(TakeBackTarget(&t, 5), -1); // a has none left
+  CHECK_EQ(TakeBackTarget(&t, 9), -1); // never picked
+  CHECK_EQ(TakeBackTarget(&t, 0), -1);
+  CHECK_EQ(TakeBackTarget(nullptr, 5), -1);
+  CHECK_EQ(FilledRows(t), 2);          // b and c
+}
+
 // 0.99.94 (#171's marker, the animation session's TargetCountMarkerVfx): the markers shown move to the counts now -
 // a target whose count changed or that left the rows loses its marker; a new or changed one gets its own.
 TEST(TargetRowsCountMarkerChanges) {

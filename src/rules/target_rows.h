@@ -38,6 +38,10 @@ bool ClearRow(TargetRows* rows, int row);
 // Empties the row filled last; the row emptied, -1 when none has a target.
 int TakeBackLatest(TargetRows* rows);
 
+// Empties the row filled last among those holding `id` (0.99.99: a right-click on that target); the row emptied, -1
+// when no row holds it.
+int TakeBackTarget(TargetRows* rows, uint32_t id);
+
 // Puts `id` back in row `row` as the latest pick (a take-back undone). False when the row is out of range or taken.
 bool RestoreRow(TargetRows* rows, int row, uint32_t id);
 
