@@ -10,7 +10,7 @@
 // mode (EnterTargetingMode, the module's OnPlayerTarget event: nwn5e's n5_target, the module's own script chained) picks
 // the rest: a creature fills the next empty row (the same creature again is another dart or ray); for Scorching Ray an
 // unlit fire light too (a lamp, a brazier, a torch bracket, a tile flame's stand-in: light_sources.cpp's). Each picked
-// target glows (VFX_DUR_GLOW_LIGHT_RED, tagged). [x] empties a row; a right-click (the event with no object) takes back
+// target glows (VFX_DUR_AURA_RED_LIGHT, tagged). [x] empties a row; a right-click (the event with no object) takes back
 // the latest dart of the target under the cursor, Esc cancels the spell (0.99.99). OK casts it again as it was ordered - ActionCastSpellAtObject at the first row's target
 // with its metamagic, its domain level (#36's slot) and its class - and the rows ride with it to the spell's script
 // (TakeWindowTargets: an empty row the last target picked's); Cancel (or the window's close) casts nothing. A click on
@@ -157,9 +157,12 @@ void StopTargeting(uint32_t player) {
   RunScriptChunk("EnterTargetingMode(OBJECT_SELF, 0);", player);
 }
 
+// The picked mark: 0.99.101 (owner, 2026-11-20: "I don't mind the red glow, it's the translucency" - picked A in the
+// animation session) VFX_DUR_AURA_RED_LIGHT (561: progfx 213, a self-illumination - the red hilite, no alpha) in place
+// of VFX_DUR_GLOW_LIGHT_RED (412: progfx 408 set the target's alpha to 0.5, and its attached tallies inherited it).
 void Mark(uint32_t player, uint32_t id) {
   RunScriptChunk(("object t = StringToObject(\"" + Hex(id) + "\"); if (GetIsObjectValid(t)) ApplyEffectToObject("
-                  "DURATION_TYPE_TEMPORARY, TagEffect(SupernaturalEffect(EffectVisualEffect(VFX_DUR_GLOW_LIGHT_RED)), "
+                  "DURATION_TYPE_TEMPORARY, TagEffect(SupernaturalEffect(EffectVisualEffect(VFX_DUR_AURA_RED_LIGHT)), "
                   "\"n5tw_mark\"), t, 300.0);")
                      .c_str(),
                  player);
