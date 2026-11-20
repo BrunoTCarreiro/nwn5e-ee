@@ -18,6 +18,7 @@
 //                                         (LD) the model with that animation's events of that name taken out
 //                                         (DropAnimationEvents: every other byte as it was), written to out.mdl:
 //                                         "dropped <n>"
+// A mode with the wrong number of arguments, or an option it doesn't know: the usage line, exit 2.
 #include <cstdio>
 #include <fstream>
 #include <iostream>
@@ -51,13 +52,19 @@ bool Emitters(const std::string& bytes, data::VfxEffect* effect, std::string* er
 }  // namespace
 
 int main(int argc, char** argv) {
-  if (argc < 2) {
+  // A mode with the wrong number of arguments (or one it doesn't know) is a usage error, exit 2 - never a file to read
+  // (LD fix round 1: "--drop-events" short of an argument read "--drop-events" as the model).
+  const std::string mode = argc >= 2 ? argv[1] : "";
+  const bool usage = argc < 2 || (mode == "--model" && argc != 4) || (mode == "--anims" && argc < 3) ||
+                     (mode == "--drop-events" && argc != 6) ||
+                     (mode.rfind("--", 0) == 0 && mode != "--model" && mode != "--anims" && mode != "--drop-events");
+  if (usage) {
     std::fprintf(stderr,
                  "usage: mdlmesh <file.mdl> | mdlmesh --model <draft.vfx> <name> | mdlmesh --anims <file.mdl>... | "
                  "mdlmesh --drop-events <anim> <event> <in.mdl> <out.mdl>\n");
     return 2;
   }
-  if (std::string(argv[1]) == "--model" && argc == 4) {
+  if (mode == "--model") {
     std::ifstream d(argv[2], std::ios::binary);
     std::stringstream ds;
     ds << d.rdbuf();
@@ -70,7 +77,7 @@ int main(int argc, char** argv) {
     std::cout << data::WriteVfxModel(effect, argv[3]);
     return 0;
   }
-  if (std::string(argv[1]) == "--anims") {
+  if (mode == "--anims") {
     for (int i = 2; i < argc; ++i) {
       std::string bytes, error;
       std::vector<data::ModelAnimation> anims;
@@ -99,7 +106,7 @@ int main(int argc, char** argv) {
     }
     return 0;
   }
-  if (std::string(argv[1]) == "--drop-events" && argc == 6) {
+  if (mode == "--drop-events") {
     std::string bytes;
     if (!ReadFile(argv[4], &bytes)) {
       std::fprintf(stderr, "can't open %s\n", argv[4]);

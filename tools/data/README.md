@@ -149,10 +149,16 @@ the lectern A" - the game's models that fountain, served without it, built from 
   - The "die" is untouched - its `detonate`s, its emitters and their keys - so the piece breaks with that burst once.
 - **Served** as the game's model's own name in the build's `data\files`; nwn5e copies `data\files` into its served
   folder, which the engine reads over the game's keys (src\core\data_serving.cpp) - where the torch's flame goes too.
-- **No burst left on three:** `plc_h10` (Cot), `plc_i02` (Birdbath) and `plc_q03` (Flag3) have no event in their
-  "die" - their debris lives only in "dead" (the Cot's and the Flag's "dead" also sinks the mesh, their "die" holds it
-  sunk: the two look swapped) - so without it they break with no debris: the mesh still sinks under the floor and the
-  Destroyed sound plays. Moving their "dead" detonates into "die" would give them one burst; the owner's call.
+- **Three get DE's debris instead:** `plc_h10` (Cot), `plc_i02` (Birdbath) and `plc_q03` (Flag3) have no event in
+  their "die" - their debris lived only in "dead" (the Cot's and the Flag's "dead" also sinks the mesh, their "die"
+  holds it sunk: the two look swapped). Their "die" stays the game's (the owner, 2026-11-20, chose B: their detonates
+  aren't moved into "die"), so they have no debris of their own - "a die detonate that sets off a chunk emitter" - and
+  the game session's death trigger gives them DE's material debris: the Cot and the Flag cloth small (row 2254), the
+  Birdbath stone large (row 2251). Until that trigger lands they break with no debris (the mesh still sinks under the
+  floor and the Destroyed sound plays).
+- **Checked at build time too:** each copy is read back beside the game's model (`mdlmesh --anims`) - the same form,
+  emitters and animations, each animation's events the game's but the "dead"'s, which are the game's without its
+  `detonate`s, none left (`oneburst.js`'s `verifyCopy`). A copy that isn't stops the build (exit 1), nothing written.
 - **Skipped, and said:** a listed model the game hasn't, or whose "dead" has no `detonate` now (a game update fixed it -
   the game's own is right then). The build goes on; the check fails until the list is updated.
 
@@ -191,3 +197,9 @@ the lectern A" - the game's models that fountain, served without it, built from 
     the build writes every other file byte for byte the same; a listed model the game hasn't, or whose "dead" has no
     `detonate`, is skipped and said; a file of a one-burst name in `--out` is rewritten;
   - the real worktree is untouched.
+
+`node tools\data\check_oneburst.js` checks `oneburst.js` without the game (a model built there; it needs only the mesh
+reader): `mdlmesh --anims` read right when an animation has no name, `derive`'s copy and its skips, `verifyCopy`
+refusing a copy that isn't the game's model minus its "dead"'s `detonate`s (one left, another event lost, the "die"
+changed, an animation, emitter or form changed, unreadable), and mdlmesh's usage error for a mode with the wrong
+number of arguments.

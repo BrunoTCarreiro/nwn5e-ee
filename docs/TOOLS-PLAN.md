@@ -2861,9 +2861,19 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     text refused; the ASCII block's lines) - 650 tests. check_derived.js: the list against the game; each copy against
     the game's model (animations, events, emitters, every other byte / line); without them every other derived file
     byte for byte the same; skips said; a one-burst name in --out rewritten.
-  - **Three break with no debris now:** plc_h10 (Cot), plc_i02 (Birdbath) and plc_q03 (Flag3) have no event in "die" -
-    their debris is only in "dead" (the Cot's and the Flag's "dead" also sinks the mesh: "die" and "dead" look swapped).
-    Literal A leaves them no burst (the mesh still sinks, the Destroyed sound plays). Moving their "dead" detonates into
-    "die" would give them one: the owner's call.
+  - **The three with no "die" burst get DE's debris (the owner, 2026-11-20: B):** plc_h10 (Cot), plc_i02 (Birdbath) and
+    plc_q03 (Flag3) have no event in "die" - their debris was only in "dead" (the Cot's and the Flag's "dead" also sinks
+    the mesh: "die" and "dead" look swapped). Their "die" stays the game's - their detonates aren't moved into it - so
+    they have no debris of their own (a "die" detonate that sets off a chunk emitter), and the game session's death
+    trigger gives them DE's material debris: the Cot and the Flag cloth small (row 2254), the Birdbath stone large (row
+    2251). Until it lands they break with none (the mesh still sinks, the Destroyed sound plays).
+  - **Fix round 1 (the review approved the code):** LD-1 breaks with Shatter only (the Academy's lectern and benches are
+    Useable 0 / Static: not clickable); the three's docs say B; `readModels` keeps an animation mdlmesh prints with no
+    name (`anim (\S*)`: the events after it landed on the wrong one); `derive` reads each copy back beside the game's
+    (`verifyCopy`: the same form, emitters and animations, the "dead" the game's minus its detonates, none left) - a bad
+    copy stops the build; `fountains` says a "dead" inherited from a supermodel isn't looked at (none today: 192 with a
+    supermodel, no chain with a detonating "dead"); mdlmesh's modes with the wrong number of arguments (or an unknown
+    option) give the usage line, exit 2. New game-free check `tools/data/check_oneburst.js` (4 checks, each failing
+    first). Mutations re-run: 14 of 14 C++ breaks caught.
   - **Row** LD-1 (#172): break the Academy's lectern - one burst of debris and smoke, no fountain over the next 2 s; a
     bench unchanged.

@@ -55,7 +55,7 @@ function readModels(reader, list) {
           cur = byFile.get(m[1]);
           if (cur) cur.error = m[2] || "unreadable";
           cur = null;
-        } else if (cur && (m = line.match(/^anim (\S+) length (\S+) header (\d+) events (\d+) (\d+)$/))) {
+        } else if (cur && (m = line.match(/^anim (\S*) length (\S+) header (\d+) events (\d+) (\d+)$/))) {  // a name may be "" (newanim alone)
           cur.anims.push({ name: m[1], length: Number(m[2]), header: Number(m[3]), eventAt: Number(m[4]), count: Number(m[5]), events: [] });
         } else if (cur && (m = line.match(/^event (\d+) (\S+) (\S+)$/))) {
           const a = cur.anims[Number(m[1])];
@@ -80,11 +80,37 @@ function readModels(reader, list) {
 const deadDetonates = (r) => r.anims.filter((a) => lower(a.name) === ANIM).reduce((n, a) => n + a.events.filter((e) => lower(e.name) === EVENT).length, 0);
 const bursts = (r) => r.emitters.some((e) => lower(e.update) === "explosion");
 
+// A copy as read (readModels) against the game's model as read: readable, the same form and emitters, the same animations
+// (name, length, header) with the same events - but the "dead"'s, which are the game's without its detonates, none left.
+// Throws "one burst: <model>: ..." when it isn't.
+function verifyCopy(model, game, copy) {
+  const fail = (what) => {
+    throw new Error(`one burst: ${model}: ${what} - nothing written`);
+  };
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  if (game.error || copy.error) fail(`the copy or the game's model can't be read back (${copy.error || game.error})`);
+  if (copy.form !== game.form) fail(`the copy is ${copy.form}, the game's ${game.form}`);
+  if (!same(copy.emitters, game.emitters)) fail("the copy's emitters aren't the game's");
+  if (copy.anims.length !== game.anims.length) fail(`the copy has ${copy.anims.length} animations, the game's ${game.anims.length}`);
+  game.anims.forEach((g, k) => {
+    const c = copy.anims[k];
+    if (!same([c.name, c.length, c.header], [g.name, g.length, g.header])) fail(`the copy's animation ${k} isn't the game's ("${g.name}")`);
+    if (lower(g.name) !== ANIM) {
+      if (!same(c.events, g.events)) fail(`the copy's "${g.name}" events aren't the game's`);
+      return;
+    }
+    if (c.events.some((e) => lower(e.name) === EVENT)) fail(`the copy has a ${EVENT} left in its "${ANIM}"`);
+    if (!same(c.events, g.events.filter((e) => lower(e.name) !== EVENT))) fail(`the copy's "${ANIM}" isn't the game's without its ${EVENT}s`);
+  });
+}
+
 // The copies: each of `models` as the game has it, its "dead"'s detonates taken out (mdlmesh --drop-events: vfx_model.cpp's
-// DropAnimationEvents - in place, every other byte as it was), under its own name. A model the game hasn't, or whose "dead"
-// has no detonate now (a game update), is skipped and said; a model the reader can't read or change stops it (throws).
+// DropAnimationEvents - in place, every other byte as it was), under its own name, then read back beside the game's and
+// checked (verifyCopy). A model the game hasn't, or whose "dead" has no detonate now (a game update), is skipped and said;
+// a model the reader can't read or change, or a copy that isn't the game's model minus its "dead"'s detonates, stops it
+// (throws).
 function derive({ models, res, reader }) {
-  const files = [], skipped = [];
+  const files = [], skipped = [], games = [];
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "n5_oneburst-"));
   try {
     for (const model of models) {
@@ -107,7 +133,11 @@ function derive({ models, res, reader }) {
         continue;
       }
       files.push({ name: model + ".mdl", bytes: fs.readFileSync(to), dropped, form: bytes.readUInt32LE(0) === 0 ? "compiled" : "ascii" });
+      games.push({ model, bytes });
     }
+    // Each copy read back beside the game's (one mdlmesh run for them all): a bad copy stops the build.
+    const read = readModels(reader, [].concat(...games.map((g, i) => [{ bytes: g.bytes }, { bytes: files[i].bytes }])));
+    games.forEach((g, i) => verifyCopy(g.model, read[2 * i], read[2 * i + 1]));
     return { files, skipped };
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -117,6 +147,9 @@ function derive({ models, res, reader }) {
 // The rule, from the game: each model placeables.2da names (once) whose "dead" has a detonate. -> { fountains: those with
 // an Explosion emitter (what a detonate sets off), sorted; idle: those without one - their detonate sets off nothing }.
 // `twoDa`: game_data.js's (text -> { columns, rows }).
+// Only a model's own "dead" is looked at: one it would inherit from its supermodel isn't. None does today - of the 192
+// placeable models with a supermodel, 191 have no "dead" of their own and none of their supermodels' chains has a
+// "dead" with a detonate (LD fix round 1, read 2026-11-20) - so a game update that adds one isn't caught here.
 function fountains({ res, reader, twoDa }) {
   const table = res("placeables", TWODA);
   if (!table) throw new Error("the game has no placeables.2da");
@@ -140,4 +173,4 @@ function fountains({ res, reader, twoDa }) {
   return out;
 }
 
-module.exports = { MODELS, ANIM, EVENT, readModels, derive, fountains, deadDetonates, bursts };
+module.exports = { MODELS, ANIM, EVENT, readModels, derive, verifyCopy, fountains, deadDetonates, bursts };
