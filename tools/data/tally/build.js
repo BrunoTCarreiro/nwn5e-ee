@@ -20,7 +20,7 @@
 // (check.js composites both).
 // Both quads are drawn unlit by our own fragment shader fsn5unlit (fix round 1, the owner's "1A"): the picked target's
 // red glow is a creature illumination the engine passes on to what's attached to it, and the game's lit fslit adds it
-// to the emission - it tinted the glow under enhanced lighting. Ours outputs texture0 times the material's alpha, nothing
+// to the emission - it tinted the glow under enhanced lighting. Ours outputs texture0 (colour and alpha), nothing
 // from lights, emission, fog, keyhole or the area-targeting highlight.
 // The files (data\files): for the 11 counts and the 3 spells (ss: mm Magic Missile, sr Scorching Ray, eb Eldritch Blast) -
 // - n5_tf_<ss>NN.mdl: an ASCII effect model, the two quads (0.5 x 0.25 m, in their node's x-z plane round its origin),
@@ -227,25 +227,25 @@ function shaderText() {
 }
 
 // The fragment shader, unlit (fix round 1, the owner's "1A"). Its inputs, from the game's own shaders (fst / fslit,
-// inc_standard, inc_common, inc_lighting; read in memory, values only) and the engine (GLRender::ConnectShaderData looks
-// up materialFrontDiffuse for every program; GLRender::SetUniforms uploads the material's colours to it whenever they
-// change, SetUniformColorFromSRGB - the alpha as it is): with LIGHTING, FOG and KEYHOLING 0 the standard setup
+// inc_standard, inc_common, inc_lighting; read in memory, values only): with LIGHTING, FOG and KEYHOLING 0 the standard setup
 // (SetupStandardShaderInputs, ApplyStandardShader) takes texture0 (white when none is bound) into the colour space and
 // back, multiplies it into FragmentColor and runs the engine's alpha discard (AlphaDiscard: fAlphaDiscardValue, 0.2 for
 // the blended meshes, -1 for the additive; `discard` itself gone in a NO_DISCARD variant) - and nothing else: no light,
 // no emission (where the creature's illumination comes in), no fog, no keyhole, and no area-targeting highlight (its
-// position isn't set up without lighting, fog or keyholing). FragmentColor starts as white at the material's alpha:
-// inc_lighting declares materialFrontDiffuse only with lighting on, so it's declared here - the mesh's alpha, any fade
-// with it.
+// position isn't set up without lighting, fog or keyholing). FragmentColor starts as opaque white: the alpha
+// is the texture's alone (TA, the owner's "go ahead with the shader fix for the tally") - the material's diffuse alpha
+// (materialFrontDiffuse.a, which the mesh's alpha and any fade reach) is left out, so a translucency inherited from the
+// picked target (its red glow makes the creature translucent and what is attached to it follows) can't fade the marker.
 function fragmentShaderText() {
   return [
-    `// ${FRAGMENT}.shd - nwn5e's unlit fragment shader (nwn5e-ee #171, TF): its texture, times the material's alpha`,
+    `// ${FRAGMENT}.shd - nwn5e's unlit fragment shader (nwn5e-ee #171, TF): its texture, colour and alpha, and nothing else`,
     "// Made by nwn5e-ee tools/data/tally/build.js (fragmentShaderText): change it there and rebuild, not here. The",
     "// target-count marker's materials (n5_tfb_NN, n5_tfg_<ss>NN) pair it with our vertex shader vsn5bill_sl. Nothing",
     "// lights it: no light, no emission - so a creature's illumination passed on to the marker (the picked target's red",
     "// glow) can't tint it - no fog, no keyhole, no area-targeting highlight. The game's standard fragment setup (its own",
     "// include, by name) with lighting, fog and keyholing off: texture0 in and out of the colour space, cut by the engine's",
-    "// alpha discard as its own shaders are; its alpha times the material's (the mesh's alpha, any fade with it).",
+    "// alpha discard as its own shaders are; its alpha the texture's alone - no material term (the mesh's alpha, any fade, the",
+    "// translucency the picked target passes on), so the marker stays solid over a translucent target.",
     "",
     "#define SHADER_TYPE 2",
     "#define FOG 0",
@@ -260,11 +260,9 @@ function fragmentShaderText() {
     "",
     '#include "inc_standard"',
     "",
-    "uniform mediump vec4 materialFrontDiffuse;",
-    "",
     "void main ()",
     "{",
-    "    FragmentColor = vec4(1.0, 1.0, 1.0, clamp(materialFrontDiffuse.a, 0.0, 1.0));",
+    "    FragmentColor = vec4(1.0);",
     "    SetupStandardShaderInputs();",
     "    ApplyStandardShader();",
     "    gl_FragColor = FragmentColor;",

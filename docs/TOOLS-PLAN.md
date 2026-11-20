@@ -2805,9 +2805,8 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       -> `Gob::SetIllumination(..., propagate)` -> "propagateillumination" to the attached Gobs, the marker's too - and
       fslit adds it to the emission: under enhanced lighting (gamma correction, the game's default) the glow went pale /
       amber / magenta. fsn5unlit is the game's standard fragment setup (`inc_standard`) with LIGHTING, FOG and
-      KEYHOLING 0: texture0 into the colour space and back, times white at the material's alpha (`materialFrontDiffuse.a`,
-      declared by it - `inc_lighting` declares it only with lighting; ConnectShaderData looks it up for every program and
-      SetUniforms uploads it whenever the material changes), cut by the standard `AlphaDiscard` (none in NO_DISCARD
+      KEYHOLING 0: texture0 into the colour space and back, opaque white (the alpha first read from the material -
+      see TA below), cut by the standard `AlphaDiscard` (none in NO_DISCARD
       variants). No light, emission, fog, keyhole or area-targeting highlight (TP's faint box in a spell's shape gone).
       The bars use it too (black can't be tinted, but the highlight would grey them; one program). 48 of 48 variants
       with vsn5bill_sl (`materialFrontEmissive` and the targeting uniforms not active), a broken copy 0 of 48.
@@ -2820,6 +2819,13 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       MaterialTexture0 takes an MTR's last `texture0` line, as the engine (each line overwrites).
     - Far off - a bar under about a pixel wide, at the pictures' small mip levels - the bars' alpha falls to 0.2 or
       under and is cut while the glow keeps its black slots: on snow or sky those show the background.
+  - **TA (the owner: "go ahead with the shader fix for the tally"; TF-1 / TF-2 failed on 0.99.100):** a picked enemy is
+    red-glowed (VFX_DUR_GLOW_LIGHT_RED) and translucent, and what is attached inherits the translucency - most likely the
+    mesh's material alpha, which fsn5unlit multiplied in - so the tally marks were hard to read (fine over a PC, not
+    translucent). fsn5unlit's output alpha is now texture0's alone, no materialFrontDiffuse (no longer declared; inactive in
+    all 48 variants with vsn5bill_sl; a broken copy 0 of 48). Colour, alpha discard and everything else unchanged; only
+    data/files/fsn5unlit.shd changes. Cost: a material alpha can't fade the marker (it has no keys or cessation, so none
+    ever did). Row note for TF-1 / TF-2's retest: the tallies stay solid over a picked (red, translucent) enemy.
   - **Unproven until TF-1..3 in game:** the bars drawn black over the glow in game (the order and depth as read); the
     glow untinted over a picked target with enhanced lighting (fsn5unlit); readability from the usual camera distance
     (the probe's size kept: bars 2 cm wide).
