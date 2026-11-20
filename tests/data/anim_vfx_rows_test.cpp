@@ -71,11 +71,16 @@ TEST(VisualEffectsRowFilesNeverShareARow) {
   CollectRows("data/looks", ".look.txt", false, &owner, &clashes, &in_looks_range, &files);
   CHECK_EQ(clashes, 0);
   CHECK_EQ(in_looks_range, 0);
-  CHECK_EQ(rows_files >= 10, true);  // visualeffects.txt and its 9 parts at TP (bleed ... tcount, tprobe)
+  CHECK_EQ(rows_files >= 11, true);  // visualeffects.txt and its 10 parts at TF (bleed ... tcount, tprobe, tally)
   CHECK_EQ(files - rows_files >= 2, true);
   CHECK_EQ(owner.count(2200) == 1 && owner[2200] == "visualeffects.tcount.txt", true);  // #171's marker is seen
   // #171's probe (TP): the camera-facing tally beside the marker's 2200-2210, a file of its own
   for (int row = 2211; row <= 2214; ++row) {
     CHECK_EQ(owner.count(row) == 1 && owner[row] == "visualeffects.tprobe.txt", true);
   }
+  // #171's final marker (TF): the three spells' tallies, 33 rows after the probe's, a file of their own
+  for (int row = 2215; row <= 2247; ++row) {
+    CHECK_EQ(owner.count(row) == 1 && owner[row] == "visualeffects.tally.txt", true);
+  }
+  CHECK_EQ(owner.count(2248), 0u);
 }

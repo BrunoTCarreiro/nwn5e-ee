@@ -1,0 +1,97 @@
+#MAXMODEL ASCII
+# nwn5e (tools/data/tally/build.js): #171's target-count marker (TF) - 3 as black tally marks on Magic Missile's
+# glow, two quads its vertex shader vsn5bill_sl turns to the camera: the bars (n5_tfb_03, alpha-blended) and the
+# glow 1 cm in front (n5_tfg_mm03, additive, black where the bars are). nwn5e's own art. No keys.
+newmodel n5_tf_mm03
+setsupermodel n5_tf_mm03 NULL
+classification effect
+setanimationscale 1
+beginmodelgeom n5_tf_mm03
+node dummy n5_tf_mm03
+  parent NULL
+endnode
+node trimesh n5_tf_mm03_bars
+  parent n5_tf_mm03
+  ambient 0 0 0
+  diffuse 0 0 0
+  specular 0 0 0
+  shininess 1
+  bitmap n5_tfb_03
+  render 1
+  shadow 0
+  beaming 0
+  inheritcolor 0
+  alpha 1
+  transparencyhint 0
+  selfillumcolor 1 1 1
+  tilefade 0
+  rotatetexture 0
+  position 0 0 0.55
+  orientation 0 0 0 0
+  verts 4
+    -0.25 0 -0.125
+    0.25 0 -0.125
+    0.25 0 0.125
+    -0.25 0 0.125
+  tverts 4
+    0 0 0
+    1 0 0
+    1 1 0
+    0 1 0
+  faces 2
+    0 1 2 1 0 1 2 0
+    0 2 3 1 0 2 3 0
+endnode
+node trimesh n5_tf_mm03_glow
+  parent n5_tf_mm03
+  ambient 0 0 0
+  diffuse 0 0 0
+  specular 0 0 0
+  shininess 1
+  bitmap n5_tfg_mm03
+  render 1
+  shadow 0
+  beaming 0
+  inheritcolor 0
+  alpha 1
+  transparencyhint 0
+  selfillumcolor 1 1 1
+  tilefade 0
+  rotatetexture 0
+  position 0 0 0.55
+  orientation 0 0 0 0
+  verts 4
+    -0.25 -0.01 -0.125
+    0.25 -0.01 -0.125
+    0.25 -0.01 0.125
+    -0.25 -0.01 0.125
+  tverts 4
+    0 0 0
+    1 0 0
+    1 1 0
+    0 1 0
+  faces 2
+    0 1 2 1 0 1 2 0
+    0 2 3 1 0 2 3 0
+endnode
+endmodelgeom n5_tf_mm03
+
+newanim impact n5_tf_mm03
+  length 0.25
+  transtime 0.25
+  animroot n5_tf_mm03
+node dummy n5_tf_mm03
+  parent NULL
+endnode
+doneanim impact n5_tf_mm03
+
+newanim duration n5_tf_mm03
+  length 1
+  transtime 0.25
+  animroot n5_tf_mm03
+node dummy n5_tf_mm03
+  parent NULL
+endnode
+doneanim duration n5_tf_mm03
+
+donemodel n5_tf_mm03

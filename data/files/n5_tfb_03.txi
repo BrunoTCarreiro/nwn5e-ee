@@ -1,0 +1,3 @@
+blending default
+downsamplemax 0
+downsamplemin 0

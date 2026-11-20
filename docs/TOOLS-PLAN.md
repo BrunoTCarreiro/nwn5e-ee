@@ -2753,3 +2753,57 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     48 combinations of the quality defines; the game's own vslit + fslit pass the same rig, a broken copy of ours fails.
   - **Unproven until TP-1 in game:** that the quad faces the camera and turns while paused; that the probe looks as
     the art does (additive on the scene); which way reads better.
+
+## The final marker: black tallies on each spell's glow, facing the camera (2026-11-20, #171; TF)
+
+  The owner, 2026-11-20, after TP-1: the face-on (spherical) style - "camera level for max readability for every angle" -
+  and "for now let's keep your generated style, but can we do it black on blue/orange/violet glow for magic missile,
+  scorching ray and eldritch blast respectively?"; then "can you make them 99.9% black so they don't get seen as
+  transparent?" (the bars #010101). tools/data/tally (build.js, check.js, README.md - the full reading there).
+  - **The call (the game session wires it):** `enum class TargetCountStyle { MagicMissile, ScorchingRay, EldritchBlast }`
+    and `int TargetCountMarkerVfx(TargetCountStyle style, int count)` (src/core/anim_target_counts.h, over
+    data::TargetTallyRow): -1 outside 1..11 or for a style the enum doesn't name. The spells are the game side's to map
+    (rules::kMagicMissile, rules::kScorchingRay; Eldritch Blast later) - agreed with the game session. The one-argument
+    `TargetCountMarkerVfx(count)` stays until they switch, now Magic Missile's look; the four discs' rows keep
+    data::TargetCountRow, unused.
+  - **Rows** 2215-2247 (data/rows/visualeffects.tally.txt, a file of its own; data::kTargetTallyFirstRow - a test reads
+    the file): style s, count n at 2215 + 11 s + n - 1 - Magic Missile 2215-2225, Scorching Ray 2226-2236, Eldritch
+    Blast 2237-2247; type D, head node, OrientWithObject 0. The clash test sees them (it failed first).
+  - **Two quads a model** (an additive glow can't draw black): the bars - #010101 with the strokes' alpha, alpha-blended
+    (TXI `blending default`; material `transparency 1`: never opaque, drawn with the blended meshes, cut at alpha 0.2) -
+    and the glow - the spell's colour (#3a7bff, #ff8a1e, #a040ff), additive, **black where the bars are opaque**, made 1
+    cm in front (y -0.01). Bars bitmaps n5_tfb_NN (one per count, all three spells), glows n5_tfg_<ss>NN; pictures
+    n5_tfbp_NN / n5_tfgp_<ss>NN (256 x 128, 32-bit; the probe's layout and glow kept); 33 models n5_tf_<ss>NN. Every
+    TXI - the 44 bitmaps' and the 44 pictures' own - says `downsamplemax 0` / `downsamplemin 0` (the owner: "add the
+    downsample lines to my textures too for now": the texture-quality setting shrinks a texture without them).
+  - **The order, read (nwmain-linux):** no sort by distance. `Scene::AddPartsTreeToDrawBuckets` files a mesh by its
+    material: additive (blend dst ONE) -> bucket 4; blended and not opaque (`Material::GetIsOpaque`: false for
+    `transparency`, SharedMaterial +0x1f0 as `SharedMaterial::ParseField` sets it) -> bucket 3; a bucket in tree order.
+    `Scene::RenderSinglePass` draws buckets 2 and 3 in `RenderDynamicGeometry` (3 with blend and alpha discard on:
+    `fAlphaDiscardValue` 0.2, else -1 - `GLRender::SetUniforms`; fslit's `AlphaDiscard` cuts alpha <= it) and bucket 4
+    ("Additive") last. So the bars come first, the glow after, every frame. Black under the bars, the glow adds nothing
+    there; 1 cm nearer the camera, the bars' depth never cuts it. Either order gives the same core and clear pixels
+    (check.js composites both); only the 1-pixel rim differs.
+  - **The shader `vsn5bill_sl`:** vsn5bill_s (TP) with `- vPos.y * toEye` in `vPosView` (`toEye = -centre / |centre|`):
+    a vertex's y moves it along the eye's line through the centre, so the glow lies 1 cm (x scale) nearer, its picture
+    the bars' scaled about the same screen point by |centre| / (|centre| - 1 cm) - under a pixel at the edge from 2 m.
+    Compiled and linked with fslit in all 48 quality variants by TP's rig (a broken copy: 0 of 48).
+  - **The bench:** its library export (nwn5e-tools dev/vfx_editor.cpp, the dev layer) copied each plane's bitmap's
+    picture and logged TP's and TF's material bitmaps "not found" on every export; now a name with no picture of its
+    own is read as a material and its texture0's picture copied under texture0's name (dev/vfx_library_texture.h; the
+    stand-in check dev/checks/check_library_texture.bat). The bench still doesn't show these models: its library lists
+    effects with an emitter, and these have none (adding one, as the discs had, would be an inert node beside a
+    camera-facing pair - not done); a plane named after a material would draw white there.
+  - **Checks:** check.js (the files, determinism, the layout as the probe's, the pictures - #010101, never 0 0 0 seen -
+    the glow black under the bars, the composite both ways on four grounds, the TXI (downsample lines on every one) /
+    MTR / model / shader lines, the shader's maths over 1800 cameras, the rows, data/files in step): 45 of 45 mutations
+    caught. test.bat: 4 new tests
+    (the style call and its bounds, the names, the rows file against the constants, the models as the dev layer reads
+    them with their materials and TXIs), the clash check widened.
+  - **Unproven until TF-1..3 in game:** the bars drawn black over the glow in game (the order and depth as read); the
+    look on the picked target (whether the picked red glow, a creature illumination the engine propagates to attached
+    objects, tints the glow layer - the black bars can't be tinted); readability from the usual camera distance (the
+    probe's size kept: bars 2 cm wide).
+  - **Candidates to retire (the owner's call):** the four discs (rows 2200-2210, data/files n5_tcnt_01..11 .mdl / .tga
+    / .txi, tools/data/tcount, data::TargetCountRow / TargetCountModel and their tests) and the probe (rows 2211-2214,
+    n5_tprobe_s3 / c3 / s7 / c7 .mdl / .mtr / .txi, n5_tally_03 / _07, vsn5bill_s / _c, tools/data/tprobe).
