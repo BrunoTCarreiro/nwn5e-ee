@@ -2019,6 +2019,14 @@ monster AC by CR.
           while its window is open. In the same install the per-spell tallies (anim TF, f3f8337; nwn5e-tools 141321e):
           Magic Missile blue, Scorching Ray orange (StyleOf; Eldritch Blast's violet waits on the Warlock). test.bat
           665 ok. Tests TW-12, TF-1 to TF-3 (the animation session's).
+        - *TF-3 passed; TF-1 and TF-2 failed (owner, 2026-11-20): "a targetted enemy has a red glow and is also
+          translucent. this translucency is also applied to the vfx making the tally marks hard to read".* The
+          animation session's engine read: VFX_DUR_GLOW_LIGHT_RED (412, progfx 408) sets the target's alpha to 0.5 and
+          attached models copy it. The owner: "I don't mind the red glow, it's the translucency". Offered (in the
+          animation session): A the light-red aura VFX_DUR_AURA_RED_LIGHT (561, progfx 213, no alpha), B an nwn5e
+          progfx row with the exact red, C another red aura. *Decided (owner, 2026-11-20): A.*
+        - *Built 0.99.101:* Mark() applies 561; with anim f679c0e (TA: the tally's alpha from its texture only).
+          Retest TF-1, TF-2 (the cursor over and off each picked enemy).
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
   - *Built 0.99.80 (level 2's build 1a):*
