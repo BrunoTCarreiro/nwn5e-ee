@@ -3738,7 +3738,12 @@ re-checked their exports). Shared between them — one piece of code each:
 these RP skills and maybe try to find a way to make them useful").** Features
 with no NWN use today, to look at for a role-play use (dialog checks,
 scripted moments, ambient effects):
-- Thieves' Cant (Rogue 1, R2).
+- Thieves' Cant (Rogue 1, R2). *Decided (owner, 2026-11-21, #73: "Your recommendations are good"):* listed with no
+  effect now (2024: a language - "You know Thieves' Cant and one other language of your choice", the Rare Languages
+  table; NWN has no languages); part of Languages when that's taken up (the languages a character knows recorded,
+  shown on the sheet, and checkable by module scripts - #167); and scripted moments in the campaigns during the
+  playthroughs (#72), e.g. a Rogue reading thieves' marks by a guild door. Not a generic "thieves' marks" hook (an
+  invented mechanic).
 - Second-Story Work (Thief 3, T2: climbing, jumping).
 - Slow Fall and Acrobatic Movement (Monk 4 / 9, M6).
 - The Monk's artisan's tool or musical instrument (M17).
