@@ -7,6 +7,20 @@ mode, the bench redesign (docs/BENCH-REDESIGN.md, its research in docs/research)
 checkout"); the sections below were moved from it verbatim. Decisions are given info-first and
 quoted here, as in PLAN.md.
 
+## Since the handoff (one session, 2026-11-21)
+
+- **#176, !vfx crashed the game** (the owner, 2026-11-21: "doing "!vfx" crashed the game"). The crash report:
+  `HandlePlayerToServerChatMessage` -> nwn5e.dll -> `RunScriptChunk` -> `ExecuteCode` -> `CExoString::InitFromCharArray`,
+  c0000005. The VFX browser handed its 1,136 labels to a script chunk as one literal, twice (NuiSetJson's bind, the
+  search's copy): about 35.7 KB escaped, past the 32,767 a compiled script's 16-bit string length holds. The recent
+  rows (the target-count markers 2215-2247, the debris 2248-2258) pushed it over. *Built 0.99.109:* nwn5e-ee
+  `data::ScriptStringBuild` (src/data/script_pieces.*; 7 of 7 mutations caught) - NuiSetJson and NuiSetText build their
+  value in 4,000-character pieces; nwn5e-tools dev/vfx_browser.cpp reads the search's copy back from the bind.
+- **#175, emitter areas up to 12 m and a Circle shape.** *Decided (owner, 2026-11-21): "go with A plus C, mixed
+  sizes"* (A: an area one emitter can't take written as tiles; C: a circle as non-overlapping rectangles of mixed
+  sizes - a middle square, one or two strips a side; not B, a spinning emitter). One emitter reaches about 6.5 m across:
+  the game's birth point is rand() % (half the area x 100), rand() 0..32767 (sim.js areaOffset). In progress.
+
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 
 The owner merged the two sessions to save tokens ("I think we need to join both sessions back in one, there has been a duplicating

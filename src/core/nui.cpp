@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "creature.h"
+#include "data/script_pieces.h"
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
@@ -101,16 +102,19 @@ int NuiToken(uint32_t player, const char* window_id) {
 void NuiSetText(uint32_t player, const char* window_id, const char* bind, const std::string& text) {
   const int token = NuiToken(player, window_id);
   if (!token) return;
-  const std::string code = "NuiSetBind(OBJECT_SELF, " + std::to_string(token) + ", " + ScriptString(bind) +
-                           ", JsonString(" + ScriptString(text) + "));";
+  // #176: the text built in pieces - one literal past 32,767 bytes crashes the game (data/script_pieces.h).
+  const std::string code = data::ScriptStringBuild("n5_text", text) + "NuiSetBind(OBJECT_SELF, " +
+                           std::to_string(token) + ", " + ScriptString(bind) + ", JsonString(n5_text));";
   RunScriptChunk(code.c_str(), player);
 }
 
 void NuiSetJson(uint32_t player, const char* window_id, const char* bind, const std::string& json) {
   const int token = NuiToken(player, window_id);
   if (!token) return;
-  const std::string code = "NuiSetBind(OBJECT_SELF, " + std::to_string(token) + ", " + ScriptString(bind) +
-                           ", JsonParse(" + ScriptString(json) + "));";
+  // #176 (the owner, 2026-11-21: "doing "!vfx" crashed the game"): the JSON built in pieces - !vfx's 1,136 labels as
+  // one 35 KB literal crashed the game (data/script_pieces.h).
+  const std::string code = data::ScriptStringBuild("n5_json", json) + "NuiSetBind(OBJECT_SELF, " +
+                           std::to_string(token) + ", " + ScriptString(bind) + ", JsonParse(n5_json));";
   RunScriptChunk(code.c_str(), player);
 }
 
