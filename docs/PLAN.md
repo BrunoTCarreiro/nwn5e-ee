@@ -2268,6 +2268,8 @@ monster AC by CR.
     Spellcasting - Wisdom on Sacred Flame's damage, at 14 twice Wisdom in Temporary Hit Points to the Cleric; a
     character Cleric 7+ without either gets Divine Strike; a character Cleric's spontaneous cast order refused (an
     NPC's AI keeps NWN's). The domains' extra spell slots wait for the spells (build 2).
+  - BS-4 passed; SP-1 dropped (owner, 2026-11-21: "I think we can drop SP-1") and DM-1 dropped (no Cleric saved
+    before 0.98.5). *Accepted (owner, 2026-11-21: "For the quick answers clean everything up").*
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
