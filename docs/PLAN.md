@@ -2577,7 +2577,7 @@ the movement extras (#55); then the staple actions (#56, a decision first).
   "A with c for later"):* NWN's Craft Trap entry removed in faithful (2024 has no trap crafting; NWN mode keeps it;
   the forges' Craft Armor / Weapon stay Smith's Tools checks); 2024 crafting (SRD 5.2.1: "To craft a nonmagical item,
   you need tools, raw materials, and time") later as its own system, #183 - the Character section gets "Crafting" then.
-  - *Built (#126 / #182, the cleanup; key `radial`, faithful by default - nwn / off: NWN's radial):* the WHAT in
+  - *Built 0.99.111 (#126 / #182, the cleanup; key `radial`, faithful by default - nwn / off: NWN's radial):* the WHAT in
     src/rules/radial_cleanup.{h,cpp}, the HOW in src/core/radial_pages.{h,cpp}, radial_special_attacks.cpp,
     radial_class_feats.cpp, rules_labels.cpp (hooks.cpp: RemoveCalls). The pages are code, with no "clear": an entry
     tied to a feat goes by taking the page's 3e feats off the client creature's two feat lists while its builder runs
