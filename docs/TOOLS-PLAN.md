@@ -63,6 +63,20 @@ quoted here, as in PLAN.md.
   replace Rate / Starts after / On for), a plane's fade (its timing makes it). check.js 576 drafts byte for byte;
   browser_check 136 ok (14 new); keys.js 14 of 14 breaks caught. Phase 2 (the generated keys - flicker, fades,
   timing - rebuilt over hand keys today) and phase 3 (an emitter's colour and size keyed) to come.
+  *KY-2 (owner: "KY-2 doesn't work ..."; fixed, nwn5e-tools 1c51992):* a new effect is a lasting one (its start
+  0.2 s), so Key at 0 s and 1 s landed in different parts and the Start table edited the 0 s key; every key now says
+  its part, a table row is its key, no jump to 0. *The fields (owner: "I don't see turn anywhere. can you label them in
+  red?"; 87362a5):* a keyable field marked ◆ in red, fully red with a key selected, its group opened and scrolled to.
+  *The sections (owner, 2026-11-21: "before phase 2, for looping effects, the timeline should have three sections start
+  section loop section and end section. If the loop option is checked when the effect is restarted the playhead should
+  start at 0 go through the start and loop sections and then return to the beginning of the loop section and run that
+  indefinitely ... if the loop option is unchecked it goes through the end section once it reaches the end of the loop
+  section"; built c9fe252):* a lasting effect's start, loop and end each once, their keys once; Loop ticked: 0 - start
+  - loop - back to the loop's start, the end never played; unticked: start, the loop once, the end, stop (unticked
+  mid-loop: the cycle finishes, then the end); particles live on across the jump (only the animation time wraps);
+  ticked during the end: the end finishes, then from 0; Seconds and Permanent set Play in game only; sim.js's
+  "sections" mode (off for the Spell & Attack Bench and area copies). browser_check 147 ok, composer_check, the
+  spell bench's effects and particles checks pass.
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 
