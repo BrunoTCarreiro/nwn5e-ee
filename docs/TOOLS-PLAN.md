@@ -16,6 +16,7 @@ quoted here, as in PLAN.md.
   rows (the target-count markers 2215-2247, the debris 2248-2258) pushed it over. *Built 0.99.109:* nwn5e-ee
   `data::ScriptStringBuild` (src/data/script_pieces.*; 7 of 7 mutations caught) - NuiSetJson and NuiSetText build their
   value in 4,000-character pieces; nwn5e-tools dev/vfx_browser.cpp reads the search's copy back from the bind.
+  VB-1 passed. *Accepted (owner, 2026-11-21: "everything looks good" - "ok, its good").*
 - **#175, emitter areas up to 12 m and a Circle shape.** *Decided (owner, 2026-11-21): "go with A plus C, mixed
   sizes"* (A: an area one emitter can't take written as tiles; C: a circle as non-overlapping rectangles of mixed
   sizes - a middle square, one or two strips a side; not B, a spinning emitter). One emitter reaches about 6.5 m across:
@@ -27,7 +28,14 @@ quoted here, as in PLAN.md.
   children with their share of the birthrate and of its own birthrate keys (an Explosion's burst in whole particles).
   The draft's area_shape = circle / area_edge = fine only when set. 16 of 16 mutations caught (one equivalent dropped).
   The bench: core.areaTiles (its twin; check_area_tiles.js), sim.js's preview from the pieces, the Area shape / Circle
-  edge fields, 12 m.
+  edge fields, 12 m. AT-1..3 passed. *Accepted (owner, 2026-11-21: "everything looks good" - "ok, its good").*
+- **#177, Play in game drew the default texture for your own textures** (the owner, 2026-11-21: n5_zot's circle "uses
+  something repeated in a 3x3 grid instead of my custom texture"). The game never reads its install's ovr folder (its
+  resource tables have none for it - the toolset's), where Texture Import saves yours and the bench lists them; a mesh's
+  built texture (n5s_ ...) sat only beside its saved draft. *Fixed in nwn5e-tools 5b54e45:* textures.js serveForPlay -
+  before a play, each texture its drafts name (emitters, planes, a plane's mesh's planes) found in ovr or saved\ is
+  copied into vfxedit\ with its TXI and material (check_textures.js servedForPlay). TX-1 passed. *Accepted (owner,
+  2026-11-21: "ok, its good").* Shipping an effect that uses one of your textures: a follow-up.
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 
