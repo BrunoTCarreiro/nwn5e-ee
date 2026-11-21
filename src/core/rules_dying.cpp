@@ -189,6 +189,8 @@ PauseStateFn g_pause_state = nullptr;
 void** g_app_manager = nullptr;
 using SetAnimationFn = void (*)(void* creature, int animation);
 SetAnimationFn g_set_animation = nullptr;
+using RecomputeAmbientFn = void (*)(void* creature);
+RecomputeAmbientFn g_recompute_ambient = nullptr;  // 0.99.108: a creature getting up - the engine's own posture
 
 bool Paused() {
   if (!g_pause_state || !g_app_manager || !*g_app_manager) return false;
@@ -689,8 +691,12 @@ void RunHenchmanScript(const char* code, uint32_t id) {
 void StandUp(void* henchman, uint32_t id) {
   const int posture = Field<uint8_t>(henchman, ee::kCreaturePosture);
   const int animation = Field<int32_t>(henchman, ee::kObjectAnimation);
-  SetField<uint8_t>(henchman, ee::kCreaturePosture, ee::kPostureStanding);
-  if (g_set_animation) g_set_animation(henchman, 0);
+  if (g_recompute_ambient) {
+    g_recompute_ambient(henchman);  // standing (a seat's sitting only), its "stand" animation
+  } else {
+    SetField<uint8_t>(henchman, ee::kCreaturePosture, ee::kPostureStanding);
+    if (g_set_animation) g_set_animation(henchman, 0);
+  }
   Log("dying: henchman 0x%08X stands - posture %d -> %d, animation %d -> %d", id, posture,
       Field<uint8_t>(henchman, ee::kCreaturePosture), animation, Field<int32_t>(henchman, ee::kObjectAnimation));
 }
@@ -1208,6 +1214,8 @@ void InstallDyingRules() {
   g_max_hit_points = reinterpret_cast<MaxHitPointsFn>(EngineExport(ee::kGetMaxHitPoints));
   g_pause_state = reinterpret_cast<PauseStateFn>(EngineExport(ee::kGetActivePauseState));
   g_set_animation = reinterpret_cast<SetAnimationFn>(EngineExport(ee::kCreatureSetAnimation));
+  g_recompute_ambient = reinterpret_cast<RecomputeAmbientFn>(EngineExport(ee::kRecomputeAmbientAnimationState));
+  if (!g_recompute_ambient) Log("dying: RecomputeAmbientAnimationState not found - a henchman getting up is set standing (0)");
   g_app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
   if (!g_pause_state || !g_app_manager) Log("dying: the pause state is unknown - death saves go on through a pause");
   if (!g_associate_id) {

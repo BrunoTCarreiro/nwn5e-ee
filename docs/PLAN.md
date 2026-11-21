@@ -2177,6 +2177,11 @@ monster AC by CR.
         script runs at once; `!spawn <resref> ally` gives the ally the stock henchman scripts (a monster's ignore a
         player's shouts). DE-1 (the bench's Play in game shows only n5_db_light) is the animation lane's, now this
         session's (one session since 2026-11-21).
+      - *Built 0.99.108:* the owner, on 0.99.107: "they all pass, except the [DH]-1b. then the henchman comes back he
+        uses a sitting position as his ready animation" and "he's attacking the enemy, so that's fixed". The posture
+        nwn5e wrote as standing (1, since 0.22.10) is sitting: RecomputeAmbientAnimationState writes 1 only with a
+        seat, 0 otherwise (the constructor's too). A henchman getting up now gets the engine's own pick
+        (RecomputeAmbientAnimationState: the posture, then its "stand" animation); 0 if that export is missing.
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).

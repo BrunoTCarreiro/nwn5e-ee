@@ -1483,11 +1483,16 @@ constexpr const char* kGetActivePauseState = "?GetActivePauseState@CServerExoApp
 constexpr size_t kCreaturePosture = 0x6b4;
 constexpr uint8_t kPostureLyingBack = 3;
 constexpr uint8_t kPostureLyingFront = 4;
-// Standing: what ClearAction (+0x4B8) and RecomputeAmbientAnimationState
-// (+0x2A) write for a creature that is neither dead nor dying (0 only in the
-// constructor; AIActionSit writes 1 too). 0.22.10: a henchman healed while
-// down kept OnApplyDamage's lying posture - nothing wrote standing again.
-constexpr uint8_t kPostureStanding = 1;
+// Standing: 0. 0.99.108 (#174, DH-1b: "then the henchman comes back he uses a
+// sitting position as his ready animation"): RecomputeAmbientAnimationState
+// writes 1 only with a seat (+0x82C a valid object - AIActionSit writes 1),
+// else 0 (2 in two movement modes, +0x771 5 or 6); a dead or dying creature
+// keeps 3 / 4 (4 if neither). 0.22.10's 1 was the sitting posture. A creature
+// getting up is given the engine's own pick (kRecomputeAmbientAnimationState).
+constexpr uint8_t kPostureStanding = 0;
+// void CNWSCreature::RecomputeAmbientAnimationState(): the posture above, then
+// SetAnimation(0) - the posture's own "stand" (vtable +0x100).
+constexpr const char* kRecomputeAmbientAnimationState = "?RecomputeAmbientAnimationState@CNWSCreature@@QEAAXXZ";
 constexpr size_t kObjectAnimation = 0xd8;
 constexpr const char* kCreatureSetAnimation = "?SetAnimation@CNWSCreature@@UEAAXH@Z";
 // Phase 5a: the HUD's Short Rest button (hud_rest.cpp). The buttons under the
