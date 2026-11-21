@@ -3750,7 +3750,13 @@ scripted moments, ambient effects):
   or jumping); readable by module scripts with #167 (a module's own climb or jump scene can let a Thief through or use
   Dexterity) - Spider Climb's Climb Speed the same way; and the campaigns' scripted climb or jump checks, if the
   playthroughs (#72) find any. No invented mechanic.
-- Slow Fall and Acrobatic Movement (Monk 4 / 9, M6).
+- Slow Fall and Acrobatic Movement (Monk 4 / 9, M6). *Decided (owner, 2026-11-21, #73: "Yeah, these all kind of fall
+  into the same bucket don't they", on the recommendation):* listed with no effect now (NWN has no falls, no walls to
+  walk and no liquids to cross); with #167 a "this creature falls N feet" function for modules' own pits and ledges
+  (2024's fall: 1d6 Bludgeoning per 10 ft; Slow Fall's Reaction takes off five times the Monk level; Feather Fall -
+  #153 looked at again then) and Acrobatic Movement readable for a module's own crossings; with #142 (ground
+  surfaces), if built, an unarmoured Monk 9+ crosses its liquid surfaces unaffected; the campaigns' scripted falls
+  through that function during the playthroughs (#72).
 - The Monk's artisan's tool or musical instrument (M17).
 - Survival (Primal Knowledge, B7).
 - Languages.
