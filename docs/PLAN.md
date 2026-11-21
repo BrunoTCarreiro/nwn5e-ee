@@ -2182,6 +2182,7 @@ monster AC by CR.
         nwn5e wrote as standing (1, since 0.22.10) is sitting: RecomputeAmbientAnimationState writes 1 only with a
         seat, 0 otherwise (the constructor's too). A henchman getting up now gets the engine's own pick
         (RecomputeAmbientAnimationState: the posture, then its "stand" animation); 0 if that export is missing.
+        DH-1c passed. *Accepted (owner, 2026-11-21: "DH-1c fixed").*
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
