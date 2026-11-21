@@ -1,0 +1,22 @@
+# The radial cleanup's tests (issue 126): !test familiarwizard with NWN's 3e feats already added - Empower Spell (3e Metamagic), Epic Spells, Summon Familiar - so
+# the radial shows them gone in faithful mode. Made from familiarwizard.txt; its own notes below.
+#
+# A !test profile ([debug] test_commands=1): type "!test familiarwizard" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #39 Part 2a build 4c: a Wizard 5, Intelligence 16 - Find Familiar, with Mage Armor and Shocking Grasp for its
+# touch.
+name = Radial cleanup (issue 126): familiarwizard with 3e feats 11, 1001, 303
+species = human
+swap_class = wizard
+class = wizard
+level = 5
+abilities = 8 14 14 16 12 10
+items = nw_wdbqs001 equip
+spells = Shocking Grasp, Fire Bolt, Ray of Frost, Light
+spells = Find Familiar, Mage Armor, Magic Missile, Shield, Burning Hands, Thunderwave, Sleep, Detect Magic, Feather Fall
+spellbook = Grease, Charm Person, Fog Cloud, Ice Knife, Expeditious Retreat
+note = Find Familiar: its menu picks the form, then Celestial, Fey or Fiend, then the slot level (an hour - or 70 minutes as a Ritual); Dismiss and Recall are on its menu's second page and your quickbar
+note = !spawn nw_orcb an enemy; !spawn nw_orca ally a henchman for Mage Armor's touch
+feats = 11, 1001, 303
