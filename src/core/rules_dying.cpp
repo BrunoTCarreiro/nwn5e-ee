@@ -646,6 +646,14 @@ constexpr const char* kGetUpScript =
     "SetPlotFlag(OBJECT_SELF, GetLocalInt(OBJECT_SELF, \"nwn5e_down_plot\"));"
     "DeleteLocalInt(OBJECT_SELF, \"nwn5e_down\"); DeleteLocalInt(OBJECT_SELF, \"nwn5e_down_plot\");"
     "ClearAllActions(TRUE);"
+    // 0.99.107 (#174, DH-1: "the revived henchman doesn't resume attacking the enemy"): the stock AI's one-round
+    // lock (nw_i0_generic: set at once, cleared by a queued action - cleared away while down) is lifted, and with an
+    // enemy in sight its own end-of-round script runs now: nothing else wakes it (it still sees the enemy - no new
+    // perception - and its queue is empty).
+    "DeleteLocalInt(OBJECT_SELF, \"X2_L_MUTEXCOMBATROUND\");"
+    "if (GetIsObjectValid(GetNearestCreature(CREATURE_TYPE_REPUTATION, REPUTATION_TYPE_ENEMY, OBJECT_SELF, 1, "
+    "CREATURE_TYPE_PERCEPTION, PERCEPTION_SEEN))) "
+    "ExecuteScript(GetEventScript(OBJECT_SELF, EVENT_SCRIPT_CREATURE_ON_END_COMBATROUND), OBJECT_SELF);"
     "object m = GetMaster(OBJECT_SELF); if (GetIsPC(m)) SendMessageToPC(m, \"nwn5e: \" + GetName(OBJECT_SELF) + "
     "\" gets back up.\");";
 

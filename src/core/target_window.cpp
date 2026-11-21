@@ -139,6 +139,7 @@ struct EnterAsk {
   ULONGLONG due = 0;
 };
 std::unordered_map<uint32_t, EnterAsk> g_enter;  // by player character
+std::unordered_map<uint32_t, uint32_t> g_click_picks;  // 0.99.107: a click outside the targeting mode, its target
 
 void EnterTargeting(uint32_t player, int spell) { g_enter[player] = EnterAsk{spell, GetTickCount64() + kEnterAfterMs}; }
 
@@ -150,6 +151,11 @@ void EnterTargetingNow(uint32_t player, int spell) {
                   types + ", MOUSECURSOR_MAGIC, MOUSECURSOR_NOMAGIC);")
                      .c_str(),
                  player);
+  static int logged = 0;  // 0.99.107: each ask logged (TW-13: the cursor never came), the first 40
+  if (logged < 40) {
+    ++logged;
+    Log("target window: 0x%08X the targeting cursor asked for (%s)", player, SpellName(spell));
+  }
 }
 
 void StopTargeting(uint32_t player) {
@@ -469,7 +475,7 @@ void Adjust(void* /*creature*/, SpellOrder* /*order*/, bool from_input) { g_from
 // an attack order (action 0xC). While the player's window is open, its attack orders are refused.
 constexpr uint32_t kActionAttack = 0xC;
 
-bool NoAttackWhilePicking(void* object, uint32_t action, uint32_t /*type1*/, const void* /*param1*/) {
+bool NoAttackWhilePicking(void* object, uint32_t action, uint32_t type1, const void* param1) {
   if (action != kActionAttack || !object) return false;
   const auto held = g_held.find(Field<uint32_t>(object, ee::kObjectId));
   if (held == g_held.end() || !held->second.open) return false;
@@ -479,6 +485,10 @@ bool NoAttackWhilePicking(void* object, uint32_t action, uint32_t /*type1*/, con
     Log("target window: 0x%08X's attack order refused - it's picking %s's targets", held->first,
         SpellName(held->second.order.spell));
   }
+  // 0.99.107 (owner, 2026-11-21, TW-13: "it doesn't seem like it can target enemies more than once"; the log: the
+  // targeting cursor never came, the clicks arriving as attack orders): a click on a target outside the targeting mode
+  // is taken as its pick, and the cursor asked for again (ServerTick).
+  if (type1 == kActionParamObject && param1) g_click_picks[held->first] = *static_cast<const uint32_t*>(param1);
   return true;
 }
 
@@ -492,6 +502,15 @@ bool Guard(void* creature, const SpellOrder& order) {
   }
   if (!creature) return false;
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  // 0.99.107 (owner, 2026-11-21: "Magic missile only allows to pick an object as the first target, then it can only
+  // target enemies"): SRD 5.2.1's darts strike "a creature of your choice" - an object as the cast's target is refused,
+  // nothing spent.
+  if (order.spell == static_cast<uint32_t>(rules::kMagicMissile) && order.target != ee::kObjectInvalid &&
+      order.target != 0 && !CreatureById(order.target)) {
+    TellPlayer(id, PlayerText("target_window.darts_creatures"));
+    Log("target window: 0x%08X Magic Missile at an object (0x%x) refused - its darts strike creatures", id, order.target);
+    return true;
+  }
   const auto old = g_held.find(id);
   if (old != g_held.end() && old->second.open) return true;  // a window already open: this order waits for it
   const int own = order.spell == static_cast<uint32_t>(rules::kMagicMissile) ? 1 : 2;
@@ -515,6 +534,26 @@ void ServerTick() {
     return;
   }
   NoteEscape();
+  if (!g_click_picks.empty()) {  // 0.99.107: a click outside the targeting mode - its pick, the cursor again
+    std::unordered_map<uint32_t, uint32_t> clicks;
+    clicks.swap(g_click_picks);
+    for (const auto& click : clicks) {
+      const auto held = g_held.find(click.first);
+      if (held == g_held.end() || !held->second.open) continue;
+      const int spell = static_cast<int>(held->second.order.spell);
+      const bool creature = CreatureById(click.second) != nullptr;
+      if (creature || spell == rules::kScorchingRay) {
+        if (rules::AddTarget(&held->second.rows, click.second)) {
+          Refresh(click.first, &held->second);
+        } else {
+          TellPlayer(click.first, PlayerText("target_window.full", {{"spell", SpellName(spell)}}));
+        }
+      }
+      Log("target window: 0x%08X a click on 0x%x outside the targeting mode - taken as its pick, the cursor asked again",
+          click.first, click.second);
+      EnterTargeting(click.first, spell);
+    }
+  }
   for (auto& one : g_held) {
     if (one.second.open) continue;
     one.second.open = true;
@@ -538,6 +577,11 @@ void ServerTick() {
 }
 
 }  // namespace
+
+bool PickingTargets(uint32_t player) {
+  const auto held = g_held.find(player);
+  return held != g_held.end() && held->second.open;
+}
 
 std::vector<uint32_t> TakeWindowTargets(uint32_t caster, int spell) {
   const auto found = g_sent.find(caster);

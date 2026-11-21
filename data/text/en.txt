@@ -753,4 +753,5 @@ target_window.cancel | generated | Cancel
 target_window.full | generated | nwn5e: {spell} - every row has a target; take one back first.
 target_window.no_target | generated | nwn5e: {spell} - no target picked; nothing cast.
 target_window.cancelled | generated | nwn5e: {spell} cancelled - nothing spent.
+target_window.darts_creatures | generated | nwn5e: Magic Missile's darts strike creatures only - nothing spent.
 spells2024.scorching_ray_lights | generated | nwn5e: Scorching Ray lights the {name}.

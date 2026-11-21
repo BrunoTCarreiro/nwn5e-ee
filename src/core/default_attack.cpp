@@ -34,6 +34,7 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "target_window.h"
 #include "rules/action_economy.h"
 
 bool HoldsRangedWeapon(void* creature);  // light_sources.cpp (baseitems.2da RangedWeapon)
@@ -99,6 +100,7 @@ bool NoteAttackOrder(void* object, uint32_t action, uint32_t type1, const void* 
   const uint32_t id = IdOf(object);
   void* creature = CreatureById(id);
   if (!creature || !IsPlayer(creature)) return false;
+  if (PickingTargets(id)) return false;  // 0.99.107: a click while picking a spell's targets is its pick
   const uint32_t target = *static_cast<const uint32_t*>(param1);
   if (!CreatureById(target) || !engine::IsEnemy(creature, target)) return false;
   Armed& armed = g_armed[id];
@@ -153,6 +155,8 @@ void OnCreatureUpdate(void* creature) {
     }
     return;
   }
+  // 0.99.107 (TW-13): not while it picks a spell's targets - each attack order cleared its queue every second.
+  if (PickingTargets(it->first)) return;
   if (!engine::HasNoOrders(creature) || Field<int32_t>(creature, kObjectCommandable) == 0) return;
   if (now < armed.next_try) return;
   armed.next_try = now + kRetryMs;

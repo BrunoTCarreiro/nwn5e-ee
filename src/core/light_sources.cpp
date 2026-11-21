@@ -1207,6 +1207,12 @@ void PlayBreaking() {
       }
       Run(code, one.id, "a breaking placeable's debris");
     }
+    // 0.99.107 (owner, 2026-11-21, DE-2: "destroying a candelabra/brazier with fire bolts doesn't seem to get rid of
+    // their light source"): a lit light breaking goes out - its illumination off, the area's light recomputed.
+    if (one.lit) {
+      Run(kDouse, one.id, "a breaking light out");
+      FillLights(one.id, false);
+    }
     if (logged < 30) {
       ++logged;
       Log("destruction: 0x%08X (placeables.2da row %zu, %s) breaks - %s%s", one.id, one.appearance, model.c_str(),

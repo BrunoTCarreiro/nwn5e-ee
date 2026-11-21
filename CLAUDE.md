@@ -139,7 +139,20 @@ same time, what else can we use?" - "go with A", a GitHub Project).
 
 ## Two sessions, two working copies
 
-Decided (owner, 2026-11-02, #123: "we need a better way tio isolate the two
+**One session since 2026-11-21** (owner: "I think we need to join both
+sessions back in one, there has been a duplicating of token usage that my
+budget cannot accomodate", then "go" to the game session taking over the
+animation lane). The game session does both streams: the animation files,
+nwn5e-tools, the benches and their tests too, with no forwarding or
+cross-session messages. The animation session's handoff is at the top of
+docs/TOOLS-PLAN.md. What below still holds: one installer building `main`'s
+committed tree, `kVersion` once per install, `git commit --only`, the launch
+checks and the log backups, and docs/TOOLS-PLAN.md for the tools stream's
+notes. What's retired: the front desk, the "anim ready" merges, and the lane
+ownership. `anim` and `..\nwn5e-ee-anim` stay as a place for longer animation
+work, merged like any branch.
+
+The two-session arrangement, as it was decided (owner, 2026-11-02, #123: "we need a better way tio isolate the two
 session so you don't have to be waiting for eachother", then "yes, go with
 1 + 2"; before, 2026-10-30, one checkout by rules). Two sessions, each in its
 own git working copy of this repo:

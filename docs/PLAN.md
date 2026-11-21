@@ -2163,6 +2163,18 @@ monster AC by CR.
         placeable at 0 HP once, on the next server frame its material's debris when its model has none of its own
         (rules::DebrisMaterialFor, IsGlassLabel, DebrisSizeFor; 12 of 12 mutations caught), and a light lit as it broke
         its death at its light's point. test.bat 688 ok. Tests DE-1, DE-2, LD-1 (the animation session's).
+      - *Built 0.99.107:* the owner, on 0.99.106: "destroying a candelabra/brazier with fire bolts doesn't seem to get
+        rid of their light source" - a lit light breaking now goes out (the douse, the area's light recomputed);
+        "Magic missile only allows to pick an object as the first target" - its darts strike "a creature of your
+        choice" (SRD 5.2.1), so an object as the cast's target is refused, nothing spent; for Scorching Ray (TW-13:
+        "it doesn't seem like it can target enemies more than once") the default attack is held while a window is
+        open (its attack every second ended the targeting cursor), a click outside the cursor is taken as a pick, and
+        each cursor request is logged. #174 (DH-1: "the revived henchman doesn't resume attacking the enemy. not
+        automatically, nor by being commanded to do so"): the stock AI's one-round lock (X2_L_MUTEXCOMBATROUND, cleared
+        by a queued action - lost while down) is lifted on getting up, and with an enemy in sight its own end-of-round
+        script runs at once; `!spawn <resref> ally` gives the ally the stock henchman scripts (a monster's ignore a
+        player's shouts). DE-1 (the bench's Play in game shows only n5_db_light) is the animation lane's, now this
+        session's (one session since 2026-11-21).
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).

@@ -220,6 +220,15 @@ std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
   std::string join = ally      ? "int n = 1; while (GetIsObjectValid(GetHenchman(OBJECT_SELF, n))) n++; "
                                  "if (GetMaxHenchmen() < n) SetMaxHenchmen(n); "
                                  "ChangeFaction(o, OBJECT_SELF); AddHenchman(OBJECT_SELF, o); "
+                     // 0.99.107 (#174, DH-1: "nor by being commanded to do so"): a monster's own scripts ignore
+                     // a player's shouts (nw_c2_default4) - the ally gets the stock henchman scripts and their setup.
+                                 "SetEventScript(o, 5000, \"x0_ch_hen_heart\"); SetEventScript(o, 5001, \"x0_ch_hen_percep\"); "
+                                 "SetEventScript(o, 5002, \"x0_ch_hen_spell\"); SetEventScript(o, 5003, \"x0_ch_hen_attack\"); "
+                                 "SetEventScript(o, 5004, \"x0_ch_hen_damage\"); SetEventScript(o, 5005, \"x0_ch_hen_distrb\"); "
+                                 "SetEventScript(o, 5006, \"x0_ch_hen_combat\"); SetEventScript(o, 5007, \"x0_ch_hen_conv\"); "
+                                 "SetEventScript(o, 5009, \"x0_ch_hen_rest\"); SetEventScript(o, 5010, \"x0_ch_hen_death\"); "
+                                 "SetEventScript(o, 5011, \"x0_ch_hen_usrdef\"); SetEventScript(o, 5012, \"x0_ch_hen_block\"); "
+                                 "ExecuteScript(\"x0_ch_hen_spawn\", o); "
                                  "SetLocalInt(OBJECT_SELF, \"nwn5e_test_joined\", GetMaster(o) == OBJECT_SELF); "
                      // 0.99.43 (L4-13: a neutral wolf attacked - the owner's Alchemist's Fire at a neutral orc
                      // had turned the whole commoners' faction hostile to them): the commoners neutral again.

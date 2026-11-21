@@ -17,3 +17,6 @@ std::vector<uint32_t> TakeWindowTargets(uint32_t caster, int spell);
 
 // With spellcasting faithful: the cast order's guard, the window, the targeting event.
 bool InstallTargetWindow();
+
+// 0.99.107: a player character with a target window open (default_attack.cpp holds its attacks then).
+bool PickingTargets(uint32_t player);
