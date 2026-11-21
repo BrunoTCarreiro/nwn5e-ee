@@ -2557,7 +2557,10 @@ the movement extras (#55); then the staple actions (#56, a decision first).
   HE-2 (Help, the house rule) untested: "very hard to test, I'll assume they work". The owner also asked for the
   radial's reorganization, later: #126 (owner, 2026-11-04: "Same for 126 as we need to have all actions done and
   ready before we reorganize it" - near the end, with #125: "125 is non essential, something to review once we're
-  almost done").
+  almost done"). *Decided (owner, 2026-11-21, #126: "B. We need to divide the first many level in the most important
+  sections and we need to look for nwn/3e specific menu items to remove them"):* the recon now, the build later (after
+  the actions): what the client lets us change in the radial; the first level divided into the most important
+  sections; an inventory of the NWN / 3e entries to remove. A brief first, then the owner's decision.
 *Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
 0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
 Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).
