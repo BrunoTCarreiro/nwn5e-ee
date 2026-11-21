@@ -117,6 +117,11 @@ same time, what else can we use?" - "go with A", a GitHub Project).
   the comman"). Its Setup names the `!test` profile (and what to pick in it),
   any `!spawn`, the bench to open; no Setup or Do says "After X" or leans on
   another row.
+- **No NWN-mode tests** (owner, 2026-11-21: "for any tests, I don't want to
+  have a toggle for nwn modes. If I want to play with nwn mode I will start the
+  game normally, not using the 5e bat"). No test asks the owner to switch a
+  rule (or a house rule) to NWN's behaviour in nwn5e.ini; a mode switch is
+  checked by the unit tests and the launch check's config line, not in game.
 
 ## Rules that always hold
 
