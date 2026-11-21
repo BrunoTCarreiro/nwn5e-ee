@@ -3768,6 +3768,14 @@ scripted moments, ambient effects):
 the other recommendations you listed".)
 *Decided (owner, 2026-11-15, #73: "hmmmmm, keep them listed for now. after we're done with the spell work we can go
 look through the game for areas where they can eb applied"):* listed; looked at after the spell work.
+*Decided (owner, 2026-11-21, #73: "Yeah, these all kind of fall into the same bucket don't they" - then "Yes" to one
+rule for the whole list):* each role-play feature (1) stays listed with no effect now; (2) is readable by module
+scripts when #167 is built (the languages a character knows, a Thief's climbing and jumping, a "falls N feet"
+function with Slow Fall and Feather Fall, Acrobatic Movement, tool proficiencies, Survival, Unseen Servant,
+Goodberry's nourishment); (3) gets scripted moments in the campaigns during the playthroughs (#72); (4) gets a hook in
+a later nwn5e system only when that system is built, decided then (Acrobatic Movement with #142's liquid surfaces; a
+musical instrument with NWN's Perform checks if Perform is ever touched; Goodberry with a food system). #73 closed;
+the work lives in #167 and #72.
 
 - R6, R7, R9-R12, T1-T4 A (R6 picked through X8, the Poisoner's Kit waived;
   R7 automatic on the first seen hit each round, using the round's
