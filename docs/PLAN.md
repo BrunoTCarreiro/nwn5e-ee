@@ -4724,6 +4724,8 @@ Hide does), and NWN has no cover data. Recommendation: later, with an
 has nothing to keep.
 *Decided (owner, 2026-11-15, #33: "yes, leave this for later when we revisit perception, especially after the
 vision cone work as that will affect this"):* later, with perception, after the vision cones' work (#9).
+*Kept (owner, 2026-11-21: "A for now"):* still deferred - the "attacking ends hiding" rule changes every hidden attack,
+so it's decided with the perception work (#9), and Three-Quarters Cover comes with #166 part 2.
 
 **T4. Use Magic Device (13).** Attune up to four items (NWN has no
 attunement); a property that spends charges spends none on a 6 on 1d6; any

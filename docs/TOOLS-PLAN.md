@@ -36,6 +36,12 @@ quoted here, as in PLAN.md.
   before a play, each texture its drafts name (emitters, planes, a plane's mesh's planes) found in ovr or saved\ is
   copied into vfxedit\ with its TXI and material (check_textures.js servedForPlay). TX-1 passed. *Accepted (owner,
   2026-11-21: "ok, its good").* Shipping an effect that uses one of your textures: a follow-up.
+- **#75, the preview's gaps.** Mesh effects: done (mesh beats, #39). *Decided (owner, 2026-11-21): "B, but the bench
+  doesn't have a floor, just a grid to show where it would be"* - the game's soft-particle fade in the preview
+  (PARTICLES.md section 6: a normally blended particle, not a splat, fades within min(0.2 m, 0.2 x its half size) of
+  the scene behind it, the fade squared), against an invisible floor at the grid (the game always has ground: a
+  particle below it fades out, as the ground hides it) and the figure while it's shown; fog not (area by area - Play
+  in game shows it). Not A (fog too) or C (neither).
 - **#179, "Key what you see"** (the owner, 2026-11-21: "each keyframe only allows to change the time and the position,
   right? ... this keygrame system is very confusing"). *Decided (owner, 2026-11-21): "go with A"* ("Key what you see":
   keys as diamonds on the timeline, an object's normal fields edit the selected key; not B a track per property or C
