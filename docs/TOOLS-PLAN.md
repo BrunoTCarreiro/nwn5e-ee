@@ -19,7 +19,15 @@ quoted here, as in PLAN.md.
 - **#175, emitter areas up to 12 m and a Circle shape.** *Decided (owner, 2026-11-21): "go with A plus C, mixed
   sizes"* (A: an area one emitter can't take written as tiles; C: a circle as non-overlapping rectangles of mixed
   sizes - a middle square, one or two strips a side; not B, a spinning emitter). One emitter reaches about 6.5 m across:
-  the game's birth point is rand() % (half the area x 100), rand() 0..32767 (sim.js areaOffset). In progress.
+  the game's birth point is rand() % (half the area x 100), rand() 0..32767 (sim.js areaOffset). *Built 0.99.110*
+  (nwn5e-tools f566a09): data::VfxAreaTiles - one piece when one emitter takes it (or for a Single or a Lightning);
+  else the area held to 12 m, a rectangle as a grid, a circle as its middle square (1 or 2 x 2) and one (Coarse) or
+  two (Fine) strips a side, each as wide as the circle at its middle (12 m: 8 / 16 emitters; 6 m: 5 / 9). WriteVfxModel
+  expands first: the emitter becomes the carrier (its name, place, keys, children; no birth) and the pieces its
+  children with their share of the birthrate and of its own birthrate keys (an Explosion's burst in whole particles).
+  The draft's area_shape = circle / area_edge = fine only when set. 16 of 16 mutations caught (one equivalent dropped).
+  The bench: core.areaTiles (its twin; check_area_tiles.js), sim.js's preview from the pieces, the Area shape / Circle
+  edge fields, 12 m.
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 
