@@ -47,7 +47,9 @@ quoted here, as in PLAN.md.
   through a depth pass (WEBGL_depth_texture; without it, the floor only); a "Soft particles" toggle (on). check_effect
   12 of 12 formula breaks caught, browser_check 140 ok (4 new; 6 of 6 shader breaks caught), composer_check passes.
   Known: a Normal particle behind the figure is hidden where the (undrawn) body is - a body-shaped gap, as the game's
-  body would hide it; the body is an approximation; chunk models count as solid.
+  body would hide it; the body is an approximation; chunk models count as solid. *Decided (owner, 2026-11-21): "For the
+  bench go with your recommendation B"* - the invisible body drawn as a faint silhouette, so the gap reads as the
+  character (not A, keep it unseen, or C, fade only in front of the body).
 - **#179, "Key what you see"** (the owner, 2026-11-21: "each keyframe only allows to change the time and the position,
   right? ... this keygrame system is very confusing"). *Decided (owner, 2026-11-21): "go with A"* ("Key what you see":
   keys as diamonds on the timeline, an object's normal fields edit the selected key; not B a track per property or C
