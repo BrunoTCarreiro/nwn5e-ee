@@ -3744,7 +3744,12 @@ scripted moments, ambient effects):
   shown on the sheet, and checkable by module scripts - #167); and scripted moments in the campaigns during the
   playthroughs (#72), e.g. a Rogue reading thieves' marks by a guild door. Not a generic "thieves' marks" hook (an
   invented mechanic).
-- Second-Story Work (Thief 3, T2: climbing, jumping).
+- Second-Story Work (Thief 3, T2: climbing, jumping). *Decided (owner, 2026-11-21, #73: "Go with your recommendation
+  for s second story work"):* listed with no effect now (2024: "Climber. You gain a Climb Speed equal to your Speed.
+  Jumper. You can determine your jump distance using your Dexterity rather than your Strength."; NWN has no climbing
+  or jumping); readable by module scripts with #167 (a module's own climb or jump scene can let a Thief through or use
+  Dexterity) - Spider Climb's Climb Speed the same way; and the campaigns' scripted climb or jump checks, if the
+  playthroughs (#72) find any. No invented mechanic.
 - Slow Fall and Acrobatic Movement (Monk 4 / 9, M6).
 - The Monk's artisan's tool or musical instrument (M17).
 - Survival (Primal Knowledge, B7).
