@@ -94,6 +94,15 @@ struct PatternPatch {
 };
 bool ApplyPatternPatches(const char* what, const PatternPatch* patches, size_t count);
 
+// Direct calls taken out (EP2's anchored patch, for a call that only adds something, e.g. a radial menu entry - #126):
+// the E8 rel32 at each `call` must land on its `target`; then all of them become five-byte NOPs, or none (logged).
+struct CallRemoval {
+  const char* what;
+  uintptr_t call;
+  uintptr_t target;
+};
+bool RemoveCalls(const char* what, const CallRemoval* calls, size_t count);
+
 // --- Code nothing exports (the client's GUI, docs/CHARGEN.md §10) ----------
 // Found by anchors that survive a rebuild of the same code, checked for
 // uniqueness, and skipped (logged) when they aren't: never hooked blind.

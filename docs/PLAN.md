@@ -2546,7 +2546,8 @@ the movement extras (#55); then the staple actions (#56, a decision first).
   - Dodge: 6 s in which rules_monk.cpp's MonkDodging answers yes (the Patient Defense Dodge: Disadvantage on attacks
     against it, Advantage on Dexterity saves, not while Incapacitated); the radial's Special Attacks slot 0 (Parry's).
   - Dash: 6 s of a movement rate bonus, the factor times two (rules::DashMovementFactor - not an effect, so the
-    engine's speed cap doesn't hold it back; the grapple's drag halves it); slot 2 (Improved Power Attack's).
+    engine's speed cap doesn't hold it back; the grapple's drag halves it); slot 2 (Power Attack's - until #182 this
+    said Improved Power Attack's, whose slot is 5).
   - Help (the house rule): its target by script (GetSpellTargetObject); a henchman rules_dying.cpp holds down
     (IsDownHenchmanUnderRules) - a d20 + the 2024 Medicine value (NWN's Heal through GetSkillRank) against DC 10
     (rules::HelpMedicineSucceeds); success: HelpDownHenchmanUp - the next pass stands it up at 1 HP ("helped up");
@@ -2576,6 +2577,29 @@ the movement extras (#55); then the staple actions (#56, a decision first).
   "A with c for later"):* NWN's Craft Trap entry removed in faithful (2024 has no trap crafting; NWN mode keeps it;
   the forges' Craft Armor / Weapon stay Smith's Tools checks); 2024 crafting (SRD 5.2.1: "To craft a nonmagical item,
   you need tools, raw materials, and time") later as its own system, #183 - the Character section gets "Crafting" then.
+  - *Built (#126 / #182, the cleanup; key `radial`, faithful by default - nwn / off: NWN's radial):* the WHAT in
+    src/rules/radial_cleanup.{h,cpp}, the HOW in src/core/radial_pages.{h,cpp}, radial_special_attacks.cpp,
+    radial_class_feats.cpp, rules_labels.cpp (hooks.cpp: RemoveCalls). The pages are code, with no "clear": an entry
+    tied to a feat goes by taking the page's 3e feats off the client creature's two feat lists while its builder runs
+    (RadialFeatsMasked, put back after); an entry the page always adds goes by turning its setter's call into a NOP
+    (found by its icon string's one lea, the call to the setter export after it). Special Attacks (the existing hook):
+    no Called Shot, Power Attack, Improved Power Attack (#182: the game's slot 5 - slot 2 is Power Attack, the notes
+    had them swapped), Disarm, nor More Special Attacks (Expertise, Improved Expertise, Sap, Rapid Shot, Dirty
+    Fighting, Stunning Fist, Whirlwind Attack: its page held nothing else, so slot 7 goes); Parry's call out - nwn5e's
+    Dodge, Disengage, Dash / Escape, Grapple, Shove, Shove: push left. Special Abilities: Crafting Skills' and Taunt's
+    calls out. Cast Spell (the spell menu's constructor, hooked): no 3e Metamagic page (IR_METAMAGIC - where the 2024
+    Sorcerer's Metamagic goes) nor Epic Spells (Epic Character), and Spell Special Abilities' call out (its page held
+    only NWN's Counterspell and Defensive Casting Mode). Class sections (radial_class_feats.cpp's OnMenu flip, now on
+    every menu): no Divine Might, Divine Shield, Remove Disease, Elemental Shape, Animal Companion, Summon Familiar,
+    Mighty Rage, Curse Song, Epic Dragon Shape. Labels (the FetchInternal swap): NWN's "Disengage" (1057) "Stop
+    Attacking", Detect Mode / Cancel Detect Mode "Search" / "Stop Searching", Stealth Mode / Cancel Stealth Mode
+    "Hide" / "Stop Hiding" (data/text/en.txt: Search and Hide srd, the rest generated) - renamed wherever they show
+    (the client uses them only for that: the rings, the quickbar's buttons and assign menus, the action queue's
+    icons). The quickbar's assign menus call the same builders, so they offer the cleaned pages. Nothing to do:
+    Pick Pocket / Animal Empathy already show as Sleight of Hand / Animal Handling (the skills' label swap, `skills`
+    faithful); the spontaneous Cure / Inflict ring has no caller in 89.8193.37 and spellcasting faithful serves
+    CanCastSpontaneously 0 (#36, #42). Tests: the RadialSpecialAttacks / CastSpell / FixedEntries / ClassSections /
+    Labels / LabelTexts / OtherRingSkillNames tests (44 of 44 mutations caught).
 *Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
 0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
 Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).

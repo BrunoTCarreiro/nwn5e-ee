@@ -304,6 +304,28 @@ bool ApplyPatternPatches(const char* what, const PatternPatch* patches, size_t c
   return true;
 }
 
+bool RemoveCalls(const char* what, const CallRemoval* calls, size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    if (!calls[i].call || !calls[i].target || CallTarget(calls[i].call) != calls[i].target) {
+      Log("SKIP %s: %s not found - none of its %zu calls taken out", what, calls[i].what, count);
+      return false;
+    }
+  }
+  static const uint8_t kNop5[kCallLength] = {0x0f, 0x1f, 0x44, 0x00, 0x00};  // nop dword [rax + rax + 0]
+  const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+  for (size_t i = 0; i < count; ++i) {
+    void* site = reinterpret_cast<void*>(calls[i].call);
+    DWORD old_protect = 0;
+    VirtualProtect(site, kCallLength, PAGE_EXECUTE_READWRITE, &old_protect);
+    memcpy(site, kNop5, kCallLength);
+    DWORD ignored = 0;
+    VirtualProtect(site, kCallLength, old_protect, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), site, kCallLength);
+    Log("patch %s: %s taken out at rva 0x%zx", what, calls[i].what, calls[i].call - base);
+  }
+  return true;
+}
+
 // --- Anchors for code nothing exports --------------------------------------
 
 namespace {

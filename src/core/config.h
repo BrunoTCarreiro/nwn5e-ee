@@ -311,6 +311,12 @@ struct Config {
   // Another creature's radial menu leaves out your self-only class feats
   // (Rage, Reckless Attack ...) instead of greying them (radial_class_feats.cpp).
   bool radial_hide_self_feats = true;
+  // #126 (owner, 2026-11-21: "we need to look for nwn/3e specific menu items to remove them"): faithful = the
+  // radial menu without NWN's / 3e's entries - Parry, Called Shot, (Improved) Power Attack, Disarm, More Special
+  // Attacks, Taunt, Crafting Skills, Counterspell and Defensive Casting, the 3e Metamagic page, Epic Spells and the
+  // NWN-only class abilities - and NWN's "Disengage" shown as "Stop Attacking", Detect / Stealth Mode as Search /
+  // Hide (rules/radial_cleanup.h; radial_pages.cpp); nwn / off = NWN's radial.
+  rules::RuleVariant radial = rules::RuleVariant::kFaithful;
   // #140 (owner, 2026-11-06): a spell, a spell-like ability or a feat's spell picked from the radial menu hands
   // over the quickbar's targeting cursor, its area shown, when the radial's target isn't the plain one - an area
   // spell, the ground, a harmful spell on yourself or an ally (radial_retarget.cpp).

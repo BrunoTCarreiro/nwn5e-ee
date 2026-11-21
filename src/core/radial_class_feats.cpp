@@ -17,6 +17,12 @@
 // are off the menu (OnMenu 0, put back after) while the collector and the
 // section page run: no greyed entries, and a class left with nothing gets no
 // slot. `radial_hide_self_feats`.
+// #126 (the radial faithful, rules/radial_cleanup.h): the class abilities NWN
+// has and the 2024 classes don't - Divine Might, Divine Shield, Remove Disease,
+// Elemental Shape, Animal Companion, Summon Familiar, Mighty Rage, Curse Song,
+// Epic Dragon Shape - are off every menu the same way (yours too), so the
+// quickbar's "Assign Special Abilities" (the same page builder) lists them no
+// more either; a section left with one feat shows it in place, as the game does.
 
 #include <windows.h>
 
@@ -29,6 +35,7 @@
 #include "creature.h"
 #include "hooks.h"
 #include "log.h"
+#include "rules/radial_cleanup.h"
 
 namespace {
 
@@ -74,18 +81,23 @@ constexpr size_t kClassFeatStride = 0x10;
 constexpr size_t kClassFeatOnMenu = 0xc;
 constexpr size_t kFeatTargetSelf = 0x2c;
 int g_logged = 0;
+int g_nwn_logged = 0;
 
 // The player's self-only class feats off the menu while one build runs, when
-// the menu is another creature's.
+// the menu is another creature's; the NWN-only ones off any menu (#126).
 class SelfFeatsOff {
  public:
   explicit SelfFeatsOff(void* menu) {
     void* app = g_app_manager && *g_app_manager ? *static_cast<void**>(*g_app_manager) : nullptr;
     void* player = app && menu ? g_player_creature(app) : nullptr;
-    void* rules = g_rules ? *g_rules : nullptr;
-    if (!player || !rules || Field<uint32_t>(menu, kMenuTarget) == Field<uint32_t>(player, kClientObjectId)) return;
+    void* game_rules = g_rules ? *g_rules : nullptr;
+    if (!player || !game_rules) return;
+    const bool others = Field<uint32_t>(menu, kMenuTarget) != Field<uint32_t>(player, kClientObjectId);
+    const bool self_only = g_config.radial_hide_self_feats && others;
+    const bool nwn_only = g_config.radial == rules::RuleVariant::kFaithful;
+    if (!self_only && !nwn_only) return;
     void* stats = Field<void*>(player, kClientCreatureStats);
-    uint8_t* classes = Field<uint8_t*>(rules, kRulesClasses);
+    uint8_t* classes = Field<uint8_t*>(game_rules, kRulesClasses);
     if (!stats || !classes) return;
     const uint8_t count = Field<uint8_t>(stats, kClientStatsClassCount);
     for (uint8_t slot = 0; slot < count && slot < 8; ++slot) {
@@ -96,8 +108,13 @@ class SelfFeatsOff {
         uint8_t* entry = feats + static_cast<size_t>(i) * kClassFeatStride;
         auto* on_menu = reinterpret_cast<int32_t*>(entry + kClassFeatOnMenu);
         if (*on_menu != 1) continue;
-        const void* feat = g_get_feat(rules, Field<uint16_t>(entry, 0));
-        if (!feat || Field<int32_t>(feat, kFeatTargetSelf) == 0) continue;
+        const uint16_t id = Field<uint16_t>(entry, 0);
+        if (nwn_only && rules::RadialHidesClassFeat(g_config.radial, id)) {
+          ++nwn_only_;
+        } else {
+          const void* feat = self_only ? g_get_feat(game_rules, id) : nullptr;
+          if (!feat || Field<int32_t>(feat, kFeatTargetSelf) == 0) continue;
+        }
         hidden_.push_back({on_menu, *on_menu});
         *on_menu = 0;
       }
@@ -107,18 +124,25 @@ class SelfFeatsOff {
     for (auto it = hidden_.rbegin(); it != hidden_.rend(); ++it) *it->first = it->second;
   }
   size_t Count() const { return hidden_.size(); }
+  size_t NwnOnly() const { return nwn_only_; }
 
  private:
   std::vector<std::pair<int32_t*, int32_t>> hidden_;
+  size_t nwn_only_ = 0;
 };
 
 // rcx is the creature menu at both call sites (the main menu and the "more
 // abilities" page), though the collector itself doesn't read it.
 void* CollectClassMenus(void* menu, void* records) {
   SelfFeatsOff off(menu);
-  if (off.Count() && g_logged < 5) {
+  if (off.Count() > off.NwnOnly() && g_logged < 5) {
     ++g_logged;
-    Log("radial: another creature's menu - %zu self-only class feats left off it", off.Count());
+    Log("radial: another creature's menu - %zu self-only class feats left off it", off.Count() - off.NwnOnly());
+  }
+  if (off.NwnOnly() && g_nwn_logged < 3) {
+    ++g_nwn_logged;
+    Log("radial: the class sections without %zu NWN-only class abilities of the character's (faithful, #126)",
+        off.NwnOnly());
   }
   return g_collect(menu, records);
 }
@@ -131,7 +155,8 @@ void* BuildClassMenu(void* menu, uint64_t index, uint64_t a3, uint64_t a4) {
 }  // namespace
 
 void InstallRadialClassFeats() {
-  if (!g_config.radial_hide_self_feats) return;
+  const bool nwn_only = g_config.radial == rules::RuleVariant::kFaithful;  // #126
+  if (!g_config.radial_hide_self_feats && !nwn_only) return;
   const uintptr_t match = FindPattern("the radial's class section builder (self-only feats)", kBuilderPattern);
   const uintptr_t builder = match ? FunctionEntry(match) : 0;
   g_player_creature = reinterpret_cast<PlayerCreatureFn>(match ? CallTarget(match + kPlayerCallOffset) : 0);
@@ -144,16 +169,24 @@ void InstallRadialClassFeats() {
   g_app_manager = reinterpret_cast<void**>(EngineExport(kAppManager));
   g_rules = reinterpret_cast<void**>(EngineExport(kRules));
   if (!builder || !collect || !g_player_creature || !g_class_of_slot || !g_get_feat || !g_app_manager || !g_rules) {
-    Log("SKIP radial: self-only class feats stay (greyed) on other creatures' menus - a piece wasn't found");
+    Log("SKIP radial: self-only class feats stay (greyed) on other creatures' menus, NWN-only ones on the class "
+        "sections - a piece wasn't found");
     return;
   }
-  if (!HookAddress("radial class slots (self-only feats off other creatures' menus)", collect,
+  if (!HookAddress("radial class slots (self-only feats off other creatures' menus; NWN-only ones off)", collect,
                    reinterpret_cast<void*>(&CollectClassMenus), reinterpret_cast<void**>(&g_collect))) {
     return;
   }
-  if (HookAddress("radial class section page (self-only feats off other creatures' menus)", builder,
-                  reinterpret_cast<void*>(&BuildClassMenu), reinterpret_cast<void**>(&g_build))) {
+  if (!HookAddress("radial class section page (self-only feats off other creatures' menus; NWN-only ones off)",
+                   builder, reinterpret_cast<void*>(&BuildClassMenu), reinterpret_cast<void**>(&g_build))) {
+    return;
+  }
+  if (g_config.radial_hide_self_feats) {
     Log("radial: self-only class feats (Rage, Reckless Attack ...) left off other creatures' menus "
         "(radial_hide_self_feats)");
+  }
+  if (nwn_only) {
+    Log("radial: the class sections without Divine Might, Divine Shield, Remove Disease, Elemental Shape, Animal "
+        "Companion, Summon Familiar, Mighty Rage, Curse Song, Epic Dragon Shape (faithful, #126)");
   }
 }

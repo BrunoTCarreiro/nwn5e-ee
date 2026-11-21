@@ -10,18 +10,31 @@
 // C1 (docs/CHARGEN.md): the creation screen's 2024 words and the species
 // texts (rules/species.h) — the game's string answered with nwn5e's, each
 // under its own key (species, ability_scores).
+//
+// #126 (the radial faithful, rules/radial_cleanup.h): NWN's "Disengage" (1057,
+// the Attack entry while attacking: it stops the attack) shows as "Stop
+// Attacking", Detect Mode / Stealth Mode (4848-4851, with their "Cancel")
+// as the Search and Hide actions - data/text/en.txt's texts, read at install.
+// The client uses those strings only for the same things (its rings - yours,
+// another creature's, a DM's -, the Special Abilities page, the quickbar's
+// buttons and assign menus, the action queue's icons), so each is renamed
+// wherever it shows.
 
 #include <stdint.h>
 
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "config.h"
 #include "ee_layout.h"
 #include "hooks.h"
 #include "log.h"
+#include "player_text.h"
 #include "data_serving.h"
 #include "grenades.h"
 #include "rules/grenades.h"
+#include "rules/radial_cleanup.h"
 #include "rules/saves.h"
 #include "rules/skills.h"
 #include "rules/species.h"
@@ -36,6 +49,7 @@ using ExoStringAssignFn = void* (*)(void* exo_string, const char* text);
 FetchInternalFn g_fetch_internal = nullptr;
 ExoStringAssignFn g_assign = nullptr;
 int g_logged = 0;
+std::vector<std::pair<uint32_t, std::string>> g_radial_labels;  // #126: strref -> its text (faithful)
 
 bool Faithful(rules::StringRule rule) {
   switch (rule) {
@@ -55,6 +69,10 @@ const char* Label2024(uint32_t strref) {
   if (!label) {
     const auto swap = rules::CreationStringSwap2024(strref);
     if (swap && Faithful(swap->rule)) label = DataString(swap->nwn5e);
+  }
+  // #126: the radial's NWN labels that clash with the 2024 actions.
+  for (const auto& radial : g_radial_labels) {
+    if (!label && radial.first == strref) label = radial.second.c_str();
   }
   // #124: the grenades' descriptions in 2024 terms (#130: the three flasks' with their patch when it's on).
   if (!label && GrenadesFaithful()) {
@@ -97,8 +115,10 @@ int FetchInternal(void* table, uint32_t strref, void* result, int flag) {
 }  // namespace
 
 void InstallLabelRules() {
+  size_t radial_count = 0;
+  const rules::RadialLabel* radial = rules::RadialLabels(g_config.radial, &radial_count);
   if (g_config.saves != rules::RuleVariant::kFaithful && g_config.skills != rules::RuleVariant::kFaithful &&
-      !HaveDataStrings()) {
+      !HaveDataStrings() && !radial_count) {
     return;
   }
   g_assign = reinterpret_cast<ExoStringAssignFn>(EngineExport(ee::kExoStringAssignChars));
@@ -106,6 +126,16 @@ void InstallLabelRules() {
     Log("SKIP labels: CExoString::operator=(const char*) is not exported");
     return;
   }
-  HookExport("CTlkTable::FetchInternal (2024 labels, nwn5e's strings)", ee::kTlkFetchInternal,
-             reinterpret_cast<void*>(&FetchInternal), reinterpret_cast<void**>(&g_fetch_internal));
+  if (!HookExport("CTlkTable::FetchInternal (2024 labels, nwn5e's strings)", ee::kTlkFetchInternal,
+                  reinterpret_cast<void*>(&FetchInternal), reinterpret_cast<void**>(&g_fetch_internal))) {
+    return;
+  }
+  // #126: read once here, so a lookup never reads the catalogue's file.
+  std::string renamed;
+  for (size_t i = 0; radial && i < radial_count; ++i) {
+    g_radial_labels.push_back({radial[i].strref, PlayerText(radial[i].key)});
+    renamed += (renamed.empty() ? "" : ", ") + std::string(radial[i].game) + " (" + std::to_string(radial[i].strref) +
+               ") as \"" + g_radial_labels.back().second + "\"";
+  }
+  if (!renamed.empty()) Log("radial: labels renamed (faithful, #126) - %s", renamed.c_str());
 }

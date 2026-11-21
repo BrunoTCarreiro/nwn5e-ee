@@ -4,13 +4,16 @@
 //
 // The client's Special Attacks page (IR_XATTACK) is a fixed list, not data: its
 // builder (BuildSpecialAttacks, 995090 in 89.8193.37; rcx the creature menu,
-// rdx the page or null for the menu itself) adds Parry, Called Shot, Power
-// Attack, Knockdown (slot 4), Improved Power Attack, Disarm (slot 6) and "More
-// Special Attacks" through one entry helper (9957a0: owner, feat | extra << 16,
-// page, slot, {RadialMenuUseFeat 998520, 0}, class 0xff) that skips a feat the
-// player lacks. Only a cls_feat OnMenu entry puts a feat anywhere else - the
-// class section, where 0.45.0 had it. Here, after the builder, nwn5e's feat
-// 1313 takes slot 6: Disarm does nothing in faithful (SK6), so its entry goes.
+// rdx the page or null for the menu itself) adds, each only for a character
+// with the feat, Improved Power Attack (19, slot 5), Knockdown / Improved
+// Knockdown (slot 4), Called Shot (slots 3 and 1), Disarm / Improved Disarm
+// (slot 6), Power Attack (28, slot 2) and "More Special Attacks" (slot 7), then
+// Parry (slot 0) always - the feat entries through one helper (9957a0: owner,
+// feat | extra << 16, page, slot, {RadialMenuUseFeat 998520, 0}, class 0xff)
+// that skips a feat the player lacks, the modes and Parry by SetEntryx. Only a
+// cls_feat OnMenu entry puts a feat anywhere else - the class section, where
+// 0.45.0 had it. Here, after the builder, nwn5e's feat 1313 takes slot 6:
+// Disarm does nothing in faithful (SK6), so its entry goes.
 // Over an entry the setter reuses the label and deletes the old icon but keeps
 // the slot's disabled bit (+0x1f8 + slot * 4) and counts the label again
 // (+0x7c4, read only by a log check): the bit is cleared first (the helper
@@ -19,14 +22,21 @@
 // Faithful only (the feat is granted then); the quickbar's assign menu uses the
 // same builder, so the push can go on the quickbar too.
 // G2 (0.49.0; owner's D2): the page's eight slots are all taken - 0 Parry, 1
-// Called Shot: Arm, 2 Improved Power Attack, 3 Called Shot: Leg, 4 Knockdown,
-// 5 Power Attack, 6 Disarm, 7 More Special Attacks (the builder's SetEntry and
-// AddFeatEntry calls) - so nwn5e's Grapple (1312) takes Called Shot: Leg's slot
-// 3, next to the Shove (Called Shot has no 2024 counterpart); the arm stays.
+// Called Shot: Arm, 2 Power Attack, 3 Called Shot: Leg, 4 Knockdown, 5
+// Improved Power Attack, 6 Disarm, 7 More Special Attacks (the builder's
+// SetEntry and AddFeatEntry calls) - so nwn5e's Grapple (1312) takes Called
+// Shot: Leg's slot 3, next to the Shove (Called Shot has no 2024 counterpart).
 // #54 (owner, 2026-11-02, 3 B): nwn5e's Disengage (1321, everyone's while the
 // actions are faithful) takes Called Shot: Arm's slot 1. #56: Dodge (1322) takes
-// Parry's slot 0 and Dash (1323) Improved Power Attack's slot 2 - neither has a
-// 2024 counterpart (Power Attack's slot 5 stays).
+// Parry's slot 0 and Dash (1323) Power Attack's slot 2 - neither has a 2024
+// counterpart. (Until #182 these notes had slots 2 and 5 the other way round.)
+// #126 / #182 (the radial faithful, rules/radial_cleanup.h): the page is built
+// without the character's 3e feats (radial_pages.h's RadialFeatsMasked) - so
+// no Called Shot, Power Attack, Improved Power Attack (slot 5 stays empty),
+// Disarm or More Special Attacks (its page held only 3e feats and the Monk's
+// Stunning Fist, which the Monk's class section keeps) - and Parry's entry is
+// taken out of the builder (RemoveRadialFixedEntries): nwn5e's entries alone
+// are left, with the Shove in slot 4.
 
 #include <stdint.h>
 
@@ -36,8 +46,10 @@
 #include "creature.h"
 #include "hooks.h"
 #include "log.h"
+#include "radial_pages.h"
 #include "rules/class_features.h"
 #include "rules/grapple.h"
+#include "rules/radial_cleanup.h"
 #include "rules/spells2024.h"
 
 namespace {
@@ -51,7 +63,9 @@ AddFeatEntryFn g_add_entry = nullptr;
 PlayerCreatureFn g_player_creature = nullptr;
 uintptr_t g_use_feat_handler = 0;  // RadialMenuUseFeat
 void** g_app_manager = nullptr;    // &g_pAppManager
+bool g_entries = false;            // nwn5e's entries placed (knockdown faithful)
 int g_logged = 0;
+int g_masked_logged = 0;
 
 constexpr const char* kAppManager = "?g_pAppManager@@3PEAVCAppManager@@EA";
 // The Disarm entry in the builder: lea rax,[RadialMenuUseFeat]; mov [rbp-40h],rax; mov [rbp-38h],esi;
@@ -81,7 +95,7 @@ constexpr Entry kEntries[] = {
     {rules::kFeatGrapple, 3, "Grapple", "Called Shot: Leg"},
     {rules::kFeatDisengage, 1, "Disengage", "Called Shot: Arm"},
     {rules::kFeatDodge, 0, "Dodge", "Parry"},
-    {rules::kFeatDash, 2, "Dash", "Improved Power Attack"},
+    {rules::kFeatDash, 2, "Dash", "Power Attack"},
     // #39 2a build 2c (Q1 A): Escape - the feat a creature Entangle holds has while it's held (Speed 0: no Dash).
     {rules::kFeatEscape, 2, "Escape", "Dash"},
 };
@@ -112,11 +126,19 @@ bool PlayerHasFeat(void* player, uint16_t feat) {
 }
 
 void BuildSpecialAttacks(void* creature_menu, void* page) {
-  g_build(creature_menu, page);
   void* menu = page ? page : creature_menu;
   void* app = g_app_manager && *g_app_manager ? *static_cast<void**>(*g_app_manager) : nullptr;
   void* player = app && menu ? g_player_creature(app) : nullptr;
-  if (!player || !(Field<uint8_t>(player, kPlayerMayAttack) & 0x80)) return;
+  {
+    // #126 / #182: the faithful radial's page without the character's 3e feats (none masked in NWN mode).
+    RadialFeatsMasked masked(player, rules::RadialPage::kSpecialAttacks);
+    g_build(creature_menu, page);
+    if (masked.Count() && g_masked_logged < 3) {
+      ++g_masked_logged;
+      Log("radial: the Special Attacks page built without the character's 3e feats (%s)", masked.Feats().c_str());
+    }
+  }
+  if (!g_entries || !player || !(Field<uint8_t>(player, kPlayerMayAttack) & 0x80)) return;
   for (const Entry& entry : kEntries) {
     const uint16_t feat = static_cast<uint16_t>(entry.feat);
     if (!PlayerHasFeat(player, feat)) continue;
@@ -140,7 +162,9 @@ void BuildSpecialAttacks(void* creature_menu, void* page) {
 }  // namespace
 
 void InstallRadialSpecialAttacks() {
-  if (g_config.knockdown != rules::RuleVariant::kFaithful) return;
+  const bool entries = g_config.knockdown == rules::RuleVariant::kFaithful;
+  const bool cleanup = g_config.radial == rules::RuleVariant::kFaithful;  // #126
+  if (!entries && !cleanup) return;
   const uintptr_t disarm = FindPattern("the radial's Special Attacks page (Disarm's entry)", kDisarmEntryPattern);
   const uintptr_t builder = disarm ? FunctionEntry(disarm) : 0;
   const uintptr_t start =
@@ -149,14 +173,26 @@ void InstallRadialSpecialAttacks() {
   g_use_feat_handler = disarm ? disarm + 7 + *reinterpret_cast<const int32_t*>(disarm + kHandlerLeaRel) : 0;
   g_player_creature = reinterpret_cast<PlayerCreatureFn>(start ? CallTarget(start + kPlayerCall) : 0);
   g_app_manager = reinterpret_cast<void**>(EngineExport(kAppManager));
+  // #126: the faithful radial's other pages (radial_pages.cpp) - Cast Spell's masking needs the creature getter.
+  InstallRadialPages(start ? g_player_creature : nullptr);
   if (!builder || !start || !g_add_entry || !g_use_feat_handler || !g_player_creature || !g_app_manager) {
-    Log("SKIP radial: Shove: push not on the Special Attacks page - a piece wasn't found (!shove push still works)");
+    Log("SKIP radial: the Special Attacks page stays the game's - a piece wasn't found (!shove push still works)");
     return;
   }
-  if (HookAddress("radial Special Attacks page (Shove: push in Disarm's slot)", builder,
-                  reinterpret_cast<void*>(&BuildSpecialAttacks), reinterpret_cast<void**>(&g_build))) {
+  g_entries = entries;
+  if (!HookAddress("radial Special Attacks page (nwn5e's actions; the 3e feats left out in faithful)", builder,
+                   reinterpret_cast<void*>(&BuildSpecialAttacks), reinterpret_cast<void**>(&g_build))) {
+    return;
+  }
+  if (entries) {
     Log("radial: Shove: push on the Special Attacks page, slot 6 (Disarm's - nothing in faithful); Grapple in slot 3 "
-        "(Called Shot: Leg's); Disengage, Dodge, Dash in slots 1, 0, 2 (Called Shot: Arm's, Parry's, Improved "
-        "Power Attack's), when the actions are faithful");
+        "(Called Shot: Leg's); Disengage, Dodge, Dash in slots 1, 0, 2 (Called Shot: Arm's, Parry's, Power Attack's), "
+        "when the actions are faithful");
+  }
+  if (cleanup) {
+    Log("radial: the Special Attacks page without the character's Called Shot, Power Attack, Improved Power Attack "
+        "(#182: slot 5), Disarm / Improved Disarm and More Special Attacks (Expertise, Improved Expertise, Sap, Rapid "
+        "Shot, Dirty Fighting, Stunning Fist, Whirlwind Attack) - faithful, #126");
+    RemoveRadialFixedEntries(rules::RadialPage::kSpecialAttacks, builder);
   }
 }

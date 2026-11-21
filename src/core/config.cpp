@@ -140,6 +140,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.drive_backward_fix = ReadBool(ini, L"drive_backward_fix", g_config.drive_backward_fix);
   g_config.stuck_layer_fix = ReadBool(ini, L"stuck_layer_fix", g_config.stuck_layer_fix);
   g_config.radial_hide_self_feats = ReadBool(ini, L"radial_hide_self_feats", g_config.radial_hide_self_feats);
+  g_config.radial = ReadVariant(ini, L"radial", g_config.mode);  // #126
   g_config.radial_retarget = ReadBool(ini, L"radial_retarget", g_config.radial_retarget);
   g_config.stealth_marker = ReadBool(ini, L"stealth_marker", g_config.stealth_marker);
   g_config.stealth_rings = GetPrivateProfileIntW(L"rules", L"stealth_rings", g_config.stealth_rings, ini);
@@ -199,7 +200,7 @@ void ConfigLoad(const wchar_t* directory) {
       "summon_creature=%d plot_dressing_breakable=%d",
       g_config.help_house_rule, g_config.flask_patches, g_config.long_rest_any_time,
       g_config.free_material_components, g_config.summon_creature, g_config.plot_dressing_breakable);
-  Log("config: spellcasting=%s", VariantName(g_config.spellcasting));
+  Log("config: spellcasting=%s radial=%s", VariantName(g_config.spellcasting), VariantName(g_config.radial));
   if (g_config.perception == rules::RuleVariant::kFaithful) {
     Log("config: hiding_needs_15=%d found_up_close=%d alert_creatures_search=%d hiders_need_search=%d vision_cone=%d "
         "found_ends_hiding=%d",
