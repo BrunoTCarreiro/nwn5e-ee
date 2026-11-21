@@ -41,7 +41,13 @@ quoted here, as in PLAN.md.
   (PARTICLES.md section 6: a normally blended particle, not a splat, fades within min(0.2 m, 0.2 x its half size) of
   the scene behind it, the fade squared), against an invisible floor at the grid (the game always has ground: a
   particle below it fades out, as the ground hides it) and the figure while it's shown; fog not (area by area - Play
-  in game shows it). Not A (fog too) or C (neither).
+  in game shows it). Not A (fog too) or C (neither). *Built (nwn5e-tools 4e6227b):* sim.js VfxSim.softness (k, Normal
+  blend only, not splats) and softFade; view.js a sprite program - the floor worked out from the view ray at z 0
+  (below it: alpha 0), the figure (an invisible body round the stick figure, about pmh0's volume) and solid meshes
+  through a depth pass (WEBGL_depth_texture; without it, the floor only); a "Soft particles" toggle (on). check_effect
+  12 of 12 formula breaks caught, browser_check 140 ok (4 new; 6 of 6 shader breaks caught), composer_check passes.
+  Known: a Normal particle behind the figure is hidden where the (undrawn) body is - a body-shaped gap, as the game's
+  body would hide it; the body is an approximation; chunk models count as solid.
 - **#179, "Key what you see"** (the owner, 2026-11-21: "each keyframe only allows to change the time and the position,
   right? ... this keygrame system is very confusing"). *Decided (owner, 2026-11-21): "go with A"* ("Key what you see":
   keys as diamonds on the timeline, an object's normal fields edit the selected key; not B a track per property or C
