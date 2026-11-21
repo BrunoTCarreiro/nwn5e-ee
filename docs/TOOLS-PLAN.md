@@ -36,6 +36,19 @@ quoted here, as in PLAN.md.
   before a play, each texture its drafts name (emitters, planes, a plane's mesh's planes) found in ovr or saved\ is
   copied into vfxedit\ with its TXI and material (check_textures.js servedForPlay). TX-1 passed. *Accepted (owner,
   2026-11-21: "ok, its good").* Shipping an effect that uses one of your textures: a follow-up.
+- **#179, "Key what you see"** (the owner, 2026-11-21: "each keyframe only allows to change the time and the position,
+  right? ... this keygrame system is very confusing"). *Decided (owner, 2026-11-21): "go with A"* ("Key what you see":
+  keys as diamonds on the timeline, an object's normal fields edit the selected key; not B a track per property or C
+  one combined list), *then "Go with A"* (automatic keys: a change to a keyed property makes or updates a key at the
+  playhead; Move all keys to move everything; not B, keys only on Key). *Built, phase 1 (nwn5e-tools eaacbd6; the bench
+  only, the draft format unchanged):* public/keys.js (key times, animation spans, values between keys, Key, retime,
+  remove, degrees) - diamonds on each beat's, copy's, light's, mesh beat's and keyed node's row; Key (K); a diamond
+  selects its key and the fields edit it, turns as degrees x, y, z; drag to retime, Delete, Ctrl+Z; automatic keys;
+  Move all keys (a checkbox). Keyable: a node's and an emitter's position and turn, a light's position, colour and
+  radius, a mesh beat's position, turn and size; shown but not keyable yet: an emitter's own birthrate and fade (they
+  replace Rate / Starts after / On for), a plane's fade (its timing makes it). check.js 576 drafts byte for byte;
+  browser_check 136 ok (14 new); keys.js 14 of 14 breaks caught. Phase 2 (the generated keys - flicker, fades,
+  timing - rebuilt over hand keys today) and phase 3 (an emitter's colour and size keyed) to come.
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 
