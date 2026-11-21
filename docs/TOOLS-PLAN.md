@@ -7,6 +7,75 @@ mode, the bench redesign (docs/BENCH-REDESIGN.md, its research in docs/research)
 checkout"); the sections below were moved from it verbatim. Decisions are given info-first and
 quoted here, as in PLAN.md.
 
+## Handoff, 2026-11-21 (the animation session -> the mechanics session)
+
+The owner merged the two sessions to save tokens ("I think we need to join both sessions back in one, there has been a duplicating
+of token usage that my budget cannot accomodate"; on the mechanics session's proposal - it continues and takes the animation lane -
+"go"). This is the animation lane's state at the handoff.
+
+**Trees.** nwn5e-ee-anim `anim` = main (fast-forwarded to 092bd33, then this commit); nothing unmerged. nwn5e-tools `main` @
+**419d5ca** (BX); the tools archive the installs build with needs no change since **141321e** (`git diff 141321e..419d5ca -- dev` is
+empty: TI and BX are bench-only) - archive 419d5ca or 141321e alike. Leftover worktrees: **ds-anim** (branch `ds-downsample`) and
+**ds-tools** (branch `ds-downsample-tools`) under `C:\Users\Bruno\.claude\jobs\deffbb5f\tmp\animtex\` hold *uncommitted, abandoned*
+edits of the DS pass (downsample lines on every nwn5e TXI - stopped: this engine reads no `downsample` line) - safe to discard:
+`git worktree remove --force <path>` then `git branch -D ds-downsample` / `ds-downsample-tools`. `nwn5e-ee-vfxfix` (branch vfxfix) is
+older, not this lane's last work. The live anim tree has the owner's **untracked** files - never commit or delete them unasked:
+tools/data/composer/{mbkglyph,test,tmocrate,tmoglyph,zotruth}.json, data/files/plc_n5tmocrate.pwk, data/rows/placeables.tmocrate.txt
+(TMO-3: commit the tmocrate project, its .pwk and rows file when the owner says it's saved and final).
+
+**Open bug - DE-1 on 0.99.106** (the owner: "it seem slike only the n5_db_light shows in game, the others dont" - the n5_db_*
+effects via the bench's Play in game). Not investigated. The lead: the ten debris effects are **Explosion** emitters that throw
+only on a **detonate** event in their impact animation (DE pinned the events in the shipped models: tests/data/anim_debris_test.cpp,
+tools/data/debris/check.js); n5_db_light is Fountain emitters + a light (no detonate needed) - which is the one that shows. Check
+whether the bench's Play in game path (the draft -> WriteVfxModel via the dev layer) keeps animation **events** at all (the draft
+format carries keys - KF - not events?); if it drops them, the debris never fires from the bench while the shipped rows (2248-2257,
+the game session's destruction trigger) may still work - DE-2 in game tells. Fix either the draft/writer (carry `event` lines) or
+DE-1's steps (play the row, not the draft).
+
+**Open board rows of this lane** (stream animation; the board: `python -I scripts/tests_board.py`):
+- **#172:** DE-1 (failing as above), DE-2 (in game: Fire Bolt on lit lights, Shatter the rest), LD-1 (the lectern - one burst).
+- **#39:** DC-2, DC-3, DC-4 (DC / MV's texture work: a Soft shape's rim, a decal glyph tinted, a breathing glyph alone); BL-1, TIN-2,
+  TIN-3, MBK-2, TMO-3 (needs the owner's "saved" first), TMO-4 (flipbook frame order); SHP-1..5, SHP-7 (shapes); CO-1..10 (the
+  Composer). **To retire, on the owner's word:** TIN-1 (covered by DC-3) and SHP-6 (by BL-1) - offered, not yet answered.
+- **#164:** VT-1, VT-2, BF-1, VF-1..8 (the VFX Bench basics).
+- #171 is done (TF-1..3, TC-2, TP-1 passed). Older lanes' rows (#74-#116 mocap / recipes, #145-#162 benches and attacks, mostly on
+  hold - mocap per the owner) are unchanged.
+
+**Follow-ups noted, not started:** the stealth / death-save markers are particle sprites, so they don't show while paused (TC
+finding); a keyed emitter's timeline bar can show where nothing spawns (rate < 1), keyed Explosions drawn as long bars, two same-named
+nodes read as one (KF review minors); the tally's far-off bars go grey around a pixel wide (TF); DH's first break of a big model costs
+up to ~37 ms on the game thread (pre-warm if it shows); its cache lasts the process.
+
+**Conventions to keep:**
+- **Work in worktrees** (`git worktree add` under the job's tmp), never the live nwn5e-ee-anim / nwn5e-tools trees while the owner
+  tests (their benches run from them); land by `--ff-only` or a `--no-ff` merge; one git command per call; `git commit --only <paths>
+  -F <file>`; never `git add -A` / `git -C` / push. Announce edits to shared files (src/data/vfx_model.*, src/core outside anim_*,
+  build.bat) before committing.
+- **Checks** (all from the repo roots): test.bat (NWN5E_PRIVATE unset; 668 at 5d6076e); tools/data/floatdisk/check.js, check_build.js;
+  tools/data/composer/check.js, check_build.js; tools/data/check_derived.js, check_oneburst.js; tools/data/debris/check.js,
+  tally/check.js; nwn5e-tools vfx_bench check_*.js (check_textures.js new), browser_check.mjs (port 18766), composer_check.mjs (18778),
+  check_composer_server.js (`--port`; never the live 8766); texture_import/check.js (+ its browser check, 18771 / 18772).
+- **build_derived** (tools/data/build_derived.js, run by build.bat; `NWN5E_DERIVED=skip` builds aren't for installing): the n5s_ soft
+  textures, the torch flames, and LD's **16 one-burst copies** (tools/data/oneburst.js: the "dead" loop's detonates dropped; written
+  into %OUT%\data\files under the game's resrefs; git-ignored by name; never committed; the build stops on a bad copy).
+- **The tools archive:** when nwn5e-tools dev/ changes, "anim ready" names the tools commit and the install builds with its archive;
+  the library format trait (dev/vfx_library_format.h) is 20 (KF). **The bench helper** (nwn5e-tools anim_helper\build_helper.bat, from
+  nwn5e-ee beside): its `stamp` must equal build\core_stamp.txt - rebuild after an install that moves the recipe core (it matched at
+  0.99.106).
+- **Engine facts this lane settled** (each from nwmain-linux, the same build as win32 26c6e57; the reports below): a mesh's blend comes
+  only from `<bitmap>.txi` (an MTR's texture0 TXI never sets blending); `decal 1` = unlit, the material ignored; flipbook frames are
+  textures of their own; additive = GL_SRC_ALPHA, GL_ONE with the material's alpha; a picked creature's ProgFX alpha / illumination
+  propagates to attached effect models (fsn5unlit takes texture alpha only); area copies get a white Hilite (AH's hook UnHilites ours);
+  a duration model's cessation keeps it on screen (never give a marker one, never a 0-length one); paused, no particle is born but a
+  mesh draws; `downsample*` TXI lines are not read; the play folders are rebuilt by UpdateResourceDirectory (MV).
+- **Where the reports live:** `C:\Users\Bruno\.claude\jobs\deffbb5f\tmp\animtex\` - the briefs (*-brief.md), reports (*-report.md),
+  engine diagnoses (*-diag-report.md: SHP8, MV, BR, AR, TL, TR, TC, DB-recon), reviews' probes (rv_*), the ledger progress.md.
+  **They go when that job is deleted** - this section keeps what's needed. Two folders there hold game-derived scratch output
+  (ldprobe\base_out, ldprobe\new_out - never committed; my delete was refused): delete them.
+- **The owner's preferences:** decisions info-first, plain options, no pop-ups; short test instructions; game files and art made from
+  them never committed; deletions only on the owner's itemized OK; the owner's own art goes in via Texture Import
+  (nwn5e-tools texture_import\) and docs/GUIDE-custom-graphics.md.
+
 ## VFX Bench — 0.42.0 to 0.44.0 (2026-10-26; moved from PLAN.md's Phase 5 log)
 
   0.42.0 (owner, 2026-10-26: "can you come up with a webapp to edit and
