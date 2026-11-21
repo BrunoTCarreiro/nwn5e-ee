@@ -2034,6 +2034,10 @@ monster AC by CR.
           (rules::ObjectArmorClass: NWN's placeableobjsnds.2da ArmorType - leather 11, wood 15, stone 17, plate 19,
           else 15; rules::AttackAgainstObject); on a hit 2d6 Fire, and an unlit fire light catches. A ray row takes any
           placeable. 10 of 10 mutations caught; test.bat 667 ok. Test TW-13 (TW-7 superseded).
+        - *0.99.107:* Magic Missile's darts creatures only (*decided (owner, 2026-11-21): "no, you're right, the rules
+          say target creature"*); the default attack held while the window is open. TW-3..6, TW-8, TW-12, TW-13b, TW-14
+          passed. *Accepted (owner, 2026-11-21: "Close 171 and 158").* Later: the window's UX reworked (#180: "eventually
+          we'll have to change the UX for these spells, but not right now") and a ray's miss shown (#181).
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
   - *Built 0.99.80 (level 2's build 1a):*
@@ -7125,6 +7129,7 @@ history, DoConsoleHist / g_listHistory, is its developer console's).
   the codes were swapped. HandleWMKeyDownMessage makes 0x126 for Up and 0x128 for Down (0x125 / 0x127 are Left /
   Right); 0.99.18 read the text box's line and caret calls the wrong way round, so Left / Right walked the history
   and Up did nothing. The caret is set through +0x168 (Home's call), not +0x158 (the line's).
+- CH-2..4 passed. *Accepted (owner, 2026-11-21: "Close 171 and 158").*
 
 ### The installed version in game (#173)
 
