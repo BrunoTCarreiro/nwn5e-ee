@@ -2567,7 +2567,12 @@ the movement extras (#55); then the staple actions (#56, a decision first).
   - by turn: Actions, Magic, Bonus Actions, Class Features, the game's context slot, Issue Command, Options &
   Reactions, Character. Asked: a character with no magic and the Magic slot (SRD 5.2.1's Magic action: "you cast a
   spell that has a casting time of an action or use a feature or magic item that requires a Magic action to be
-  activated").
+  activated"). *Decided (owner, 2026-11-21: "3. List them in both. ... Otherwise it's good"):* Magic keeps its name -
+  spells, magic items activated, magical features; empty when a character has none (a radial's slots never move);
+  class features stay in Class Features, even those that are Magic actions; a feature that's both a Bonus Action and a
+  class feature listed in both sections; Character Sheet a level down (C stays); NWN's "Disengage" renamed "Stop
+  Attacking"; another creature's ring a light change; no greyed places for actions not built; the cleanup (the NWN / 3e
+  removals, the renames, #182) built soon, the new layout after #125's actions. Crafting Skills: asked.
 *Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
 0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
 Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).
