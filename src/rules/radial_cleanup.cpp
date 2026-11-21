@@ -100,4 +100,42 @@ const char* RadialLabelKey(RuleVariant radial, uint32_t strref) {
   return nullptr;
 }
 
+RadialRing RadialRingOf(uint32_t target, uint32_t master, uint32_t player) {
+  if (target == kRadialNoObject) return RadialRing::kGround;
+  if (target == player) return RadialRing::kYours;
+  if (master == player && player != kRadialNoObject) return RadialRing::kYourAssociate;
+  return RadialRing::kAnotherCreature;
+}
+
+const char* RadialRingName(RadialRing ring) {
+  switch (ring) {
+    case RadialRing::kYours:
+      return "your";
+    case RadialRing::kYourAssociate:
+      return "your associate's";
+    case RadialRing::kAnotherCreature:
+      return "another creature's";
+    case RadialRing::kGround:
+      return "the ground's";
+  }
+  return "?";
+}
+
+std::string RadialRingSlots(RadialRing ring, unsigned slots) {
+  // The game's entries in each slot (the #126 brief: the self ring 98ec00, the ground's 84def0).
+  static const char* const kYours[8] = {"Character Sheet", "Cast Spell", "Attack",           "Special Attacks",
+                                        "party / polymorph", "Issue Command", "Special Abilities", "Emote"};
+  static const char* const kGround[8] = {nullptr,           "Cast Spell",          "Move To", "More Actions",
+                                         "Jump All Players", nullptr,              "Special Abilities", "Jump to Point"};
+  const char* const* names = ring == RadialRing::kYours ? kYours : ring == RadialRing::kGround ? kGround : nullptr;
+  std::string list;
+  for (int slot = 0; slot < 8; ++slot) {
+    if (!(slots & (1u << slot))) continue;
+    if (!list.empty()) list += ", ";
+    list += std::to_string(slot);
+    if (names && names[slot]) list += std::string(" ") + names[slot];
+  }
+  return list.empty() ? "none" : list;
+}
+
 }  // namespace rules

@@ -22,6 +22,12 @@
 // - The spontaneous Cure / Inflict ring (CreateSpontaneousCastingMenuRadial, 992920, from 9927f0) has no caller in
 //   this build (no call, jump, lea or pointer reaches 9927f0), and spellcasting faithful serves classes.2da with
 //   CanCastSpontaneously 0 (#36) and refuses a character Cleric's spontaneous order (#42): nothing left to remove.
+// - Which ring opened (0.99.111's first test, owner: "there's nothing much on the radial" - the log showed only
+//   Special Abilities pages built for a menu with no creature: the ring the ground opens, 84def0 - Cast Spell, Move
+//   To, More Actions, Special Abilities -, which never had Special Attacks): the creature menu's ring builder (98e550:
+//   yours 98ec00, a DM's, your associate's, another creature's 993790) and the ground's are hooked to log the first
+//   rings - whose, and the slots set (+0xf8 + slot * 8, a label each); the ground's builds its own CRadialMenu, seen
+//   by the game's constructor count (g_nCRadialMenu_ctorCounter: it may return without one).
 
 #include "radial_pages.h"
 
@@ -36,11 +42,17 @@ namespace {
 
 using PlayerCreatureFn = void* (*)(void* client_app);
 using SpellMenuCtorFn = void* (*)(void* self, void* point, uint64_t target, uint64_t assigning, uint64_t from_menu);
+using CreatureRingFn = void (*)(void* creature_menu, uint64_t a2);
+using GroundRingFn = void (*)(void* owner, const void* point);
 
 PlayerCreatureFn g_player_creature = nullptr;
 SpellMenuCtorFn g_spell_menu = nullptr;
 void** g_app_manager = nullptr;  // &g_pAppManager
 int g_cast_logged = 0;
+CreatureRingFn g_creature_ring = nullptr;
+GroundRingFn g_ground_ring = nullptr;
+const int32_t* g_menus_made = nullptr;  // &g_nCRadialMenu_ctorCounter
+int g_rings_logged = 0;
 
 constexpr const char* kAppManager = "?g_pAppManager@@3PEAVCAppManager@@EA";
 constexpr const char* kSetEntry = "?SetEntryx@CRadialMenu@@QEAAXHPEBDIPEAXP8CCallbackHandlerBase@@EAAX_J@Z2@Z";
@@ -52,6 +64,20 @@ constexpr uint16_t kNoFeat = 0xffff;                  // past feat.2da: CNWRules
 constexpr size_t kEntryCallWithin = 64;               // the setter's call after the icon's lea (12-42 bytes here)
 constexpr const char* kSpecialAbilitiesAnchor = "isk_taunt";  // referenced by the Special Abilities page alone
 constexpr const char* kCastSpellAnchor = "IR_SPELL_ABS";      // by the spell menu's constructor alone
+constexpr const char* kGroundRingAnchor = "IR_MOVETO";        // by the ground's ring alone
+constexpr const char* kMenusMade = "?g_nCRadialMenu_ctorCounter@@3HA";
+// The creature menu's ring builder, at its own-ring check: mov eax,[rax+8]; cmp [rdi+7F8h],eax; jne; mov rcx,rdi;
+// mov rbx,[rsp+60h]; add rsp,40h; pop rdi; jmp <your ring>; cmp [rdi+804h],eax (your associate's?); jne
+constexpr const char* kCreatureRingPattern =
+    "8B 40 08 39 87 F8 07 00 00 75 12 48 8B CF 48 8B 5C 24 60 48 83 C4 40 5F E9 ?? ?? ?? ?? 39 87 04 08 00 00 0F 85";
+constexpr size_t kMenuTarget = 0x7f8;
+constexpr size_t kMenuTargetMaster = 0x804;
+constexpr size_t kMenuLabels = 0xf8;  // per slot, 8 bytes
+constexpr size_t kClientObjectId = 0x8;
+constexpr int kRingsLogged = 8;
+// The ground's ring's game entries (84def0; a DM's two more not counted): Cast Spell, Move To, More Actions,
+// Special Abilities.
+constexpr unsigned kGroundRingSlots = 0x4e;
 
 const char* PageName(rules::RadialPage page) {
   switch (page) {
@@ -89,6 +115,47 @@ void* SpellMenu(void* self, void* point, uint64_t target, uint64_t assigning, ui
         masked.Feats().c_str());
   }
   return menu;
+}
+
+uint32_t PlayerId() {
+  void* player = Player();
+  return player ? Field<uint32_t>(player, kClientObjectId) : rules::kRadialNoObject;
+}
+
+void CreatureRing(void* creature_menu, uint64_t a2) {
+  g_creature_ring(creature_menu, a2);
+  if (!creature_menu || g_rings_logged >= kRingsLogged) return;
+  ++g_rings_logged;
+  unsigned slots = 0;
+  for (int slot = 0; slot < 8; ++slot) {
+    if (Field<void*>(creature_menu, kMenuLabels + slot * 8)) slots |= 1u << slot;
+  }
+  const uint32_t target = Field<uint32_t>(creature_menu, kMenuTarget);
+  const rules::RadialRing ring =
+      rules::RadialRingOf(target, Field<uint32_t>(creature_menu, kMenuTargetMaster), PlayerId());
+  Log("radial: %s ring opened (0x%08X) - %s", rules::RadialRingName(ring), target,
+      rules::RadialRingSlots(ring, slots).c_str());
+}
+
+void GroundRing(void* owner, const void* point) {
+  const int32_t before = g_menus_made ? *g_menus_made : 0;
+  g_ground_ring(owner, point);
+  if (!g_menus_made || *g_menus_made == before || g_rings_logged >= kRingsLogged) return;
+  ++g_rings_logged;
+  Log("radial: the ground's ring opened - %s (Special Attacks is on your own ring: right-click your character or "
+      "its portrait)",
+      rules::RadialRingSlots(rules::RadialRing::kGround, kGroundRingSlots).c_str());
+}
+
+// The log of the first rings opened - whose, and what they hold - in either mode.
+void InstallRingLog() {
+  const uintptr_t check = FindPattern("the creature menu's ring builder (its own-ring check)", kCreatureRingPattern);
+  HookAddress("radial: the creature menu's rings (logged: whose, the slots set)", check ? FunctionEntry(check) : 0,
+              reinterpret_cast<void*>(&CreatureRing), reinterpret_cast<void**>(&g_creature_ring));
+  g_menus_made = reinterpret_cast<const int32_t*>(EngineExport(kMenusMade));
+  const uintptr_t ground = g_menus_made ? FunctionReferencing("the ground's ring", kGroundRingAnchor) : 0;
+  HookAddress("radial: the ground's ring (logged)", ground, reinterpret_cast<void*>(&GroundRing),
+              reinterpret_cast<void**>(&g_ground_ring));
 }
 
 }  // namespace
@@ -172,9 +239,10 @@ bool RemoveRadialFixedEntries(rules::RadialPage page, uintptr_t builder) {
 }
 
 void InstallRadialPages(void* (*player_creature)(void* client_app)) {
-  if (g_config.radial != rules::RuleVariant::kFaithful) return;
   g_player_creature = player_creature;
   g_app_manager = reinterpret_cast<void**>(EngineExport(kAppManager));
+  InstallRingLog();
+  if (g_config.radial != rules::RuleVariant::kFaithful) return;
   RemoveRadialFixedEntries(rules::RadialPage::kSpecialAbilities,
                            FunctionReferencing("the Special Abilities page", kSpecialAbilitiesAnchor));
   const uintptr_t spell_menu = FunctionReferencing("the spell menu (Cast Spell)", kCastSpellAnchor);

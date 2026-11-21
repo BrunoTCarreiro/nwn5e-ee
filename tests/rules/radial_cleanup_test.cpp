@@ -160,3 +160,39 @@ TEST(RadialOtherRingSkillNames) {
   CHECK_EQ(RadialLabelKey(kFaithful, 282) == nullptr, true);
   CHECK_EQ(RadialLabelKey(kFaithful, 269) == nullptr, true);
 }
+
+// 0.99.111's first test: whose ring opened - the ground's has no Special Attacks (the log now says which).
+TEST(RadialRingOf) {
+  const uint32_t player = 0x7fffffff;
+  CHECK_EQ(static_cast<int>(RadialRingOf(player, kRadialNoObject, player)), static_cast<int>(RadialRing::kYours));
+  CHECK_EQ(static_cast<int>(RadialRingOf(0x2f2, player, player)), static_cast<int>(RadialRing::kYourAssociate));
+  CHECK_EQ(static_cast<int>(RadialRingOf(0x2f2, 0x300, player)), static_cast<int>(RadialRing::kAnotherCreature));
+  CHECK_EQ(static_cast<int>(RadialRingOf(0x2f2, kRadialNoObject, player)),
+           static_cast<int>(RadialRing::kAnotherCreature));
+  CHECK_EQ(static_cast<int>(RadialRingOf(kRadialNoObject, kRadialNoObject, player)),
+           static_cast<int>(RadialRing::kGround));
+  // No player creature (its id OBJECT_INVALID): a creature with no master isn't its associate; the ground stays.
+  CHECK_EQ(static_cast<int>(RadialRingOf(0x2f2, kRadialNoObject, kRadialNoObject)),
+           static_cast<int>(RadialRing::kAnotherCreature));
+  CHECK_EQ(static_cast<int>(RadialRingOf(kRadialNoObject, kRadialNoObject, kRadialNoObject)),
+           static_cast<int>(RadialRing::kGround));
+  CHECK_EQ(Text(RadialRingName(RadialRing::kYours)) == "your", true);
+  CHECK_EQ(Text(RadialRingName(RadialRing::kYourAssociate)) == "your associate's", true);
+  CHECK_EQ(Text(RadialRingName(RadialRing::kAnotherCreature)) == "another creature's", true);
+  CHECK_EQ(Text(RadialRingName(RadialRing::kGround)) == "the ground's", true);
+}
+
+TEST(RadialRingSlots) {
+  CHECK_EQ(RadialRingSlots(RadialRing::kYours, 0xef) ==
+               "0 Character Sheet, 1 Cast Spell, 2 Attack, 3 Special Attacks, 5 Issue Command, 6 Special Abilities, "
+               "7 Emote",
+           true);
+  CHECK_EQ(RadialRingSlots(RadialRing::kYours, 0x10) == "4 party / polymorph", true);
+  CHECK_EQ(RadialRingSlots(RadialRing::kGround, 0x4e) == "1 Cast Spell, 2 Move To, 3 More Actions, 6 Special Abilities",
+           true);
+  CHECK_EQ(RadialRingSlots(RadialRing::kGround, 0x91) == "0, 4 Jump All Players, 7 Jump to Point", true);
+  CHECK_EQ(RadialRingSlots(RadialRing::kAnotherCreature, 0xcf) == "0, 1, 2, 3, 6, 7", true);
+  CHECK_EQ(RadialRingSlots(RadialRing::kYourAssociate, 0x01) == "0", true);
+  CHECK_EQ(RadialRingSlots(RadialRing::kYours, 0) == "none", true);
+  CHECK_EQ(RadialRingSlots(RadialRing::kGround, 0x100) == "none", true);  // only slots 0-7
+}

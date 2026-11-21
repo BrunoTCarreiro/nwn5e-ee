@@ -73,6 +73,7 @@ constexpr size_t kClientObjectId = 0x8;
 constexpr size_t kClientCreatureStats = 0x3b0;
 constexpr size_t kClientStatsClassCount = 0x69;
 constexpr size_t kMenuTarget = 0x7f8;
+constexpr size_t kMenuTargetMaster = 0x804;  // the target's master (your associate's ring)
 constexpr size_t kRulesClasses = 0x110;
 constexpr size_t kClassStride = 0x530;
 constexpr size_t kClassFeats = 0x2b0;
@@ -93,6 +94,8 @@ class SelfFeatsOff {
     void* game_rules = g_rules ? *g_rules : nullptr;
     if (!player || !game_rules) return;
     const bool others = Field<uint32_t>(menu, kMenuTarget) != Field<uint32_t>(player, kClientObjectId);
+    ring_ = rules::RadialRingOf(Field<uint32_t>(menu, kMenuTarget), Field<uint32_t>(menu, kMenuTargetMaster),
+                                Field<uint32_t>(player, kClientObjectId));
     const bool self_only = g_config.radial_hide_self_feats && others;
     const bool nwn_only = g_config.radial == rules::RuleVariant::kFaithful;
     if (!self_only && !nwn_only) return;
@@ -125,10 +128,12 @@ class SelfFeatsOff {
   }
   size_t Count() const { return hidden_.size(); }
   size_t NwnOnly() const { return nwn_only_; }
+  rules::RadialRing Ring() const { return ring_; }
 
  private:
   std::vector<std::pair<int32_t*, int32_t>> hidden_;
   size_t nwn_only_ = 0;
+  rules::RadialRing ring_ = rules::RadialRing::kYours;
 };
 
 // rcx is the creature menu at both call sites (the main menu and the "more
@@ -137,7 +142,9 @@ void* CollectClassMenus(void* menu, void* records) {
   SelfFeatsOff off(menu);
   if (off.Count() > off.NwnOnly() && g_logged < 5) {
     ++g_logged;
-    Log("radial: another creature's menu - %zu self-only class feats left off it", off.Count() - off.NwnOnly());
+    // 0.99.111: the ground's ring is nobody's - its Special Abilities page counts as another creature's here.
+    Log("radial: Special Abilities on %s ring - %zu self-only class feats left off it",
+        rules::RadialRingName(off.Ring()), off.Count() - off.NwnOnly());
   }
   if (off.NwnOnly() && g_nwn_logged < 3) {
     ++g_nwn_logged;

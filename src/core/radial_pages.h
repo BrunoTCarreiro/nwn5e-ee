@@ -34,6 +34,7 @@ class RadialFeatsMasked {
 bool RemoveRadialFixedEntries(rules::RadialPage page, uintptr_t builder);
 
 // The Special Abilities and Cast Spell pages (faithful): their fixed entries taken out, Cast Spell built without the
-// 3e Metamagic and Epic Spells feats. `player_creature` is the client's own creature getter (the Special Attacks
+// 3e Metamagic and Epic Spells feats. In either mode, the first rings opened logged - whose (yours, your
+// associate's, another creature's, the ground's) and the slots they hold. `player_creature` is the client's own creature getter (the Special Attacks
 // page's, found by radial_special_attacks.cpp, which calls this).
 void InstallRadialPages(void* (*player_creature)(void* client_app));

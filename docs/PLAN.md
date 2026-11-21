@@ -2600,6 +2600,16 @@ the movement extras (#55); then the staple actions (#56, a decision first).
     faithful); the spontaneous Cure / Inflict ring has no caller in 89.8193.37 and spellcasting faithful serves
     CanCastSpontaneously 0 (#36, #42). Tests: the RadialSpecialAttacks / CastSpell / FixedEntries / ClassSections /
     Labels / LabelTexts / OtherRingSkillNames tests (44 of 44 mutations caught).
+  - *0.99.111's first test (owner, 2026-11-21: "RC-1 doesn't work, there's nothing much on the radial"):* no fault in
+    the cleanup - the log showed only Special Abilities pages built for a menu with no creature (OBJECT_INVALID), the
+    ring the ground opens (Cast Spell, Move To, More Actions, Special Abilities: no Special Attacks in any version),
+    and no Special Attacks page at all; the owner's next run the same evening opened the character's own ring and
+    its Special Attacks page was built without the six 3e feats added (28 19 5 9 389 30), with Dodge, Disengage,
+    Dash, Grapple and Shove: push in slots 0, 1, 2, 3, 6. The log didn't say which ring opened: now the first eight
+    rings are logged - whose (yours, your associate's, another creature's, the ground's: rules::RadialRingOf) and
+    the slots they hold (RadialRingSlots), in either mode (radial_pages.cpp hooks the creature menu's ring builder
+    98e550 and the ground's 84def0) - and the class sections' line names the ring (the ground's Special Abilities
+    counted as another creature's). Tests RadialRingOf, RadialRingSlots (16 of 16 mutations caught).
 *Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
 0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
 Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).

@@ -16,6 +16,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <string>
+
 #include "rules/modes.h"
 
 namespace rules {
@@ -72,5 +74,17 @@ struct RadialLabel {
 const RadialLabel* RadialLabels(RuleVariant radial, size_t* count);
 // The key of the text that replaces `strref`'s, nullptr when it stays.
 const char* RadialLabelKey(RuleVariant radial, uint32_t strref);
+
+// Whose ring a radial menu is (0.99.111's first test: the owner's "nothing much on the radial" was the ring the
+// ground opens - Move To, Cast Spell, More Actions, Special Abilities - which never had Special Attacks; the log
+// didn't say which ring opened). A creature menu's target (+0x7f8) and its target's master (+0x804) against the
+// player's id; the ground's ring builds its pages on a creature menu with no creature (the target OBJECT_INVALID).
+enum class RadialRing { kYours, kYourAssociate, kAnotherCreature, kGround };
+constexpr uint32_t kRadialNoObject = 0x7f000000;  // OBJECT_INVALID
+RadialRing RadialRingOf(uint32_t target, uint32_t master, uint32_t player);
+const char* RadialRingName(RadialRing ring);  // "your", "your associate's", "another creature's", "the ground's"
+// The log's list of a ring's entries: the slots set (bit s of `slots`), named for your ring and the ground's
+// ("0 Character Sheet, 1 Cast Spell, ..."), numbered for the others ("0, 1, 2, 3, 6, 7"); "none" when empty.
+std::string RadialRingSlots(RadialRing ring, unsigned slots);
 
 }  // namespace rules
