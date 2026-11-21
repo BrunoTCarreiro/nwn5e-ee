@@ -2166,7 +2166,9 @@ monster AC by CR.
       - *Built 0.99.107:* the owner, on 0.99.106: "destroying a candelabra/brazier with fire bolts doesn't seem to get
         rid of their light source" - a lit light breaking now goes out (the douse, the area's light recomputed);
         "Magic missile only allows to pick an object as the first target" - its darts strike "a creature of your
-        choice" (SRD 5.2.1), so an object as the cast's target is refused, nothing spent; for Scorching Ray (TW-13:
+        choice" (SRD 5.2.1), so an object as the cast's target is refused, nothing spent (*decided (owner,
+        2026-11-21): "no, you're right, the rules say target creature"* - creatures only, option A of A / B objects
+        for every dart / C by mode); for Scorching Ray (TW-13:
         "it doesn't seem like it can target enemies more than once") the default attack is held while a window is
         open (its attack every second ended the targeting cursor), a click outside the cursor is taken as a pick, and
         each cursor request is logged. #174 (DH-1: "the revived henchman doesn't resume attacking the enemy. not
