@@ -103,6 +103,11 @@ struct VfxEmitter {
   float alpha_end = 0.0f;
   float xsize = 0.0f;  // spawn area, centimetres
   float ysize = 0.0f;
+  // #175 (the owner, 2026-11-21: "go with A plus C, mixed sizes"): the area's shape - 0 a rectangle (xsize x ysize), 1 a
+  // circle (xsize across) - and a circle's edge (0 coarse, 1 fine). An area one emitter can't take (kVfxAreaTileMax) or
+  // a circle is written as tiles (VfxAreaTiles); the draft has them only when set.
+  int area_shape = 0;
+  int area_edge = 0;
   int grid = 1;       // a texture sheet of grid frames across (and down, unless grid_down says otherwise)
   int frame_end = 0;  // frames frame_start..frame_end
   // The owner, 2026-11-17 (vfx 145: "selecting one of the quadrants from the texture file, but I can't seem to alter
@@ -259,6 +264,27 @@ VfxKeys* FindKeys(std::vector<VfxKeys>* list, const std::string& anim, bool crea
 
 // The ASCII effect model, named `model` (its file's resref).
 std::string WriteVfxModel(const VfxEffect& effect, const std::string& model);
+
+// #175 (the owner, 2026-11-21: "go with A plus C, mixed sizes"): one emitter's area reaches kVfxAreaTileMax cm across
+// at most - the game's birth point is rand() % (half the area x 100) with rand() 0..32767 (nwn5e-tools sim.js
+// areaOffset, Particle::randomPosition). kVfxAreaMax: the bench's largest area (12 m).
+constexpr float kVfxAreaTileMax = 650.0f;
+constexpr float kVfxAreaMax = 1200.0f;
+
+// A piece of an emitter's area: its middle and size (centimetres, in the emitter's own x / y).
+struct VfxAreaTile {
+  float x = 0.0f;
+  float y = 0.0f;
+  float width = 0.0f;
+  float depth = 0.0f;
+};
+
+// The pieces an emitter's area is written as (WriteVfxModel). One - its own area, unchanged - for a rectangle one
+// emitter takes, or an emitter that isn't a Fountain or an Explosion (a Single's one particle, a Lightning's bolt).
+// Else, the area held to kVfxAreaMax: a rectangle as a grid of equal tiles; a circle (xsize across) as the square in
+// it (one tile, or 2 x 2) and on each of its four sides strips out to the rim - one (coarse) or two (fine), each as
+// wide as the circle at its middle, cut where one emitter can't take it. No two overlap.
+std::vector<VfxAreaTile> VfxAreaTiles(const VfxEmitter& e);
 
 // The draft text, and back (false and why when it doesn't parse).
 std::string WriteVfxDraft(const VfxEffect& effect);

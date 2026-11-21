@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -4193,4 +4195,210 @@ TEST(OneBurstAsciiDeadLosesItsDetonates) {
   const std::string once = copy;
   CHECK_EQ(DropAnimationEvents(&copy, "dead", "detonate"), 0);
   CHECK_EQ(copy == once, true);
+}
+
+// --- #175: an emitter's area past one emitter's reach, and a circle, written as pieces --------------------------------
+
+namespace {
+
+bool Overlap(const VfxAreaTile& a, const VfxAreaTile& b) {
+  const float ox = std::min(a.x + a.width / 2, b.x + b.width / 2) - std::max(a.x - a.width / 2, b.x - b.width / 2);
+  const float oy = std::min(a.y + a.depth / 2, b.y + b.depth / 2) - std::max(a.y - a.depth / 2, b.y - b.depth / 2);
+  return ox > 0.01f && oy > 0.01f;
+}
+
+VfxEmitter AreaEmitter(const char* update, float across, float deep, int shape, int edge) {
+  VfxEmitter e;
+  e.name = "ring";
+  e.update = update;
+  e.xsize = across;
+  e.ysize = deep;
+  e.area_shape = shape;
+  e.area_edge = edge;
+  e.birthrate = 80.0f;
+  return e;
+}
+
+// A model's emitter blocks in its geometry (before the first newanim): name -> its lines' first word -> the rest.
+std::map<std::string, std::map<std::string, std::string>> EmitterBlocks(const std::string& model) {
+  std::map<std::string, std::map<std::string, std::string>> out;
+  std::istringstream in(model.substr(0, model.find("newanim")));
+  std::string line, current;
+  while (std::getline(in, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.rfind("node emitter ", 0) == 0) {
+      current = line.substr(13);
+      out[current];
+    } else if (line == "endnode") {
+      current.clear();
+    } else if (!current.empty()) {
+      const size_t at = line.find_first_not_of(' ');
+      if (at == std::string::npos) continue;
+      const size_t space = line.find(' ', at);
+      if (space != std::string::npos) out[current][line.substr(at, space - at)] = line.substr(space + 1);
+    }
+  }
+  return out;
+}
+
+}  // namespace
+
+TEST(VfxAreaTilesOneWhenOneEmitterTakesIt) {
+  const std::vector<VfxAreaTile> fits = VfxAreaTiles(AreaEmitter("Fountain", 600, 300, 0, 0));
+  CHECK_EQ(fits.size(), 1u);
+  CHECK_EQ(Milli(fits[0].width), 600000);
+  CHECK_EQ(Milli(fits[0].depth), 300000);
+  CHECK_EQ(Milli(fits[0].x), 0);
+  CHECK_EQ(VfxAreaTiles(AreaEmitter("Fountain", 650, 650, 0, 0)).size(), 1u);  // the limit itself fits
+  // Not a Fountain or an Explosion: its one area, a circle or past the limit as it is.
+  CHECK_EQ(VfxAreaTiles(AreaEmitter("Single", 1200, 1200, 1, 0)).size(), 1u);
+  CHECK_EQ(VfxAreaTiles(AreaEmitter("Lightning", 1200, 1200, 0, 0)).size(), 1u);
+  CHECK_EQ(VfxAreaTiles(AreaEmitter("Fountain", 0, 0, 1, 0)).size(), 1u);  // a circle of no size: a point
+}
+
+TEST(VfxAreaTilesGridPastTheLimit) {
+  const std::vector<VfxAreaTile> wide = VfxAreaTiles(AreaEmitter("Fountain", 1200, 500, 0, 0));
+  CHECK_EQ(wide.size(), 2u);
+  CHECK_EQ(Milli(wide[0].x), -300000);
+  CHECK_EQ(Milli(wide[1].x), 300000);
+  CHECK_EQ(Milli(wide[0].width), 600000);
+  CHECK_EQ(Milli(wide[0].depth), 500000);
+  CHECK_EQ(Milli(wide[0].y), 0);
+  CHECK_EQ(VfxAreaTiles(AreaEmitter("Explosion", 1200, 1200, 0, 0)).size(), 4u);
+  CHECK_EQ(VfxAreaTiles(AreaEmitter("Fountain", 651, 100, 0, 0)).size(), 2u);
+  CHECK_EQ(VfxAreaTiles(AreaEmitter("Fountain", 3000, 3000, 0, 0)).size(), 4u);  // held to 12 m
+}
+
+TEST(VfxAreaTilesCircleMixedSizes) {
+  struct Case {
+    float across;
+    int edge;
+    size_t count;
+  };
+  for (const Case c : {Case{1200, 0, 8}, Case{1200, 1, 16}, Case{600, 0, 5}, Case{600, 1, 9}}) {
+    const std::vector<VfxAreaTile> tiles = VfxAreaTiles(AreaEmitter("Fountain", c.across, 0, 1, c.edge));
+    CHECK_EQ(tiles.size(), c.count);
+    const float r = c.across / 2;
+    float area = 0.0f;
+    for (size_t i = 0; i < tiles.size(); ++i) {
+      const VfxAreaTile& t = tiles[i];
+      CHECK_EQ(t.width <= kVfxAreaTileMax + 0.01f && t.depth <= kVfxAreaTileMax + 0.01f, true);
+      CHECK_EQ(t.width > 0.0f && t.depth > 0.0f, true);
+      // Its outer corner at most a step past the rim: a coarse edge's strip is as wide as the circle at its middle
+      // (its corners about 13% out), a fine edge's two about 7%.
+      const float fx = std::fabs(t.x) + t.width / 2, fy = std::fabs(t.y) + t.depth / 2;
+      CHECK_EQ(std::sqrt(fx * fx + fy * fy) <= r * (c.edge == 1 ? 1.08f : 1.15f), true);
+      for (size_t j = i + 1; j < tiles.size(); ++j) CHECK_EQ(Overlap(t, tiles[j]), false);
+      area += t.width * t.depth;
+    }
+    const float disc = 3.14159265f * r * r;
+    CHECK_EQ(area > disc * 0.9f && area < disc * 1.1f, true);  // the circle's area, near enough
+    // Round: as wide as deep, the same each way out.
+    float left = 0, right = 0, up = 0, down = 0;
+    for (const VfxAreaTile& t : tiles) {
+      left = std::min(left, t.x - t.width / 2);
+      right = std::max(right, t.x + t.width / 2);
+      down = std::min(down, t.y - t.depth / 2);
+      up = std::max(up, t.y + t.depth / 2);
+    }
+    CHECK_EQ(Milli(right), Milli(-left));
+    CHECK_EQ(Milli(up), Milli(-down));
+    CHECK_EQ(Milli(right), Milli(up));
+  }
+  // The 12 m circle's middle: 2 x 2 squares of about 4.24 m; a strip from the square (424) to the rim (600).
+  const std::vector<VfxAreaTile> big = VfxAreaTiles(AreaEmitter("Fountain", 1200, 0, 1, 0));
+  CHECK_EQ(std::lround(big[0].width), 424);
+  CHECK_EQ(std::lround(big[0].x), -212);
+  CHECK_EQ(std::lround(big[4].depth), 176);
+  CHECK_EQ(std::lround(big[4].y), 512);
+  CHECK_EQ(std::lround(big[4].width), 625);  // the circle's width at the strip's middle
+}
+
+TEST(VfxModelWritesAreaTilesUnderTheirCarrier) {
+  VfxEffect effect;
+  VfxEmitter e = AreaEmitter("Fountain", 1200, 0, 1, 0);
+  e.position[2] = 0.05f;
+  VfxKeys own;  // its own birthrate keys: shared as its rate is
+  own.anim = "impact";
+  own.birthrate = {0, 80, 1, 40};
+  e.keys = {own};
+  effect.emitters.push_back(e);
+  const std::string model = WriteVfxModel(effect, "n5t");
+  const auto blocks = EmitterBlocks(model);
+  CHECK_EQ(blocks.size(), 9u);  // the carrier and its 8 pieces
+  std::string carrier;
+  for (const auto& b : blocks) {
+    if (b.second.at("parent") == "n5t") carrier = b.first;
+  }
+  CHECK_EQ(carrier.empty(), false);
+  CHECK_EQ(blocks.at(carrier).at("birthrate") == "0", true);
+  CHECK_EQ(blocks.at(carrier).at("position").find("0.05") != std::string::npos, true);  // its place kept
+  float rate = 0.0f, area = 0.0f;
+  for (const auto& b : blocks) {
+    if (b.first == carrier) continue;
+    CHECK_EQ(b.second.at("parent") == carrier, true);
+    CHECK_EQ(static_cast<float>(atof(b.second.at("xsize").c_str())) <= kVfxAreaTileMax, true);
+    rate += static_cast<float>(atof(b.second.at("birthrate").c_str()));
+    area += static_cast<float>(atof(b.second.at("xsize").c_str()) * atof(b.second.at("ysize").c_str()));
+    // Its middle in metres under the carrier: within the 6 m radius, the 12 m circle's pieces 2.12 m or more out.
+    float px = 0, py = 0, pz = 1;
+    CHECK_EQ(sscanf(b.second.at("position").c_str(), "%f %f %f", &px, &py, &pz), 3);
+    CHECK_EQ(std::fabs(px) <= 6.0f && std::fabs(py) <= 6.0f && pz == 0.0f, true);
+    CHECK_EQ(std::max(std::fabs(px), std::fabs(py)) > 2.0f, true);
+  }
+  CHECK_EQ(std::lround(rate), 80);  // the whole rate, shared
+  CHECK_EQ(area > 1.0e6f, true);
+  // Its own keys: the carrier's at 0 in the impact.
+  const size_t carrier_keys = model.find("node emitter " + carrier, model.find("newanim impact"));
+  CHECK_EQ(carrier_keys != std::string::npos, true);
+  const std::string keys = model.substr(carrier_keys, model.find("endnode", carrier_keys) - carrier_keys);
+  CHECK_EQ(keys.find("    1 0") != std::string::npos, true);
+  CHECK_EQ(keys.find("    0 80") == std::string::npos, true);
+  // A draft that fits one emitter writes one.
+  VfxEffect small;
+  small.emitters.push_back(AreaEmitter("Fountain", 300, 300, 0, 0));
+  CHECK_EQ(EmitterBlocks(WriteVfxModel(small, "n5t")).size(), 1u);
+}
+
+TEST(VfxModelAreaTilesExplosionKeepsWholeParticles) {
+  VfxEffect effect;
+  VfxEmitter e = AreaEmitter("Explosion", 1200, 0, 1, 1);
+  e.birthrate = 30.0f;
+  effect.emitters.push_back(e);
+  const auto blocks = EmitterBlocks(WriteVfxModel(effect, "n5t"));
+  CHECK_EQ(blocks.size(), 17u);
+  int total = 0;
+  for (const auto& b : blocks) {
+    const float rate = static_cast<float>(atof(b.second.at("birthrate").c_str()));
+    CHECK_EQ(rate == std::floor(rate), true);  // whole particles
+    total += static_cast<int>(rate);
+  }
+  CHECK_EQ(total, 30);
+}
+
+TEST(VfxDraftAreaShapeRoundTrip) {
+  VfxEffect effect;
+  effect.emitters.push_back(AreaEmitter("Fountain", 1200, 0, 1, 1));
+  const std::string draft = WriteVfxDraft(effect);
+  CHECK_EQ(draft.find("area_shape = circle\n") != std::string::npos, true);
+  CHECK_EQ(draft.find("area_edge = fine\n") != std::string::npos, true);
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(draft, &back, &error), true);
+  CHECK_EQ(back.emitters.size(), 1u);
+  CHECK_EQ(back.emitters[0].area_shape, 1);
+  CHECK_EQ(back.emitters[0].area_edge, 1);
+  CHECK_EQ(Milli(back.emitters[0].xsize), 1200000);
+  // Any other word: a rectangle, a coarse edge.
+  std::string square = draft;
+  square.replace(square.find("area_shape = circle"), 19, "area_shape = square");
+  square.replace(square.find("area_edge = fine"), 16, "area_edge = rough");
+  CHECK_EQ(ReadVfxDraft(square, &back, &error) && back.emitters[0].area_shape == 0 && back.emitters[0].area_edge == 0,
+           true);
+  VfxEffect plain;  // a rectangle: no new lines - the bytes it had
+  plain.emitters.push_back(AreaEmitter("Fountain", 300, 200, 0, 0));
+  const std::string old = WriteVfxDraft(plain);
+  CHECK_EQ(old.find("area_shape") == std::string::npos && old.find("area_edge") == std::string::npos, true);
+  CHECK_EQ(ReadVfxDraft(old, &back, &error) && back.emitters[0].area_shape == 0 && back.emitters[0].area_edge == 0,
+           true);
 }

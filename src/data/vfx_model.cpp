@@ -433,7 +433,117 @@ std::string VfxResRef(const std::string& text, size_t max) {
   return out;
 }
 
-std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
+std::vector<VfxAreaTile> VfxAreaTiles(const VfxEmitter& e) {
+  const float x = std::min(std::max(e.xsize, 0.0f), kVfxAreaMax), y = std::min(std::max(e.ysize, 0.0f), kVfxAreaMax);
+  const bool tiled = e.update == "Fountain" || e.update == "Explosion";
+  const bool circle = e.area_shape == 1 && x > 0.0f;
+  if (!tiled || (!circle && x <= kVfxAreaTileMax && y <= kVfxAreaTileMax)) return {{0.0f, 0.0f, e.xsize, e.ysize}};
+  // How many pieces a length takes (a hair over the limit from rounding stays one).
+  const auto pieces = [](float length) {
+    return std::max(1, static_cast<int>(std::ceil(length / kVfxAreaTileMax - 0.0001f)));
+  };
+  std::vector<VfxAreaTile> out;
+  if (!circle) {
+    const int nx = pieces(x), ny = pieces(y);
+    for (int i = 0; i < nx; ++i) {
+      for (int j = 0; j < ny; ++j) out.push_back({-x / 2 + (i + 0.5f) * x / nx, -y / 2 + (j + 0.5f) * y / ny, x / nx, y / ny});
+    }
+    return out;
+  }
+  const float r = x / 2, half = r / std::sqrt(2.0f), side = 2 * half;  // the square in the circle
+  const int n = pieces(side);
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < n; ++j) out.push_back({-half + (i + 0.5f) * side / n, -half + (j + 0.5f) * side / n, side / n, side / n});
+  }
+  const int strips = e.area_edge == 1 ? 2 : 1;
+  const float band = (r - half) / strips;
+  for (int s = 0; s < strips; ++s) {
+    const float mid = half + (s + 0.5f) * band;  // the strip's middle, out from the centre
+    const float chord = 2 * std::sqrt(std::max(r * r - mid * mid, 0.0f));
+    const int p = pieces(chord);
+    for (int k = 0; k < p; ++k) {
+      const float along = -chord / 2 + (k + 0.5f) * chord / p, wide = chord / p;
+      out.push_back({along, mid, wide, band});
+      out.push_back({along, -mid, wide, band});
+      out.push_back({mid, along, band, wide});
+      out.push_back({-mid, along, band, wide});
+    }
+  }
+  return out;
+}
+
+namespace {
+
+// #175: each emitter whose area is pieces (VfxAreaTiles) becomes their carrier - its name, place, turn, keys and
+// children kept, no birth of its own - and the pieces its children: copies of it at their middles, each its piece of
+// the area, its share (by area) of the birthrate and of its own birthrate keys, no move or turn of its own (the
+// carrier's moves them). An Explosion's burst stays whole particles: shared by the largest remainders.
+VfxEffect WithAreaTiles(const VfxEffect& effect) {
+  VfxEffect out = effect;
+  std::set<std::string> taken;
+  for (const VfxNode& n : effect.nodes) taken.insert(n.name);
+  for (const VfxEmitter& e : effect.emitters) taken.insert(e.name);
+  std::vector<VfxEmitter> added;
+  for (VfxEmitter& e : out.emitters) {
+    const std::vector<VfxAreaTile> tiles = VfxAreaTiles(e);
+    if (tiles.size() < 2) continue;
+    float total = 0.0f;
+    for (const VfxAreaTile& t : tiles) total += t.width * t.depth;
+    std::vector<float> share(tiles.size()), rate(tiles.size());
+    for (size_t i = 0; i < tiles.size(); ++i) {
+      share[i] = total > 0.0f ? tiles[i].width * tiles[i].depth / total : 1.0f / tiles.size();
+      rate[i] = e.birthrate * share[i];
+    }
+    if (e.update == "Explosion") {
+      const int whole = static_cast<int>(std::lround(e.birthrate));
+      int given = 0;
+      std::vector<std::pair<float, size_t>> left;
+      for (size_t i = 0; i < tiles.size(); ++i) {
+        const float exact = whole * share[i];
+        rate[i] = std::floor(exact);
+        given += static_cast<int>(rate[i]);
+        left.push_back({exact - rate[i], i});
+      }
+      std::stable_sort(left.begin(), left.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+      for (size_t k = 0; k < left.size() && given < whole; ++k, ++given) rate[left[k].second] += 1.0f;
+    }
+    for (size_t i = 0; i < tiles.size(); ++i) {
+      VfxEmitter t = e;
+      std::string name = e.name + "_t" + std::to_string(i + 1);
+      while (taken.count(name)) name += "x";
+      taken.insert(name);
+      t.name = name;
+      t.parent = e.name;
+      t.position[0] = tiles[i].x / 100.0f;
+      t.position[1] = tiles[i].y / 100.0f;
+      t.position[2] = 0.0f;
+      for (float& q : t.orientation) q = 0.0f;
+      t.xsize = tiles[i].width;
+      t.ysize = tiles[i].depth;
+      t.area_shape = 0;
+      t.area_edge = 0;
+      t.birthrate = rate[i];
+      for (VfxKeys& k : t.keys) {
+        k.position.clear();
+        k.orientation.clear();
+        for (size_t v = 1; v < k.birthrate.size(); v += 2) k.birthrate[v] *= share[i];
+      }
+      added.push_back(t);
+    }
+    e.birthrate = 0.0f;
+    for (VfxKeys& k : e.keys) {
+      for (size_t v = 1; v < k.birthrate.size(); v += 2) k.birthrate[v] = 0.0f;
+    }
+  }
+  out.emitters.insert(out.emitters.end(), added.begin(), added.end());
+  return out;
+}
+
+}  // namespace
+
+std::string WriteVfxModel(const VfxEffect& original, const std::string& model) {
+  const VfxEffect tiled = WithAreaTiles(original);  // #175
+  const VfxEffect& effect = tiled;
   // The model's own names for the effect's nodes and emitters (unique to it), and its parents
   // before its children: the order a model is written in (a parent never written - a loop,
   // a missing one - leaves its child under the root).
@@ -856,6 +966,9 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += "color_end = " + Num(e.color_end[0]) + " " + Num(e.color_end[1]) + " " + Num(e.color_end[2]) + "\n";
     out += "alpha = " + Num(e.alpha_start) + " " + Num(e.alpha_end) + "\n";
     out += "area = " + Num(e.xsize) + " " + Num(e.ysize) + "\n";
+    // #175: a circle and its edge only when set - every draft before them keeps its bytes.
+    if (e.area_shape == 1) out += "area_shape = circle\n";
+    if (e.area_edge == 1) out += "area_edge = fine\n";
     // Frames down and the start frame (the owner, 2026-11-17) only when set - every draft before them keeps its bytes.
     out += "grid = " + std::to_string(e.grid) + "\n";
     if (e.grid_down != 0 && e.grid_down != e.grid) out += "grid_down = " + std::to_string(e.grid_down) + "\n";
@@ -1092,7 +1205,9 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
       ReadFloats(words, 0, area, 2);
       e->xsize = area[0];
       e->ysize = area[1];
-    } else if (key == "grid") e->grid = std::max(1, atoi(value.c_str()));
+    } else if (key == "area_shape") e->area_shape = value == "circle" ? 1 : 0;  // #175
+    else if (key == "area_edge") e->area_edge = value == "fine" ? 1 : 0;
+    else if (key == "grid") e->grid = std::max(1, atoi(value.c_str()));
     else if (key == "grid_down") e->grid_down = std::max(0, atoi(value.c_str()));
     else if (key == "frame_end") e->frame_end = std::max(0, atoi(value.c_str()));
     else if (key == "frame_start") e->frame_start = std::max(0, atoi(value.c_str()));  // past frame_end too: as written
