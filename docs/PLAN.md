@@ -2572,7 +2572,10 @@ the movement extras (#55); then the staple actions (#56, a decision first).
   class features stay in Class Features, even those that are Magic actions; a feature that's both a Bonus Action and a
   class feature listed in both sections; Character Sheet a level down (C stays); NWN's "Disengage" renamed "Stop
   Attacking"; another creature's ring a light change; no greyed places for actions not built; the cleanup (the NWN / 3e
-  removals, the renames, #182) built soon, the new layout after #125's actions. Crafting Skills: asked.
+  removals, the renames, #182) built soon, the new layout after #125's actions. *Crafting Skills (owner, 2026-11-21:
+  "A with c for later"):* NWN's Craft Trap entry removed in faithful (2024 has no trap crafting; NWN mode keeps it;
+  the forges' Craft Armor / Weapon stay Smith's Tools checks); 2024 crafting (SRD 5.2.1: "To craft a nonmagical item,
+  you need tools, raw materials, and time") later as its own system, #183 - the Character section gets "Crafting" then.
 *Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
 0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
 Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).
