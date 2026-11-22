@@ -1,0 +1,342 @@
+#MAXMODEL ASCII
+# nwn5e VFX editor (!vfxedit): n5_swp_hit
+newmodel n5_swp_hit
+setsupermodel n5_swp_hit NULL
+classification effect
+setanimationscale 1
+beginmodelgeom n5_swp_hit
+node dummy n5_swp_hit
+  parent NULL
+endnode
+node dummy n5_swp_hit_n0_swing
+  parent n5_swp_hit
+  position 0 0.15 1.3
+  orientation 0.345317 0.932405 0.106661 2.64188
+endnode
+node emitter n5_swp_hit_0_edge
+  parent n5_swp_hit_n0_swing
+  p2p 0
+  p2p_sel 1
+  affectedByWind 0
+  m_isTinted 0
+  bounce 0
+  random 0
+  inherit 0
+  inheritvel 0
+  inherit_local 0
+  splat 0
+  inherit_part 0
+  renderorder 0
+  spawntype 0
+  update Fountain
+  render Normal
+  blend Lighten
+  texture n5_swp_glow
+  xgrid 1
+  ygrid 1
+  loop 0
+  deadspace 0
+  twosidedtex 0
+  blastRadius 0
+  blastLength 0
+  position 0 0.75 0
+  orientation 0 0 0 0
+  colorStart 0.95 0.98 1
+  colorEnd 0.55 0.75 1
+  alphaStart 1
+  alphaEnd 0
+  sizeStart 0.18
+  sizeEnd 0.05
+  sizeStart_y 0
+  sizeEnd_y 0
+  frameStart 0
+  frameEnd 0
+  birthrate 0
+  lifeExp 0.2
+  mass 0
+  spread 0
+  particleRot 0
+  velocity 0
+  randvel 0
+  fps 0
+  xsize 1
+  ysize 30
+  bounce_co 0
+  blurlength 0
+  lightningDelay 0
+  lightningRadius 0
+  lightningScale 0
+  p2p_bezier2 0
+  p2p_bezier3 0
+  combinetime 0
+  drag 0
+  grav 0
+  threshold 0
+endnode
+node emitter n5_swp_hit_1_fan
+  parent n5_swp_hit_n0_swing
+  p2p 0
+  p2p_sel 1
+  affectedByWind 0
+  m_isTinted 0
+  bounce 0
+  random 0
+  inherit 0
+  inheritvel 0
+  inherit_local 0
+  splat 0
+  inherit_part 0
+  renderorder 0
+  spawntype 0
+  update Fountain
+  render Normal
+  blend Lighten
+  texture n5_swp_glow
+  xgrid 1
+  ygrid 1
+  loop 0
+  deadspace 0
+  twosidedtex 0
+  blastRadius 0
+  blastLength 0
+  position 0 0.55 0
+  orientation 0 0 0 0
+  colorStart 0.55 0.75 1
+  colorEnd 0.4 0.6 1
+  alphaStart 0.35
+  alphaEnd 0
+  sizeStart 0.25
+  sizeEnd 0.1
+  sizeStart_y 0
+  sizeEnd_y 0
+  frameStart 0
+  frameEnd 0
+  birthrate 0
+  lifeExp 0.3
+  mass 0
+  spread 0
+  particleRot 0
+  velocity 0
+  randvel 0
+  fps 0
+  xsize 2
+  ysize 60
+  bounce_co 0
+  blurlength 0
+  lightningDelay 0
+  lightningRadius 0
+  lightningScale 0
+  p2p_bezier2 0
+  p2p_bezier3 0
+  combinetime 0
+  drag 0
+  grav 0
+  threshold 0
+endnode
+node trimesh n5_swp_hit_p0_blade
+  parent n5_swp_hit_n0_swing
+  position 0 0.4575 0
+  orientation 0 0 0 0
+  wirecolor 1 1 1
+  ambient 1 1 1
+  diffuse 1 1 1
+  specular 0 0 0
+  shininess 1
+  bitmap n5_swp_blade
+  render 1
+  shadow 0
+  selfillumcolor 1 1 1
+  verts 39
+    0.055 -0.2025 0
+    0 -0.2025 0.012
+    -0.055 -0.2025 0
+    0 -0.2025 -0.012
+    0.05 -0.0025 0
+    0 -0.0025 0.01
+    -0.05 -0.0025 0
+    0 -0.0025 -0.01
+    0.044 0.1975 0
+    0 0.1975 0.007
+    -0.044 0.1975 0
+    0 0.1975 -0.007
+    0.038 0.2975 0
+    0 0.2975 0.005
+    -0.038 0.2975 0
+    0 0.2975 -0.005
+    0 0.4575 0
+    -0.14 -0.2245 -0.02
+    0.14 -0.2245 -0.02
+    -0.14 -0.2245 0.02
+    0.14 -0.2245 0.02
+    -0.14 -0.1805 -0.02
+    0.14 -0.1805 -0.02
+    -0.14 -0.1805 0.02
+    0.14 -0.1805 0.02
+    -0.016 -0.4025 -0.016
+    0.016 -0.4025 -0.016
+    -0.016 -0.4025 0.016
+    0.016 -0.4025 0.016
+    -0.016 -0.2245 -0.016
+    0.016 -0.2245 -0.016
+    -0.016 -0.2245 0.016
+    0.016 -0.2245 0.016
+    0.03 -0.4275 0
+    -0.03 -0.4275 0
+    0 -0.3975 0
+    0 -0.4575 0
+    0 -0.4275 0.03
+    0 -0.4275 -0.03
+  tverts 39
+    1 0.27 0
+    0.5 0.27 0
+    0 0.27 0
+    0.5 0.27 0
+    1 0.491212 0
+    0.5 0.491212 0
+    0 0.491212 0
+    0.5 0.491212 0
+    1 0.712424 0
+    0.5 0.712424 0
+    0 0.712424 0
+    0.5 0.712424 0
+    1 0.82303 0
+    0.5 0.82303 0
+    0 0.82303 0
+    0.5 0.82303 0
+    0.5 1 0
+    0 0.2 0
+    1 0.2 0
+    0 0.2 0
+    1 0.2 0
+    0 0.27 0
+    1 0.27 0
+    0 0.27 0
+    1 0.27 0
+    0 0.05 0
+    1 0.05 0
+    0 0.05 0
+    1 0.05 0
+    0 0.2 0
+    1 0.2 0
+    0 0.2 0
+    1 0.2 0
+    0 0.02 0
+    1 0.02 0
+    0 0.02 0
+    1 0.02 0
+    0 0.02 0
+    1 0.02 0
+  faces 62
+    0 1 5 1 0 1 5 1
+    0 5 4 1 0 5 4 1
+    1 2 6 1 1 2 6 1
+    1 6 5 1 1 6 5 1
+    2 3 7 1 2 3 7 1
+    2 7 6 1 2 7 6 1
+    3 0 4 1 3 0 4 1
+    3 4 7 1 3 4 7 1
+    4 5 9 1 4 5 9 1
+    4 9 8 1 4 9 8 1
+    5 6 10 1 5 6 10 1
+    5 10 9 1 5 10 9 1
+    6 7 11 1 6 7 11 1
+    6 11 10 1 6 11 10 1
+    7 4 8 1 7 4 8 1
+    7 8 11 1 7 8 11 1
+    8 9 13 1 8 9 13 1
+    8 13 12 1 8 13 12 1
+    9 10 14 1 9 10 14 1
+    9 14 13 1 9 14 13 1
+    10 11 15 1 10 11 15 1
+    10 15 14 1 10 15 14 1
+    11 8 12 1 11 8 12 1
+    11 12 15 1 11 12 15 1
+    12 13 16 1 12 13 16 1
+    13 14 16 1 13 14 16 1
+    14 15 16 1 14 15 16 1
+    15 12 16 1 15 12 16 1
+    0 3 2 1 0 3 2 1
+    0 2 1 1 0 2 1 1
+    17 18 20 1 17 18 20 1
+    17 20 19 1 17 20 19 1
+    21 23 24 1 21 23 24 1
+    21 24 22 1 21 24 22 1
+    17 21 22 1 17 21 22 1
+    17 22 18 1 17 22 18 1
+    19 20 24 1 19 20 24 1
+    19 24 23 1 19 24 23 1
+    17 19 23 1 17 19 23 1
+    17 23 21 1 17 23 21 1
+    18 22 24 1 18 22 24 1
+    18 24 20 1 18 24 20 1
+    25 26 28 1 25 26 28 1
+    25 28 27 1 25 28 27 1
+    29 31 32 1 29 31 32 1
+    29 32 30 1 29 32 30 1
+    25 29 30 1 25 29 30 1
+    25 30 26 1 25 30 26 1
+    27 28 32 1 27 28 32 1
+    27 32 31 1 27 32 31 1
+    25 27 31 1 25 27 31 1
+    25 31 29 1 25 31 29 1
+    26 30 32 1 26 30 32 1
+    26 32 28 1 26 32 28 1
+    33 37 35 1 33 37 35 1
+    37 33 36 1 37 33 36 1
+    37 34 35 1 37 34 35 1
+    34 37 36 1 34 37 36 1
+    34 38 35 1 34 38 35 1
+    38 34 36 1 38 34 36 1
+    38 33 35 1 38 33 35 1
+    33 38 36 1 33 38 36 1
+endnode
+endmodelgeom n5_swp_hit
+
+newanim impact n5_swp_hit
+  length 0.9
+  transtime 0
+  animroot n5_swp_hit
+  event 0 detonate
+node dummy n5_swp_hit
+  parent NULL
+endnode
+node dummy n5_swp_hit_n0_swing
+  parent n5_swp_hit
+  orientationkey 11
+    0 0.345317 0.932405 0.106661 2.64188
+    0.045 0.252546 0.964168 0.081241 2.62335
+    0.09 0.159161 0.985689 0.055533 2.6102
+    0.135 0.06871 0.99717 0.030525 2.60233
+    0.18 -0.015458 0.999855 0.007163 2.59916
+    0.225 -0.090467 0.995805 -0.013731 2.59965
+    0.27 -0.154081 0.987556 -0.031506 2.60256
+    0.315 -0.20473 0.977751 -0.045695 2.60654
+    0.36 -0.241422 0.968803 -0.055995 2.61039
+    0.405 -0.263607 0.962621 -0.062232 2.61312
+    0.45 -0.271026 0.960421 -0.064319 2.6141
+endnode
+node emitter n5_swp_hit_0_edge
+  parent n5_swp_hit_n0_swing
+  birthratekey 3
+    0 240
+    0.47 240
+    0.48 0
+endnode
+node emitter n5_swp_hit_1_fan
+  parent n5_swp_hit_n0_swing
+  birthratekey 3
+    0 90
+    0.47 90
+    0.48 0
+endnode
+node trimesh n5_swp_hit_p0_blade
+  parent n5_swp_hit_n0_swing
+  alphakey 4
+    0 0
+    0.05 1
+    0.5 1
+    0.8 0
+endnode
+doneanim impact n5_swp_hit
+
+donemodel n5_swp_hit

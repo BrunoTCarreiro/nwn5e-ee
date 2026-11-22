@@ -1,0 +1,18 @@
+# visualeffects.2da - #39's Spiritual Weapon, option C's look (the owner, 2026-11-22: "weapon appears, but doesn't look very
+# "spiritual", is it possible to customize the look and idle animation?", then "A, make the draft look"): the force is an
+# effect of nwn5e's own on an invisible, unclickable marker at its spot. nwn5e's own models (data\files\n5_swp_*.mdl, from
+# the drafts tools/data/vfx/n5_swp_*.vfx; tools/data/spiritweapon/build.js), their textures generated there
+# (n5_swp_blade - its TXI "blending additive" - and n5_swp_glow). The model in all four root columns, so whichever the client
+# picks (on an object by its size) it is this one; flat (OrientWithGround 0). (the flight's model, n5_swp_fly, is
+# spells.2da's ProjModel - row 1279, the game session's.)
+# - 4180 the force as it waits (n5_swp_idle): a lasting effect (D) on the marker (plc_invisobj, at ground level: the model
+#   carries the blade's height) - the blade hovering round 1.2 m up, bobbing, swaying and turning in its loop; it fades in
+#   and out.
+# - 4182 the strike (n5_swp_hit): a one-shot (F) at the force's spot, its swing in front of the model (its +y) - the
+#   location turned toward the creature; past the middle of its arc at 0.15 s; it carries its own blade (the idle hides
+#   0.6 s).
+# The flight (n5_swp_fly) is spells.2da's projectile (1279, ProjModel; the engine flies it), so 4181 isn't used.
+# After the sweep slices' 3060-4179.
+Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node
+4180 NWN5E_SPIRIT_WEAPON D 0 n5_swp_idle n5_swp_idle n5_swp_idle n5_swp_idle
+4182 NWN5E_SPIRIT_WEAPON_STRIKE F 0 n5_swp_hit n5_swp_hit n5_swp_hit n5_swp_hit

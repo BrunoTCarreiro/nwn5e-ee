@@ -2363,6 +2363,37 @@ monster AC by CR.
           casting it), the landing (how, after how long, the markers), the swing (its effect, where, its facing, the
           damage), and the marker 2 s after the cast.
         - Tests Level2SpiritualWeaponForce (the flight, its landing's wait, the facing); 8 of 8 mutations caught.
+        - *Fixed (the look's notes):* the swing (n5_swp_hit) carries its own blade, so the idle comes off the marker as it
+          starts and goes back on 0.6 s later (kForceIdleHiddenSeconds). Row 4181 is left free: the flight is spells.2da 1279's
+          projectile model.
+    - *Decided (owner, 2026-11-22):* the force's look. The owner, after testing the borrowed blade: "weapon appears, but
+      doesn't look very "spiritual", is it possible to customize the look and idle animation?" and "I can right click and
+      attack the weapon, I cannot walk through it"; then "A, make the draft look": the force an effect of nwn5e's own on
+      an invisible, unclickable marker, its look a VFX Bench draft the owner refines (the game side: the swfx work).
+    - *Built (the draft look; tools/data/spiritweapon/build.js, its check.js):* original art, nothing of the game's:
+      - **The blade:** a generated mesh, 0.915 m from its pommel to its point (a diamond-section blade 11 cm wide at a
+        28 cm crossguard, a grip, a pommel), its texture n5_swp_blade (blue-white, its edges and ridge bright; its TXI
+        `blending additive` - the game adds a mesh's light only by its texture's TXI), lit by itself (selfillum 1); a soft
+        glow round it and the motes from n5_swp_glow, added light (Lighten).
+      - **visualeffects 4180, n5_swp_idle** (a lasting effect on the marker, which stands at ground level - the model
+        carries the height): the blade hanging point down round 1.2 m up; its loop of 16 s bobs 5 cm either way (every
+        2.67 s), sways up to 4 degrees and turns once about the blade, its last key its first; it fades in over 0.5 s and
+        out over 0.25 s. About 22 particles.
+      - **n5_swp_fly**, spells.2da 1279's ProjModel (the game side's row; visualeffects 4181 isn't used): the blade 1.2 m
+        over the model's root, point first along +y - the way the game flies a projectile with ProjOrientation path (its
+        own arrows and bolts point +y) - a short streak left behind it. A projectile model plays no keyed animation (the
+        game's own vpr_* have none), so its emitters carry their rates in the geometry (a lasting effect's).
+      - **visualeffects 4182, n5_swp_hit** (a one-shot at the force's spot, turned toward the creature): the blade
+        sweeping 72 degrees in 0.45 s in front of it, edge first, its tip 0.915 m out (an arc of about 1.15 m), past the
+        middle of its arc at 0.15 s (when the holy flash or sparks land), a bright arc at its tip and a fainter fan, gone
+        by 0.8 s; its impact starts on its keys (transtime 0), so the game doesn't blend the swing in from the rest pose.
+        It carries its own blade: the idle hides for 0.6 s (its end fading out as the swing's blade comes, its start
+        fading in as that one goes).
+      - **Refining:** the drafts are tools/data/vfx/n5_swp_*.vfx; the bench opens one exactly through its Draft text box
+        (Apply the text), and Save keeps it in Yours (build\vfxedit\saved); back here, build.js --from-drafts builds the
+        models from the owner's drafts. The nwn5e tab lists them too but reads them back from the models - under the
+        writer's names and without the blade's fades (nwn5e's own models' rule) - so it's for a look, not for refining.
+      - Tests SpiritWeapon* (6); check.js all passed; 19 of 19 breaks of the recipe caught by its checks.
     - *Decided (owner, 2026-11-22):* Heat Metal's rework. The owner on S2-25b: "the axe becomes on fire (the vfx need
       to be adjusted so the weapon just glows red) but isn't visually dropped. Ah, a second time it was put away but the
       orc immediately brought it back out AND attacked the same turn so testing S2-26b is very hard as they orc equips

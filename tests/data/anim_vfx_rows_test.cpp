@@ -91,5 +91,8 @@ TEST(VisualEffectsRowFilesNeverShareARow) {
   int sweep = 0;
   for (int row = 3060; row <= 4179; ++row) sweep += owner.count(row) == 1 && owner[row] == "visualeffects.sweep.txt";
   CHECK_EQ(sweep, 1120);
-  CHECK_EQ(owner.count(4180), 0u);
+  // #39's Spiritual Weapon look (the owner, 2026-11-22: "A, make the draft look"): the force as it waits (4180) and its
+  // strike (4182), after the sweep, a file of their own; 4181 left free (the flight is spells.2da's projectile).
+  for (int row : {4180, 4182}) CHECK_EQ(owner.count(row) == 1 && owner[row] == "visualeffects.spiritweapon.txt", true);
+  CHECK_EQ(owner.count(4181) + owner.count(4183), 0u);
 }

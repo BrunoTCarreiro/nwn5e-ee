@@ -131,6 +131,18 @@ quoted here, as in PLAN.md.
   model stays in the scene). check_effect's chunk fx 12 ok (14 of 14 breaks caught), browser_check 154 ok (a fixture
   chunk with an emitter), composer_check, check.js, check_parts / beats / area / area_tiles / textures, common and the
   spell bench's checks pass.
+- **Spiritual Weapon's look** (#39, option C; the owner, 2026-11-22: "weapon appears, but doesn't look very "spiritual", is
+  it possible to customize the look and idle animation?", then "A, make the draft look"). *Built (the draft look):*
+  tools/data/spiritweapon/build.js makes three bench drafts (tools/data/vfx/n5_swp_*.vfx), their models (data/files, the
+  game's writer through mdlmesh, the debris way) and two generated textures - a blade mesh of its own (0.915 m, a
+  diamond-section blade, crossguard, grip, pommel) in n5_swp_blade (TXI `blending additive`) and n5_swp_glow for its
+  halo, motes and streaks: n5_swp_idle (visualeffects 4180: hanging round 1.2 m up, a 16 s loop - bob, sway, one turn -
+  seamless), n5_swp_fly (spells.2da 1279's ProjModel: point first along +y - the game's own ammunition flies so - its
+  emitters on in the geometry, as a projectile plays no keyed animation) and n5_swp_hit (4182: a 72 degree swing in
+  0.45 s, mid-arc at 0.15 s). Read on the way: ProjOrientation "path" lays a projectile's +y along its flight (wamar_001,
+  wambo_001: points at +y); the game's vpr_* projectile models have no keys. The bench needs no change: its Draft text
+  box opens a draft exactly (the nwn5e tab reads nwn5e's own models back under the writer's names and without a plane's
+  keys - for a look, not for refining). check.js all passed (19 of 19 breaks caught), test.bat SpiritWeapon* ok.
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 
