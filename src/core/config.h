@@ -25,6 +25,12 @@ struct Config {
   bool advantage_disadvantage = true;  // situational modifiers become 2024 advantage/disadvantage
   bool retarget_remaining_attacks = true;  // after a kill, the round's remaining attacks go to the nearest enemy
   int ranged_retarget_range = 40;          // metres a ranged retarget looks (capped at the weapon's range)
+  // #39 level 2 build 1b (owner, 2026-11-22: "make it a probability dependent on their int/wis, whichever one is
+  // highest"): an NPC caster's own Bonus Action repeat (Spiritual Weapon's Strike, Heat Metal: Again) each round, by
+  // chance - this % plus the next for each point of the higher of its Intelligence and Wisdom modifiers, 10% to 95%
+  // (rules::NpcBonusRepeatChance).
+  int npc_bonus_repeat_base = 50;
+  int npc_bonus_repeat_per_mod = 10;
   // R1: faithful removes NWN's racial attack/AC bonuses vs specific enemies.
   rules::RuleVariant racial_combat_bonuses = rules::RuleVariant::kFaithful;
   // D1: faithful = no off-hand penalties, one off-hand attack (Light weapons,

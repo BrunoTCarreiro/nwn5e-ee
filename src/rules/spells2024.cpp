@@ -8,6 +8,7 @@
 
 #include "rules/armor.h"
 #include "rules/cantrips.h"
+#include "rules/core.h"
 
 namespace rules {
 
@@ -883,6 +884,24 @@ bool WeaponBaseItem(int base_item) {
   static const int kOther[] = {6, 7, 8, 11, 28, 31, 50, 61, 108};
   return MetalWeaponBaseItem(base_item) ||
          std::find(std::begin(kOther), std::end(kOther), base_item) != std::end(kOther);
+}
+
+int DamageTakenOf(int heard, int lost) {
+  if (heard >= 0) return heard;
+  return lost > 0 ? lost : 0;
+}
+
+int NpcBonusRepeatChance(int intelligence, int wisdom, int base, int per_mod) {
+  const int modifier = std::max(AbilityModifier(intelligence), AbilityModifier(wisdom));
+  return std::min(kNpcBonusRepeatMost, std::max(kNpcBonusRepeatLeast, base + per_mod * modifier));
+}
+
+bool NpcBonusRepeats(int chance, int d100) { return d100 >= 1 && d100 <= chance; }
+
+TouchReach BonusSpellTouchReach(int feet, bool out_of_reach, bool walked) {
+  if (!out_of_reach) return TouchReach::kCast;
+  const bool touch = feet > 0 && feet <= kDragonsBreathTouchFeet;  // within 5 feet: a touch
+  return touch && !walked ? TouchReach::kWalk : TouchReach::kTooFar;
 }
 
 HeatAgain HeatMetalAgainNow(bool cast_this_turn, bool held_or_worn, float metres, float slack) {

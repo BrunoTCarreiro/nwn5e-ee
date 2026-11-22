@@ -57,6 +57,10 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.retarget_remaining_attacks =
       ReadBool(ini, L"retarget_remaining_attacks", g_config.retarget_remaining_attacks);
   g_config.ranged_retarget_range = GetPrivateProfileIntW(L"rules", L"ranged_retarget_range", 40, ini);
+  g_config.npc_bonus_repeat_base =
+      GetPrivateProfileIntW(L"rules", L"npc_bonus_repeat_base", g_config.npc_bonus_repeat_base, ini);  // #39 2 1b
+  g_config.npc_bonus_repeat_per_mod =
+      GetPrivateProfileIntW(L"rules", L"npc_bonus_repeat_per_mod", g_config.npc_bonus_repeat_per_mod, ini);
   g_config.racial_combat_bonuses = ReadVariant(ini, L"racial_combat_bonuses", g_config.mode);
   g_config.two_weapon_fighting = ReadVariant(ini, L"two_weapon_fighting", g_config.mode);
   g_config.two_handed_strength = ReadVariant(ini, L"two_handed_strength", g_config.mode);

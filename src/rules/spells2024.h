@@ -673,6 +673,28 @@ AfterDrop HeatMetalAfterDrop(bool carries_other_weapon, int intelligence, bool s
 // A weapon a hand can hold (baseitems.2da): the metal ones, and the bows, crossbows, club, quarterstaff, sling, darts
 // and whip; not ammunition, shields or creature weapons.
 bool WeaponBaseItem(int base_item);
+// Heat Metal's save only when the creature took damage from it (owner, 2026-11-22: "fix it"; SRD 5.2.1: "If a
+// creature is holding or wearing the object and takes the damage from it, the creature must succeed on a Constitution
+// saving throw"). `heard`: the hit points and temporary ones the engine's damage handler took (OnApplyDamage, -1: not
+// heard); `lost`: the hit points (and temporary ones) gone between before and after it. Immune, or all of it absorbed:
+// 0 - no save, no drop, no Disadvantage; Resistance still leaves some taken.
+int DamageTakenOf(int heard, int lost);
+
+// The owner's build 1b answers (2026-11-22), 1: an NPC caster's own Bonus Action repeats - Spiritual Weapon's Strike
+// (moving the force), Heat Metal: Again - happen by chance each round they could ("make it a probability dependent on
+// their int/wis, whichever one is highest"): `base`% + `per_mod`% for each point of the higher of its Intelligence and
+// Wisdom modifiers, kept from 10% to 95% ([rules] npc_bonus_repeat_base 50, npc_bonus_repeat_per_mod 10: 10 is 50%,
+// 16 is 80%, 6 is 30%). Its Bonus Action is spent only when it happens.
+constexpr int kNpcBonusRepeatLeast = 10;
+constexpr int kNpcBonusRepeatMost = 95;
+int NpcBonusRepeatChance(int intelligence, int wisdom, int base, int per_mod);
+bool NpcBonusRepeats(int chance, int d100);  // the d100 (1-100) at or under the chance
+
+// 3 ("Walk over and cast"): a touch Bonus Action spell (Dragon's Breath) at a willing creature out of reach - the caster
+// walks to it, as NWN's own touch spells do, then casts; every check is made before the walk and again at its end.
+// Still out of reach at the walk's end (it moved away): refused.
+enum class TouchReach { kCast, kWalk, kTooFar };
+TouchReach BonusSpellTouchReach(int feet, bool out_of_reach, bool walked);
 // Heat Metal: Again - a Bonus Action on a later turn (not the cast's), at an object someone holds or wears, within 60
 // feet (18.29 m, plus `slack`).
 enum class HeatAgain { kOk, kCastThisTurn, kNotHeld, kOutOfRange };

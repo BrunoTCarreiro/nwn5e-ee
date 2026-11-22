@@ -225,6 +225,7 @@ SpellRowFn g_spell_row = nullptr;
 void** g_rules_for_rows = nullptr;
 thread_local bool t_bonus_cast = false;   // Healing Word's feat being used
 thread_local bool t_bonus_spend = false;  // its slot being spent
+thread_local bool t_touch_walked = false;  // level 2 build 1b (answer 3): a touch spell's order taken again after its walk
 struct BonusCast {
   uint32_t spell = 0;
   int class_slot = 0;
@@ -1085,6 +1086,8 @@ bool LongCastOrder(void* creature, uint32_t id, const SpellOrder& order);       
 bool HeatMetalOrder(void* creature, uint32_t id, const SpellOrder& order);  // level 2 build 1b, below
 bool Level2FeatGuard(void* creature, uint32_t id, int feat);                // level 2 build 1b, below
 bool SpiritualWeaponAtSpot(void* creature, uint32_t id, const SpellOrder& order);  // level 2 build 1b (C), below
+bool TouchWalk(void* creature, uint32_t id, const SpellOrder& order, const rules::BonusActionSpell& bonus,
+               float metres);  // level 2 build 1b (answer 3), below
 
 // Refused before the cast, nothing spent (true): a willing creature's spell at an enemy, Mage Armor on one wearing
 // armour, an enemy's spell at a creature its Sanctuary keeps it from. A Bonus Action spell's order becomes its feat's
@@ -1147,6 +1150,11 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
   const uint32_t at = bonus->feet > 0 ? order.target : id;  // a Self spell: on you
   void* on = bonus->feet > 0 ? target : creature;
   const std::string feet = std::to_string(bonus->feet);
+  // Level 2 build 1b (owner, 2026-11-22: "Walk over and cast"): a touch spell at a creature out of reach walks to it
+  // first - once every other check passes, and they're all made again at the walk's end (t_touch_walked).
+  const float metres = on && on != creature ? engine::EdgeDistance(creature, on) : 0.0f;
+  const rules::TouchReach reach =
+      rules::BonusSpellTouchReach(bonus->feet, metres > rules::FeetToMetres(bonus->feet), t_touch_walked);
   std::string refused;
   if (SpentThisTurn(id, nullptr)) {
     refused = PlayerText("spells2024.refuse_slot_this_turn");
@@ -1154,7 +1162,7 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
     refused = PlayerText("spells2024.refuse_bonus_spent");
   } else if (!on) {
     refused = PlayerText("spells2024.refuse_no_creature", {{"feet", feet}});
-  } else if (on != creature && engine::EdgeDistance(creature, on) > rules::FeetToMetres(bonus->feet)) {
+  } else if (reach == rules::TouchReach::kTooFar) {
     refused = PlayerText("spells2024.refuse_out_of_range", {{"feet", feet}});
   } else if (OrderSlotsLeft(creature, order.spell, order.class_slot, order.domain_level, order.metamagic) <= 0) {
     refused = PlayerText("spells2024.refuse_no_slot");
@@ -1162,6 +1170,7 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
     refused = PlayerText("spells2024.refuse_no_caster");
   }
   if (!refused.empty()) return Refuse(id, bonus->name, refused, at);
+  if (reach == rules::TouchReach::kWalk) return TouchWalk(creature, id, order, *bonus, metres);
   if (!engine::HasFeat(stats, bonus->feat)) engine::AddFeat(stats, bonus->feat);
   g_bonus_casts[id] = BonusCast{order.spell, order.class_slot, order.domain_level, order.metamagic, GameMs()};
   float nowhere[3] = {0.0f, 0.0f, 0.0f};
@@ -5921,6 +5930,59 @@ void DragonsBreath(uint32_t self, void* caster, const rules::Spell2024& spell) {
   }
 }
 
+// --- A touch Bonus Action spell's walk (owner, 2026-11-22: "Walk over and cast") ---
+// Dragon's Breath at a willing creature out of reach: the caster walks (runs) to it, as NWN's own touch spells do, and
+// at the walk's end its order is taken again (n5_s_touchwalk) - every check once more (a willing creature, the round's
+// Bonus Action, one slot a turn, a slot left, in reach), then the feat's use casts it and spends them. Nothing is spent
+// before; a new order cancels the walk.
+struct TouchWalkOrder {
+  SpellOrder order;
+  uint64_t at = 0;
+};
+std::unordered_map<uint32_t, TouchWalkOrder> g_touch_walks;  // by caster
+constexpr uint64_t kTouchWalkMs = 30000;                     // a walk older than this is forgotten
+
+const char* const kTouchWalk = R"nss(
+object t = StringToObject("$TARGET");
+AssignCommand(OBJECT_SELF, ClearAllActions());
+AssignCommand(OBJECT_SELF, ActionMoveToObject(t, TRUE, 1.0));
+AssignCommand(OBJECT_SELF, ActionDoCommand(ExecuteScript("n5_s_touchwalk", OBJECT_SELF)));
+)nss";
+
+bool TouchWalk(void* /*creature*/, uint32_t id, const SpellOrder& order, const rules::BonusActionSpell& bonus,
+               float metres) {
+  if (g_touch_walks.size() > 256) g_touch_walks.clear();
+  g_touch_walks[id] = TouchWalkOrder{order, GameMs()};
+  std::string code = kTouchWalk;
+  Replace(&code, "$TARGET", Hex(order.target));
+  Run(code, id, "a touch spell's walk");
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X %s at 0x%08X - out of reach (%.1f m): walks to it, then casts (nothing spent yet)", id,
+        bonus.name, order.target, metres);
+  }
+  return true;  // the order's taken by the walk
+}
+
+// n5_s_touchwalk: the walk's end, run as the caster.
+void TouchWalkEnd(uint32_t self) {
+  const auto it = g_touch_walks.find(self);
+  if (it == g_touch_walks.end()) return;
+  const TouchWalkOrder walk = it->second;
+  g_touch_walks.erase(it);
+  void* creature = CreatureById(self);
+  if (!creature || GameMs() > walk.at + kTouchWalkMs) {
+    if (LogSlot()) Log("spells2024: 0x%08X a touch spell's walk ended too late - not cast", self);
+    return;
+  }
+  t_touch_walked = true;
+  const bool taken = OrderGuard(creature, walk.order);
+  t_touch_walked = false;
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X a touch spell's walk done - spell %u at 0x%08X %s", self, walk.order.spell,
+        walk.order.target, taken ? "ordered again (above: cast or refused)" : "not taken - not cast");
+  }
+}
+
 // --- Heat Metal: a red-hot weapon, shield or armour ---
 // 2026-11-22 (owner: "A with the pickup step plus intelligence flavour, and A for the menu"): the object from its menu
 // (Weapon, Shield, Armour); a failed save drops a weapon to the ground at the creature's feet (SRD 5.2.1: "drop the
@@ -6114,14 +6176,38 @@ void HeatGlow(uint32_t self, const Heat& heat, uint32_t holder) {
   Run(glow, self, "Heat Metal's glow");
 }
 
+// What a burn's damage took from its holder: the engine's damage handler's own measure (OnApplyDamage's listeners: hit
+// points and temporary ones before and after it), heard while the burn's damage is applied.
+struct HeatDamage {
+  uint32_t target = 0;
+  int heard = -1;  // -1: not heard
+};
+HeatDamage g_heat_damage;
+
+void HeatDamageHeard(uint32_t /*creator*/, void* target, int damage) {
+  if (!g_heat_damage.target || !target || Field<uint32_t>(target, ee::kObjectId) != g_heat_damage.target) return;
+  g_heat_damage.heard = std::max(0, g_heat_damage.heard) + std::max(0, damage);
+}
+
+int HitPointsWithTemporary(const void* creature) {
+  return Field<int16_t>(creature, ee::kObjectCurrentHitPoints) + Field<int16_t>(creature, ee::kObjectTemporaryHitPoints);
+}
+
 // Its damage on the one holding or wearing it - 2d8 Fire (1d8 more a slot level above 2) - then, when it took the
-// damage, the Constitution save: a failure drops a weapon to the ground; one that keeps hold of it (a success, or
+// damage (owner, 2026-11-22: "fix it" - immune, or all of it absorbed: no save), the Constitution save: a failure drops a weapon to the ground; one that keeps hold of it (a success, or
 // armour or a shield) has Disadvantage on attack rolls and ability checks until the start of your next turn (a round).
 void HeatBurn(uint32_t self, const rules::Spell2024& spell, Heat& heat, const Holder& holder, const char* how) {
   const std::string target = Hex(holder.id);
   const int amount = RollEngineDice(heat.dice, spell.die);
+  void* victim = CreatureById(holder.id);
+  const int before = victim ? HitPointsWithTemporary(victim) : 0;
+  g_heat_damage = HeatDamage{holder.id, -1};
   const bool landed = Damage(self, spell, target, amount, rules::kDamageTypeFire, "VFX_IMP_FLAME_S", Look());
-  const int dealt = landed ? amount : 0;
+  const int heard = g_heat_damage.heard;
+  g_heat_damage = HeatDamage();
+  victim = CreatureById(holder.id);
+  const int lost = victim ? before - HitPointsWithTemporary(victim) : 0;
+  const int dealt = landed ? rules::DamageTakenOf(heard, lost) : 0;
   int save = -1;
   if (dealt > 0) save = SaveAgainst(self, spell.script, rules::Ability::kConstitution, target, heat.dc);
   const rules::HeatOutcome outcome = rules::HeatMetalOutcome(holder.what, dealt, save == 0);
@@ -6160,15 +6246,16 @@ void HeatBurn(uint32_t self, const rules::Spell2024& spell, Heat& heat, const Ho
                                                          : "Constitution save succeeded - it keeps hold: Disadvantage on "
                                                            "its attack rolls and ability checks until your next turn";
   } else {
-    log = "no damage taken - no save";
+    log = "no damage taken (immune, or all of it absorbed) - no save, no drop, no Disadvantage";
   }
   if (!line.empty()) {
     TellPlayer(self, line);
     if (holder.id != self) TellPlayer(holder.id, line);
   }
   if (LogSlot()) {
-    Log("spells2024: 0x%08X Heat Metal burns 0x%08X (%s; DC %d): %s = %d Fire%s; %s", self, holder.id, how, heat.dc,
-        Dice(heat.dice, spell.die).c_str(), amount, landed ? "" : " - immune", log.c_str());
+    Log("spells2024: 0x%08X Heat Metal burns 0x%08X (%s; DC %d): %s = %d Fire, %d taken (%s); %s", self, holder.id,
+        how, heat.dc, Dice(heat.dice, spell.die).c_str(), amount, dealt,
+        !landed ? "immune" : heard >= 0 ? "the engine's damage result" : "its hit points before and after", log.c_str());
   }
 }
 
@@ -6486,6 +6573,28 @@ bool Level2FeatGuard(void* creature, uint32_t id, int feat) {
 
 // --- Each creature update: the spells' ends, a let-go blade, an NPC's strikes, breaths and burns ---
 
+// The owner's build 1b answer 1 (2026-11-22: "make it a probability dependent on their int/wis, whichever one is
+// highest"): an NPC caster's own Bonus Action repeat, by chance each round it could (rules::NpcBonusRepeatChance, the
+// ini's npc_bonus_repeat_base / _per_mod); its Bonus Action spent only when it happens. Each roll logged.
+bool NpcRepeatsBonus(void* creature, uint32_t id, const char* what) {
+  void* stats = StatsOf(creature);
+  const int intelligence = stats ? engine::AbilityScore(stats, 3) : 10;
+  const int wisdom = stats ? engine::AbilityScore(stats, 4) : 10;
+  const int chance = rules::NpcBonusRepeatChance(intelligence, wisdom, g_config.npc_bonus_repeat_base,
+                                                 g_config.npc_bonus_repeat_per_mod);
+  const int d100 = RollEngineDice(1, 100);
+  const bool repeats = rules::NpcBonusRepeats(chance, d100);
+  const bool spent = repeats && SpendBonusAction(creature, what);
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X %s by chance (Intelligence %d, Wisdom %d: %d%%): d100 %d - %s", id, what, intelligence,
+        wisdom, chance, d100,
+        !repeats ? "not this round, its Bonus Action kept"
+        : spent  ? "used, its Bonus Action spent"
+                 : "its Bonus Action already spent this round");
+  }
+  return spent;
+}
+
 void SpiritUpdate(void* creature, uint32_t id) {
   const auto it = g_spirit_weapons.find(id);
   if (it == g_spirit_weapons.end()) return;
@@ -6534,6 +6643,7 @@ void SpiritUpdate(void* creature, uint32_t id) {
       !SpiritReaches(weapon, target)) {
     return;
   }
+  if (!NpcRepeatsBonus(creature, id, "Spiritual Weapon: Strike")) return;
   SpiritStrike(id, creature, *spell, weapon, foe, "its round's Bonus Action");
 }
 
@@ -6664,6 +6774,7 @@ void HeatUpdate(void* creature, uint32_t id, uint64_t now) {
   if (!spell || HeatAgainNow(id, heat, &holder) != rules::HeatAgain::kOk || !engine::IsEnemy(creature, holder.id)) {
     return;
   }
+  if (!NpcRepeatsBonus(creature, id, "Heat Metal: Again")) return;
   HeatBurn(id, *spell, heat, holder, "its round's Bonus Action");
 }
 
@@ -6691,6 +6802,7 @@ void Level2bGameStarted() {
   g_heats.clear();
   g_heat_held.clear();
   g_dropped.clear();
+  g_touch_walks.clear();
 }
 
 void Cast(uint32_t self, int row) {
@@ -7150,7 +7262,9 @@ void InstallSpells2024() {
   const bool level2 = AddCreatureUpdateListener(&Level2Update) && AddRestListener(&PrayerRest) &&  // level 2 1a
                       AddGameStartListener(&Level2GameStarted) &&
                       AddCreatureUpdateListener(&Level2bUpdate) && AddGameStartListener(&Level2bGameStarted) &&  // 1b
-                      AddScriptHandler("n5_s_spiritswing", &SpiritSwingScript);  // 1b's option C
+                      AddScriptHandler("n5_s_spiritswing", &SpiritSwingScript) &&  // 1b's option C
+                      AddScriptHandler("n5_s_touchwalk", &TouchWalkEnd) &&         // 1b's answer 3
+                      AddDamageListener(&HeatDamageHeard);                          // 1b's answer 4
   if (reactions) {  // #162 G
     AddHudPool(&SmiteHudPool);
     AddHudClick("smite", &SmitePanelClicked);

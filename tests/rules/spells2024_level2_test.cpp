@@ -360,6 +360,43 @@ TEST(Level2HeatMetalMenu) {
   for (int other : {-1, 14, 16, 20, 25, 27, 36, 49, 69, 160}) CHECK_EQ(WeaponBaseItem(other), false);
 }
 
+// The owner's build 1b answers (2026-11-22): the damage Heat Metal's save needs, an NPC's repeats by chance, a touch
+// spell's walk.
+TEST(Level2Build1bAnswers) {
+  // 4: the engine's damage result first; else the hit points lost; none - no save.
+  CHECK_EQ(DamageTakenOf(9, 9), 9);
+  CHECK_EQ(DamageTakenOf(0, 0), 0);    // immune: heard, nothing taken
+  CHECK_EQ(DamageTakenOf(0, 4), 0);    // heard says none: another's damage doesn't count
+  CHECK_EQ(DamageTakenOf(4, 0), 4);    // resisted: some taken
+  CHECK_EQ(DamageTakenOf(-1, 6), 6);   // not heard: the hit points
+  CHECK_EQ(DamageTakenOf(-1, 0), 0);
+  CHECK_EQ(DamageTakenOf(-1, -3), 0);  // healed meanwhile: none
+  CHECK_EQ(HeatMetalOutcome(HeatedObject::kRightHand, DamageTakenOf(0, 0), true) == HeatOutcome::kNothing, true);
+  CHECK_EQ(HeatMetalOutcome(HeatedObject::kRightHand, DamageTakenOf(4, 4), true) == HeatOutcome::kDrops, true);
+  // 1: 50% + 10% a point of the higher modifier, 10% to 95%.
+  CHECK_EQ(NpcBonusRepeatChance(10, 10, 50, 10), 50);
+  CHECK_EQ(NpcBonusRepeatChance(16, 8, 50, 10), 80);
+  CHECK_EQ(NpcBonusRepeatChance(8, 16, 50, 10), 80);  // whichever is higher
+  CHECK_EQ(NpcBonusRepeatChance(6, 6, 50, 10), 30);
+  CHECK_EQ(NpcBonusRepeatChance(9, 3, 50, 10), 40);
+  CHECK_EQ(NpcBonusRepeatChance(1, 1, 50, 10), 10);    // -5: 0%, kept at 10%
+  CHECK_EQ(NpcBonusRepeatChance(30, 3, 50, 10), 95);   // +10: 150%, kept at 95%
+  CHECK_EQ(NpcBonusRepeatChance(20, 10, 40, 5), 65);   // the ini's numbers
+  CHECK_EQ(NpcBonusRepeats(50, 50), true);
+  CHECK_EQ(NpcBonusRepeats(50, 51), false);
+  CHECK_EQ(NpcBonusRepeats(95, 100), false);
+  CHECK_EQ(NpcBonusRepeats(10, 1), true);
+  CHECK_EQ(NpcBonusRepeats(10, 0), false);
+  // 3: Dragon's Breath (touch) out of reach walks once; a ranged one is refused; in reach casts.
+  CHECK_EQ(BonusSpellTouchReach(kDragonsBreathTouchFeet, false, false) == TouchReach::kCast, true);
+  CHECK_EQ(BonusSpellTouchReach(kDragonsBreathTouchFeet, true, false) == TouchReach::kWalk, true);
+  CHECK_EQ(BonusSpellTouchReach(kDragonsBreathTouchFeet, true, true) == TouchReach::kTooFar, true);
+  CHECK_EQ(BonusSpellTouchReach(kDragonsBreathTouchFeet, false, true) == TouchReach::kCast, true);
+  CHECK_EQ(BonusSpellTouchReach(60, true, false) == TouchReach::kTooFar, true);  // Healing Word's 60 feet
+  CHECK_EQ(BonusSpellTouchReach(0, true, false) == TouchReach::kTooFar, true);   // Self
+  CHECK_EQ(BonusActionSpellOf(kDragonsBreath)->feet, kDragonsBreathTouchFeet);
+}
+
 // Option C (owner, 2026-11-22: "if you can build it faithfuly, then yes, C"): Spiritual Weapon's force - a Strike's
 // reach and move from where it is, where it stops to strike, its move's time, the cast's first strike.
 TEST(Level2SpiritualWeaponForce) {

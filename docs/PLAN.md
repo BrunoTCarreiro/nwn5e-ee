@@ -2373,6 +2373,36 @@ monster AC by CR.
       - Text: three menu names and seven catalogue lines generated, the description's note rewritten (for review,
         docs/TEXT-REVIEW.md).
       - Tests Level2HeatMetalMenu; 17 of 17 mutations caught.
+    - *Decided (owner, 2026-11-22):* the four build 1b questions left. NPC casters repeating by themselves: "make it a
+      probability dependent on their int/wis, whichever one is highest". Flame Blade and Action Surge: "go with rec".
+      Dragon's Breath's touch: "Walk over and cast". Heat Metal on a creature immune to Fire: "fix it".
+    - *Built (the four answers):*
+      - **An NPC caster's repeats, by chance** (rules::NpcBonusRepeatChance): each round it could, its Spiritual Weapon:
+        Strike (moving the force) and its Heat Metal: Again happen with 50% + 10% for each point of the higher of its
+        Intelligence and Wisdom modifiers, kept from 10% to 95% (10 is 50%, 16 is 80%, 6 is 30%). The numbers are
+        nwn5e.ini's [rules] npc_bonus_repeat_base=50 and npc_bonus_repeat_per_mod=10. A d100 at or under the chance
+        uses it, and only then is its Bonus Action spent (SpendBonusAction; one already spent that round stops it).
+        Each roll is logged: "Heat Metal: Again by chance (Intelligence 9, Wisdom 12: 60%): d100 37 - used, its Bonus
+        Action spent". A henchman's Dragon's Breath exhale (an action, its AI's) is unchanged.
+      - **Flame Blade and Action Surge:** as built - an Action Surge's action is another Magic action, so another blade
+        attack. Nothing changed.
+      - **Dragon's Breath's touch** (rules::BonusSpellTouchReach): cast at a willing creature out of reach, the caster
+        runs to it (ActionMoveToObject), as NWN's own touch spells do, then casts. The enemy refusal and every other
+        check come before the walk, so nothing is spent on a walk that couldn't end in a cast. At the walk's end
+        (n5_s_touchwalk, an ActionDoCommand after the move) the order is taken again through the same guard. So the
+        willing creature, the round's Bonus Action, one slot a turn, a slot left and the reach are all checked once
+        more, and the feat's use then casts it and spends them as any Dragon's Breath. Still out of reach then (it
+        moved away): refused. A new order cancels the walk; one ended over 30 seconds on is forgotten.
+      - **No damage, no save** (SRD 5.2.1: "takes the damage from it"; rules::DamageTakenOf): Heat Metal's save,
+        drop and Disadvantage come only when the holder lost hit points (or temporary ones) to the burn. The measure
+        is the engine's own: the OnApplyDamage hook's listeners hear the hit points before and after the damage
+        effect applies (damage_listeners.cpp, Concentration's measure). The current and temporary hit points read
+        around the damage are the fallback if it isn't heard. Immune, or all of it absorbed (NWN's resistances): no
+        save. Resistance that leaves some damage: still a save. The log gives the roll and what was taken ("2d8 = 9
+        Fire, 0 taken (the engine's damage result); no damage taken (immune, or all of it absorbed) - no save, no
+        drop, no Disadvantage").
+      - Text: the pickup step's "picks up the ... again" drops "red-hot", since it's also said once the spell is over.
+      - Tests Level2Build1bAnswers; 15 of 15 mutations caught.
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).

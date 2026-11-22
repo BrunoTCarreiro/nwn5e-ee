@@ -765,7 +765,7 @@ spells2024.refuse_no_metal_armour | generated | a creature wearing Medium or Hea
 spells2024.heat_metal_armour | generated | armour
 spells2024.heat_metal_dropped | generated | nwn5e: Heat Metal - {name} drops the red-hot {object}; it falls to the ground.
 spells2024.heat_metal_draws_other | generated | nwn5e: Heat Metal - {name} draws another weapon.
-spells2024.heat_metal_picks_up | generated | nwn5e: Heat Metal - {name} picks up the red-hot {object} again.
+spells2024.heat_metal_picks_up | generated | nwn5e: Heat Metal - {name} picks up the {object} again.
 spells2024.heat_metal_leaves_it | generated | nwn5e: Heat Metal - {name} won't touch the red-hot {object} while it glows.
 spells2024.heat_metal_holds | generated | nwn5e: Heat Metal - {name} keeps the red-hot {object}: Disadvantage on attack rolls and ability checks until the start of your next turn.
 spells2024.heat_metal_again_hint | generated | nwn5e: Heat Metal - on your later turns, Heat Metal: Again (a Bonus Action on your quickbar) burns it again while you concentrate.
