@@ -306,3 +306,19 @@ TEST(Level2Build1bRules) {
   CHECK_EQ(std::string(SpellActionLeafOf(kHeatMetal)->label) == "Heat Metal: Again", true);
   CHECK_EQ(SpellActionLeafOf(kDragonsBreath) == nullptr && SpellActionLeafOf(kBless) == nullptr, true);
 }
+
+// 0.99.117's fix (owner, 2026-11-22, S2-24: "the quarterstaff doesn't come back, the PC keeps attacking unarmed"):
+// Flame Blade's blade in the hand, on its way, or let go; the weapon it replaced back at the end.
+TEST(Level2Build1bBlade) {
+  CHECK_EQ(FlameBladeHand(true, false, 0, 6000) == BladeHand::kHeld, true);
+  CHECK_EQ(FlameBladeHand(true, true, 90000, 6000) == BladeHand::kHeld, true);
+  CHECK_EQ(FlameBladeHand(false, false, 5999, 6000) == BladeHand::kOnItsWay, true);  // its equip on its way
+  CHECK_EQ(FlameBladeHand(false, false, 6000, 6000) == BladeHand::kLetGo, true);     // it never came
+  CHECK_EQ(FlameBladeHand(false, true, 100, 6000) == BladeHand::kLetGo, true);       // held once, now not
+  // Back: an old weapon, and the hand holds the blade or nothing; another weapon there stays.
+  CHECK_EQ(FlameBladePutsBack(true, true, false), true);
+  CHECK_EQ(FlameBladePutsBack(true, false, true), true);   // let go of: the hand empty
+  CHECK_EQ(FlameBladePutsBack(true, false, false), false);  // the creature's own weapon now
+  CHECK_EQ(FlameBladePutsBack(false, true, false), false);  // none to put back
+  CHECK_EQ(FlameBladePutsBack(false, false, true), false);
+}

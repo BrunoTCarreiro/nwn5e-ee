@@ -840,6 +840,16 @@ const SpellActionLeaf* SpellActionLeafOf(int spell) {
   return nullptr;
 }
 
+BladeHand FlameBladeHand(bool in_hand, bool seen_held, uint64_t ms_since_made, uint64_t grace_ms) {
+  if (in_hand) return BladeHand::kHeld;
+  if (!seen_held && ms_since_made < grace_ms) return BladeHand::kOnItsWay;
+  return BladeHand::kLetGo;
+}
+
+bool FlameBladePutsBack(bool had_old_weapon, bool hand_holds_blade, bool hand_empty) {
+  return had_old_weapon && (hand_holds_blade || hand_empty);
+}
+
 bool IsBonusActionSpellOrder(int row) {
   const BonusActionSpell* bonus = BonusActionSpellOf(row);
   return bonus && row != bonus->bonus_row;

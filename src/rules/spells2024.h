@@ -651,6 +651,13 @@ struct SpellActionLeaf {
   const char* label = "";
 };
 const SpellActionLeaf* SpellActionLeafOf(int spell);
+// Flame Blade's blade at a creature update (0.99.117's fix): in the hand; not yet - its equip on its way, for `grace_ms`
+// after it was made, until it's first seen there; or let go - it disappears.
+enum class BladeHand { kHeld, kOnItsWay, kLetGo };
+BladeHand FlameBladeHand(bool in_hand, bool seen_held, uint64_t ms_since_made, uint64_t grace_ms);
+// The spell's end puts the weapon the blade replaced back in the hand - when there was one and the hand holds the blade
+// or nothing (let go of: the blade's gone, the hand empty); another weapon there is the creature's own choice, kept.
+bool FlameBladePutsBack(bool had_old_weapon, bool hand_holds_blade, bool hand_empty);
 // A Bonus Action spell's order: its row, or one of its menu's (Dragon's Breath's types) - cast through its feat.
 bool IsBonusActionSpellOrder(int row);
 

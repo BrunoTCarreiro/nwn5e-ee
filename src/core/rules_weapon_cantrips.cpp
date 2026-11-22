@@ -294,7 +294,7 @@ const BladeAttack* HeldFlameBlade(void* creature) {
   const auto it = g_flame_blades.find(IdOf(creature));
   if (it == g_flame_blades.end() || !it->second.item) return nullptr;
   void* right = engine::ItemInSlot(creature, ee::kSlotRightHand);
-  return right && IdOf(right) == it->second.item ? &it->second : nullptr;
+  return right && engine::ItemId(right) == it->second.item ? &it->second : nullptr;  // an item's own id (0.99.117)
 }
 
 // The blade when `creature`'s current attack is a melee attack with it (null: none).
@@ -304,7 +304,7 @@ const BladeAttack* FlameBladeAttack(void* creature) {
   if (it == g_flame_blades.end() || !it->second.item) return nullptr;
   const uint8_t* attack = nullptr;
   void* weapon = AttackWeapon(creature, &attack);
-  return weapon && !AttackRanged(attack) && IdOf(weapon) == it->second.item ? &it->second : nullptr;
+  return weapon && !AttackRanged(attack) && engine::ItemId(weapon) == it->second.item ? &it->second : nullptr;
 }
 
 // --- True Strike ------------------------------------------------------------------------------------------------

@@ -1,0 +1,19 @@
+# A !test profile ([debug] test_commands=1): type "!test listwizard" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #39 Part 2, level 2, build 1b (0.99.117 S2-33b): a Wizard 3, Intelligence 16, with the XP for level 4 - its
+# level-up Spells page shows the Wizard class list (the spells not in its book) at levels 1 and 2: Dragon's Breath
+# there, Flame Blade not (the Sorcerer's alone). The Prepare spells window lists the book only.
+name = Level 2 build 1b (issue 39): human Wizard 3 with the XP for 4 - the class list on the level-up Spells page
+species = human
+swap_class = wizard
+class = wizard
+level = 3
+abilities = 8 14 14 16 10 10
+xp = 2700
+items = nw_wdbqs001 equip
+spells = Fire Bolt, Light, Prestidigitation
+spells = Magic Missile, Shield, Mage Armor, Shatter
+spellbook = Burning Hands, Sleep, Thunderwave, Ice Knife
+note = then level up (the level-up screen): the Spells page, Level 2 tab - Dragon's Breath is offered, Flame Blade is not

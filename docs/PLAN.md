@@ -2236,6 +2236,34 @@ monster AC by CR.
     - Text: the four names and descriptions SRD 5.2.1 verbatim, each with a generated note (the blade item's name the
       spell's); the actions' names and descriptions and 21 catalogue lines generated, for review (docs/TEXT-REVIEW.md).
     - Profiles: weaponcleric, bladedruid, breathsorcerer.
+    - *Fixed (owner's tests, 2026-11-22):*
+      - **An item's id** (S2-25: "the orc doesn't drop the axe", the chat naming "the red-hot nwn5e Test Grounds"; S2-24:
+        "the quarterstaff doesn't come back, the PC keeps attacking unarmed"). The log: "heats 0x000001B3's weapon
+        0x00000000", the armour "0x0A0B0A0A", and the blade "never reached the hand" 7 s after the cast. Heat Metal and
+        Flame Blade read an item's id at +0x8 (kObjectId, a creature's), but a CNWSItem is its CNWItem base first: its
+        CGameObject base is at +0x48 (CNWSItem::AsNWSItem: lea rax,[rcx-48h]) and its id at +0x50 (CNWSItem::OpenInventory
+        compares [rbx+50h] with an id). So Heat Metal kept id 0 - the module - and Flame Blade's held check never
+        matched: the blade was destroyed as never held, and its attack, damage and round hooks never applied.
+        - engine::ItemId reads +0x50 (ee_layout.h kItemObjectId) for Heat Metal's object and for the blade's checks
+          (rules_spells2024.cpp, rules_weapon_cantrips.cpp). A script never gets id 0 for "no object" (ObjectHex).
+        - The whole repo was searched for other item ids read at +0x8: there are none. The other item uses compare
+          pointers, or read the CNWItem side (+0x40 the base item).
+      - **Flame Blade's end** (S2-24): once the blade was let go (or lost, as above), the end put nothing back, and an
+        equip waits behind a fight. Now the weapon it replaced comes back whenever the hand holds the blade or nothing
+        (rules::FlameBladePutsBack; another weapon there is kept), with the caster's queue cleared for it and its target
+        attacked again (the blade's own way). It's remembered across Evoke and a cast again. The second end's "0x00000000"
+        came from the first end leaving the hand empty, so the second cast found nothing to replace. The hand check is
+        rules::FlameBladeHand.
+      - **Spiritual Weapon's reach** (S2-19: "doesn't seem to matter how far I am from the target, it always works"):
+        not a broken check. The 25 feet are measured from the force, beside the creature it last struck, and SRD 5.2.1
+        puts no limit on the caster's distance for the later strikes. In that run the first orc fell where the fight
+        was, and the archer was spawned 5 m in front of you there (!spawn's place), within 25 feet of the force. Walking
+        away moved you, not the force. The 1.39 s flight came from you because the first orc's body was gone (13.7 m:
+        your distance, not the force's). The strike's log line now gives the force's distance and the flight's origin.
+      - **S2-33** ("neither is listed"): the test was wrong. The Wizard's Prepare spells window lists its spellbook
+        ("spellbook 7 of 14"), not the class list. Its class list shows on the level-up's Spells page: the listwizard
+        profile (a Wizard 3 with the XP for 4), row S2-33b.
+      - Tests Level2Build1bBlade; 7 of 7 mutations caught.
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).

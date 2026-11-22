@@ -1544,6 +1544,13 @@ constexpr size_t kCreaturePathInfo = 0x530;           // CPathfindInformation* (
 constexpr size_t kPathInfoPersonalSpace = 0x8;        // float, appearance.2da CREPERSPACE (UpdatePersonalSpace)
 constexpr size_t kCreatureInventory = 0x950;          // CNWSInventory* (GetRangedAttackBonus +0x20)
 constexpr size_t kItemBaseItem = 0x40;                // int32 baseitems.2da row
+// #39 level 2 build 1b's fix (0.99.117's S2-25, S2-24): a CNWSItem* is its CNWItem base first - CNWSItem : CNWItem,
+// CNWSObject - so its CGameObject's id isn't at +0x8 (kObjectId, a creature's or a placeable's, whose CNWSObject base
+// is at 0): the CGameObject base is at +0x48 (CNWSItem::AsNWSItem, 464e00: lea rax,[rcx-48h]; GetItemByGameObjectID
+// calls it on the object array's CGameObject*) and the id at +0x50 (CNWSItem::OpenInventory +0x9a: cmp ebp,[rbx+50h],
+// the item's own id; CloseInventory +0x93 / +0x178 read [rbx+50h] the same way). engine::ItemId reads it.
+constexpr size_t kItemObjectBase = 0x48;
+constexpr size_t kItemObjectId = kItemObjectBase + 0x8;
 constexpr size_t kBaseItemWield = 0x08;               // uint8 WeaponWield: 7 shield, 8 double (InitializeNumberOfAttacks)
 constexpr uint8_t kWieldDouble = 8;
 constexpr size_t kVisibilityFlags = 0x4;              // CNWVisibilityNode, bit 0 = seen (GetAttackModifierVersus +0x25b4)

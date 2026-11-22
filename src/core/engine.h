@@ -23,6 +23,8 @@ bool AddFeat(void* stats, int feat);
 void RemoveFeat(void* stats, int feat);
 void* ItemInSlot(void* creature, int slot);  // CNWSItem*, or null
 int BaseItemRow(const void* item);           // baseitems.2da row, -1 for no item
+// An item's object id (ee_layout.h kItemObjectId: not a creature's kObjectId offset), OBJECT_INVALID for no item.
+uint32_t ItemId(const void* item);
 int BaseItemRowInSlot(void* creature, int slot);
 bool IsDoubleWeapon(int base_item_row);      // baseitems.2da WeaponWield 8
 const void* BaseItem(int base_item_row);     // CNWBaseItem*, or null

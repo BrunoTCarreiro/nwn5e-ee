@@ -101,6 +101,8 @@ void* ItemInSlot(void* creature, int slot) {
 
 int BaseItemRow(const void* item) { return item ? Field<int32_t>(item, ee::kItemBaseItem) : -1; }
 
+uint32_t ItemId(const void* item) { return item ? Field<uint32_t>(item, ee::kItemObjectId) : ee::kObjectInvalid; }
+
 int BaseItemRowInSlot(void* creature, int slot) { return BaseItemRow(ItemInSlot(creature, slot)); }
 
 const void* BaseItem(int base_item_row) {

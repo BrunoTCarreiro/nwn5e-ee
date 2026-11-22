@@ -5101,6 +5101,10 @@ int CastModifier(void* caster, int class_slot) {
 
 std::string Signed(int value) { return (value >= 0 ? "+" : "") + std::to_string(value); }
 
+// An id for a script chunk: 0 (no object kept) as OBJECT_INVALID - StringToObject("0") is the module (0.99.117: Heat
+// Metal's object id read as 0 named the module, "the red-hot nwn5e Test Grounds").
+std::string ObjectHex(uint32_t id) { return Hex(id ? id : ee::kObjectInvalid); }
+
 void GrantFeat(void* creature, int feat) {
   void* stats = creature ? StatsOf(creature) : nullptr;
   if (stats && !engine::HasFeat(stats, feat)) engine::AddFeat(stats, feat);
@@ -5217,6 +5221,7 @@ void SpiritStrike(uint32_t self, void* caster, const rules::Spell2024& spell, Sp
   const std::vector<Entry> hits = Entries(caster);
   if (hits.empty()) return;  // gone, or down already
   const int result = hits[0].value;
+  const float from_force = SpiritMetres(weapon, creature);  // 0.99.117's S2-19: the reach measured, for the log
   void* from_creature = weapon.last ? CreatureById(weapon.last) : nullptr;
   float lands = result > 0 ? PlaySpellLook(self, target, rules::kSpiritualWeapon)
                            : PlaySpellLookMiss(self, target, rules::kSpiritualWeapon);
@@ -5244,8 +5249,15 @@ void SpiritStrike(uint32_t self, void* caster, const rules::Spell2024& spell, Sp
   weapon.y = Field<float>(creature, ee::kObjectPositionY);
   weapon.last = target;
   if (LogSlot()) {
-    Log("spells2024: 0x%08X Spiritual Weapon (a level %d slot) strikes 0x%08X (%s; %s, lands in %s s): %s", self,
-        weapon.slot, target, how, look ? "its look" : "the placeholder look", Float(lands).c_str(), log.c_str());
+    char reach[96];
+    if (weapon.last) {
+      snprintf(reach, sizeof reach, "the force %.2f m from it (7.62 m at most), its flight from %s", from_force,
+               from_creature ? "the creature it last struck" : "you (that creature gone)");
+    } else {
+      snprintf(reach, sizeof reach, "the force cast beside it");
+    }
+    Log("spells2024: 0x%08X Spiritual Weapon (a level %d slot) strikes 0x%08X (%s; %s; %s, lands in %s s): %s", self,
+        weapon.slot, target, how, reach, look ? "its look" : "the placeholder look", Float(lands).c_str(), log.c_str());
   }
 }
 
@@ -5350,14 +5362,24 @@ if (GetIsObjectValid(b)) {
 SetLocalString(OBJECT_SELF, "n5s_hits", r);
 )nss";
 
-// The blade gone (destroyed); $PUT_BACK: the weapon it replaced back in the hand, if the caster still has it.
+// The blade gone (destroyed); $PUT_BACK (rules::FlameBladePutsBack): the weapon it replaced back in the hand - the
+// caster's queue cleared for it as for the blade (0.99.117's S2-24: an equip queued behind the fight never ran) and its
+// attack target taken up again. n5s_put_back: 1 when it was.
 const char* const kBladeGone = R"nss(
 object b = StringToObject("$BLADE");
-int held = GetItemInSlot(INVENTORY_SLOT_RIGHTHAND) == b || !GetIsObjectValid(GetItemInSlot(INVENTORY_SLOT_RIGHTHAND));
-if (GetIsObjectValid(b)) { SetPlotFlag(b, FALSE); SetItemCursedFlag(b, FALSE); DestroyObject(b); }
+if (GetIsObjectValid(b) && GetObjectType(b) == OBJECT_TYPE_ITEM) {
+  SetPlotFlag(b, FALSE); SetItemCursedFlag(b, FALSE); DestroyObject(b);
+}
 object old = StringToObject("$OLD");
-if ($PUT_BACK && held && GetIsObjectValid(old) && GetItemPossessor(old) == OBJECT_SELF && !GetIsDead(OBJECT_SELF))
-  DelayCommand(0.3, AssignCommand(OBJECT_SELF, ActionEquipItem(old, INVENTORY_SLOT_RIGHTHAND)));
+int back = 0;
+if ($PUT_BACK && GetIsObjectValid(old) && GetItemPossessor(old) == OBJECT_SELF) {
+  object at = GetAttackTarget();
+  AssignCommand(OBJECT_SELF, ClearAllActions());
+  AssignCommand(OBJECT_SELF, ActionEquipItem(old, INVENTORY_SLOT_RIGHTHAND));
+  if (GetIsObjectValid(at) && !GetIsDead(at)) AssignCommand(OBJECT_SELF, ActionAttack(at));
+  back = 1;
+}
+SetLocalInt(OBJECT_SELF, "n5s_put_back", back);
 )nss";
 
 // A save made while a blade was out holds the item, unbound: it goes at the creature's first update of the game.
@@ -5389,12 +5411,14 @@ bool MakeBlade(uint32_t self, void* caster, Blade& blade, bool first) {
   return item != 0;
 }
 
-void BladeGone(uint32_t self, const Blade& blade, bool put_back) {
+bool BladeGone(uint32_t self, const Blade& blade, bool put_back) {
   std::string code = kBladeGone;
-  Replace(&code, "$BLADE", Hex(blade.item));
-  Replace(&code, "$OLD", Hex(blade.old ? blade.old : ee::kObjectInvalid));
+  Replace(&code, "$BLADE", ObjectHex(blade.item));
+  Replace(&code, "$OLD", ObjectHex(blade.old));
   Replace(&code, "$PUT_BACK", put_back ? "TRUE" : "FALSE");
   Run(code, self, "Flame Blade's end");
+  void* caster = CreatureById(self);
+  return caster && engine::GetLocalInt(caster, "n5s_put_back") == 1;
 }
 
 // Flame Blade: Evoke (row 1261, feat 1570): the blade again while the spell lasts - a Bonus Action, no slot.
@@ -5671,7 +5695,7 @@ Holder HeatHolder(uint32_t self, const Heat& heat) {
   void* caster = CreatureById(self);
   if (!caster) return holder;
   std::string code = kHeatHolder;
-  Replace(&code, "$ITEM", Hex(heat.item));
+  Replace(&code, "$ITEM", ObjectHex(heat.item));
   Run(code, self, "Heat Metal's object");
   const std::vector<Entry> found = Entries(caster);
   if (found.empty()) return holder;
@@ -5719,7 +5743,7 @@ if (!GetIsPC(t)) AssignCommand(t, ActionDoCommand(SignalEvent(t, EventSpellCastA
 
 void HeatCool(uint32_t self, const Heat& heat) {
   std::string code = kHeatCool;
-  Replace(&code, "$ITEM", Hex(heat.item));
+  Replace(&code, "$ITEM", ObjectHex(heat.item));
   Replace(&code, "$TAG", kTagHeatGlow);
   Run(code, self, "Heat Metal's end");
 }
@@ -5743,7 +5767,7 @@ void HeatBurn(uint32_t self, const rules::Spell2024& spell, const Heat& heat, co
   if (outcome == rules::HeatOutcome::kDrops) {
     std::string code = kHeatDrop;
     Replace(&code, "$TARGET", target);
-    Replace(&code, "$ITEM", Hex(heat.item));
+    Replace(&code, "$ITEM", ObjectHex(heat.item));
     Replace(&code, "$ROW", std::to_string(rules::kHeatMetal));
     Run(code, self, spell.script);
     line = PlayerText("spells2024.heat_metal_dropped", {{"name", name}, {"object", object}});
@@ -5812,7 +5836,8 @@ void HeatMetal(uint32_t self, void* caster, const rules::Spell2024& spell) {
     void* target = CreatureById(id);
     const rules::HeatedObject what = target ? HeatedObjectOf(target) : rules::HeatedObject::kNone;
     void* item = target ? HeatedItemOf(target, what) : nullptr;
-    if (!item) {  // a cast with no order (an item's, a script's): the order's refused before
+    const uint32_t item_id = engine::ItemId(item);  // 0.99.117 (S2-25, S2-34): its own id, not kObjectId's 0 / garbage
+    if (!item || item_id == ee::kObjectInvalid || item_id == 0) {  // a cast with no order: the order's refused before
       TellPlayer(self, PlayerText("spells2024.refused", {{"name", std::string(spell.name)},
                                                          {"why", PlayerText("spells2024.refuse_no_metal")}}));
       if (LogSlot()) Log("spells2024: 0x%08X Heat Metal at 0x%08X - no metal weapon or armour to heat", self, id);
@@ -5821,7 +5846,7 @@ void HeatMetal(uint32_t self, void* caster, const rules::Spell2024& spell) {
     const auto before = g_heats.find(self);
     if (before != g_heats.end()) HeatCool(self, before->second);
     Heat heat;
-    heat.item = Field<uint32_t>(item, ee::kObjectId);
+    heat.item = item_id;
     heat.row = row;
     heat.dice = rules::SpellDiceAt(spell, slot);
     heat.dc = dc;
@@ -5834,7 +5859,7 @@ void HeatMetal(uint32_t self, void* caster, const rules::Spell2024& spell) {
          MarkLook{kTagHeat, "EffectIcon(EFFECT_ICON_DAMAGE_INCREASE)", SecondsScript(rules::kHeatMetalMinutes),
                   "VFX_IMP_FLAME_S"});
     std::string glow = kHeatGlow;
-    Replace(&glow, "$ITEM", Hex(heat.item));
+    Replace(&glow, "$ITEM", ObjectHex(heat.item));
     Replace(&glow, "$TARGET", one.target);
     Replace(&glow, "$ARMOUR", heat.armour ? "TRUE" : "FALSE");
     Replace(&glow, "$ROW", std::to_string(row));
@@ -5961,25 +5986,39 @@ void BladeUpdate(void* creature, uint32_t id) {
     return;
   }
   Blade& blade = it->second;
+  void* right = engine::ItemInSlot(creature, ee::kSlotRightHand);
+  const uint32_t in_hand = engine::ItemId(right);  // 0.99.117: an item's own id (not kObjectId: S2-22, S2-23)
   if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, blade.row, -1, id)) {
     const Blade done = blade;
     g_blades.erase(it);
-    if (done.item) BladeGone(id, done, true);
+    // 0.99.117's S2-24 ("the quarterstaff doesn't come back, the PC keeps attacking unarmed"): the end put nothing
+    // back once the blade was gone (let go), and its equip waited behind the fight. Now the weapon it replaced comes
+    // back whenever the hand holds the blade or nothing, the queue cleared for it.
+    const bool put_back = !engine::IsDeadOrDying(creature) &&
+                          rules::FlameBladePutsBack(done.old != 0 && done.old != ee::kObjectInvalid,
+                                                    done.item != 0 && in_hand == done.item, right == nullptr);
+    const bool back = BladeGone(id, done, put_back);
     ClearFlameBlade(id);
     TakeFeat(creature, rules::kFeatFlameBladeEvoke);
     TellPlayer(id, PlayerText("spells2024.flame_blade_ends"));
-    if (LogSlot()) Log("spells2024: 0x%08X Flame Blade ends - the blade 0x%08X gone, 0x%08X back in the hand", id,
-                       done.item, done.old);
+    if (LogSlot()) {
+      Log("spells2024: 0x%08X Flame Blade ends - the blade 0x%08X gone; the weapon it replaced 0x%08X %s (the hand "
+          "held 0x%08X)", id, done.item, done.old,
+          back ? "back in the hand" : put_back ? "not put back - no longer carried" : "not put back", in_hand);
+    }
     return;
   }
   if (!blade.item) return;
-  void* right = engine::ItemInSlot(creature, ee::kSlotRightHand);
-  if (right && Field<uint32_t>(right, ee::kObjectId) == blade.item) {
-    if (!blade.held && LogSlot()) Log("spells2024: 0x%08X Flame Blade's blade 0x%08X in the hand", id, blade.item);
-    blade.held = true;
-    return;
+  switch (rules::FlameBladeHand(in_hand == blade.item, blade.held, GameMs() - blade.made, kBladeEquipMs)) {
+    case rules::BladeHand::kHeld:
+      if (!blade.held && LogSlot()) Log("spells2024: 0x%08X Flame Blade's blade 0x%08X in the hand", id, blade.item);
+      blade.held = true;
+      return;
+    case rules::BladeHand::kOnItsWay:  // its equip on its way
+      return;
+    case rules::BladeHand::kLetGo:
+      break;
   }
-  if (!blade.held && GameMs() < blade.made + kBladeEquipMs) return;  // its equip on its way
   // "If you let go of the blade, it disappears, but you can evoke it again as a Bonus Action."
   const uint32_t item = blade.item;
   const bool was_held = blade.held;
