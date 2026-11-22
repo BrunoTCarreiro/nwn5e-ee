@@ -5196,6 +5196,9 @@ constexpr const char* kSpiritMarkerResRef = "plc_invisobj";
 constexpr const char* kTagSpiritForce = "n5s_spiritforce";  // the marker's tag, and its idle effect's
 constexpr uint64_t kForceCheckMs = 2000;
 constexpr float kForceSwingSeconds = 0.15f;  // the swing reaching the creature: its flash and the damage
+// The swing (n5_swp_hit) carries its own blade, so the idle (n5_swp_idle) comes off the marker as it starts and goes
+// back on after this: its 0.5 s fade-in crosses the swing's fade-out (the look's notes, a65fbf9).
+constexpr float kForceIdleHiddenSeconds = 0.6f;
 
 // A strike waiting for its flight to land.
 struct ForceStrikeLanding {
@@ -5282,6 +5285,16 @@ AssignCommand(m, ActionCastSpellAtLocation($ROW, l, METAMAGIC_ANY, TRUE, PROJECT
 const char* const kForceSwing = R"nss(
 object t = StringToObject("$TARGET");
 location l = Location(GetArea(OBJECT_SELF), Vector($X, $Y, $Z), $FACING);
+object f = StringToObject("$FORCE");
+if (GetIsObjectValid(f) && GetTag(f) == "$TAG") {
+  effect e = GetFirstEffect(f);
+  while (GetIsEffectValid(e)) {
+    if (GetEffectTag(e) == "$TAG") RemoveEffect(f, e);
+    e = GetNextEffect(f);
+  }
+  DelayCommand($HIDE, ApplyEffectToObject(DURATION_TYPE_PERMANENT,
+                                          TagEffect(SupernaturalEffect(EffectVisualEffect($IDLE)), "$TAG"), f));
+}
 ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect($STRIKE), l);
 if (GetIsObjectValid(t)) {
   if ($HIT) DelayCommand($SWING, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_DIVINE_STRIKE_HOLY), t));
@@ -5401,6 +5414,10 @@ void ForceStrikeLands(uint32_t self, SpiritWeapon& weapon, const ForceStrikeLand
   std::string code = kForceSwing;
   Replace(&code, "$TARGET", Hex(strike.target));
   Replace(&code, "$STRIKE", std::to_string(rules::kSpiritWeaponStrikeVfx));
+  Replace(&code, "$FORCE", ObjectHex(weapon.force));
+  Replace(&code, "$TAG", kTagSpiritForce);
+  Replace(&code, "$IDLE", std::to_string(rules::kSpiritWeaponIdleVfx));
+  Replace(&code, "$HIDE", Float(kForceIdleHiddenSeconds));
   Replace(&code, "$HIT", strike.result > 0 ? "TRUE" : "FALSE");
   Replace(&code, "$SWING", Float(kForceSwingSeconds));
   Replace(&code, "$X", Float(weapon.x));
