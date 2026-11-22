@@ -5663,7 +5663,7 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   the cones cut at walls (owner: "How hard to do is this though?" - answered in chat: the rule already needs a
   clear line; the drawing is the work); d) "yes, sounds fun but we have to tune this" - idle guards looking
   about, tuned in play.
-  *Built (#9 part 1):* the cones cut at walls (c). A calm hostile's cone, drawn while a player character hides, is
+  *Built 0.99.118 (#9 part 1):* the cones cut at walls (c). A calm hostile's cone, drawn while a player character hides, is
   15-degree slices (a 90-degree cone: 6), each as long as the creature's line of sight along the slice's middle -
   CNWSArea::ClearLineOfSight from its position + 1 m to a point 1 m over the ground there, the call and the heights
   DoPerceptionUpdateOnCreature uses (read from nwmain: +0x2c2) - rounded down to one of 16 drawn lengths (1, 2, 3,
@@ -5683,7 +5683,7 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   so a slice whose middle passes a doorway shows its full length beside the door frame; the lengths round down
   (up to 5 m short of a far wall; the guard doesn't see that last stretch either); a sight range between steps
   (28 m) draws and sees to the step below (25 m).
-  *Built (#9 part 2):* idle guards looking about (d). While a player character hides, each calm hostile within 40 m
+  *Built 0.99.118 (#9 part 2):* idle guards looking about (d). While a player character hides, each calm hostile within 40 m
   of it looks about now and then: every 8-16 s at random it turns 40-120 degrees left or right of its post's
   facing (SetFacing), holds the look 3 s (ANIMATION_LOOPING_LOOK_FAR) and turns back to its post's facing - all
   queued actions, so anything it does of its own (it hears you, a fight) takes over, and its next look starts from
@@ -5699,7 +5699,7 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   16), `idle_look_min_degrees` / `_max_degrees` (40 / 120), `idle_look_hold` (3); made sane (rules/idle_look.h,
   tested): seconds 2-600, degrees 5-180, hold 1-30, the shortest wait at least the hold + 1 s. Each look logged
   (300 lines at most), why one doesn't look when that changes (60).
-  *Built (#9 part 3):* the light gem (a), a trial. While the player character is in stealth mode, a small card on
+  *Built 0.99.118 (#9 part 3):* the light gem (a), a trial. While the player character is in stealth mode, a small card on
   the HUD shows the light it stands in - "Bright Light", "Dim Light" or "Darkness" (the SRD 5.2.1's terms;
   data/text/en.txt light_gem.*, source srd) beside a gem in the light's colour (a warm white with a glow, a muted
   grey-gold, a deep blue-black with a pale ring) - from the estimate the light rule uses (nwn5e_light_level, G
