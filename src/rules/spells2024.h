@@ -640,7 +640,7 @@ bool IsDragonsBreathExhaleFeat(int feat);
 // Heat Metal: what it heats on a creature - its weapon (a manufactured metal one, the main hand's first), else its
 // Medium or Heavy metal armour (NWN's tiers 4-8: Scale Mail, Chain Mail, Splint, Half Plate, Plate); kNone: nothing to
 // heat (the cast is refused, nothing spent).
-enum class HeatedObject { kNone, kRightHand, kLeftHand, kArmour };
+enum class HeatedObject { kNone, kRightHand, kLeftHand, kArmour, kShield };
 bool MetalWeaponBaseItem(int base_item);  // baseitems.2da: metal blades, heads and points - no wood, bows or slings
 bool MetalArmourTier(int nwn_base_ac);
 HeatedObject HeatMetalObject(int right_hand_base_item, int left_hand_base_item, int armour_tier);
@@ -649,6 +649,30 @@ HeatedObject HeatMetalObject(int right_hand_base_item, int left_hand_base_item, 
 // turn.
 enum class HeatOutcome { kNothing, kDrops, kDisadvantage };
 HeatOutcome HeatMetalOutcome(HeatedObject object, int damage, bool save_failed);
+// The menu (owner, 2026-11-22: "A for the menu"; SRD 5.2.1: "Choose a manufactured metal object, such as a metal weapon
+// or a suit of Heavy or Medium metal armor"): Weapon 1276, Shield 1277, Armour 1278 (Master 1274), each with its slot
+// levels, and Heat Metal: Again (1275) beside them while it lasts. The master cast with no choice (an NPC's, an
+// item's): its weapon, else its armour, else its shield.
+constexpr int kHeatMetalWeapon = 1276;
+constexpr int kHeatMetalShield = 1277;
+constexpr int kHeatMetalArmour = 1278;
+enum class HeatChoice { kAny, kWeapon, kShield, kArmour };
+HeatChoice HeatMetalChoiceOf(int row);
+// NWN's shields (baseitems.2da 14 small, 56 large, 57 tower): all taken as metal (NWN keeps no material) - heatable.
+bool MetalShieldBaseItem(int base_item);
+// The chosen object on a creature: Weapon - a metal weapon in the main hand, else the off hand; Shield - a shield in the
+// off hand; Armour - Medium or Heavy metal armour; kNone: it has none (refused before anything is spent).
+HeatedObject HeatMetalObjectFor(HeatChoice choice, int right_hand_base_item, int left_hand_base_item, int armour_tier);
+// After its weapon fell (owner, 2026-11-22: "A with the pickup step plus intelligence flavour"), on its next turn: it
+// draws another weapon it carries; with none, one of Intelligence 8 or more leaves the red-hot weapon on the ground
+// while the spell lasts (fighting unarmed, or with its natural weapons); any other picks it up and fights on - in
+// contact again. Once the spell is over, anyone picks it up.
+enum class AfterDrop { kDrawOther, kPickUp, kLeave };
+constexpr int kHeatMetalWaryIntelligence = 8;
+AfterDrop HeatMetalAfterDrop(bool carries_other_weapon, int intelligence, bool spell_lasts);
+// A weapon a hand can hold (baseitems.2da): the metal ones, and the bows, crossbows, club, quarterstaff, sling, darts
+// and whip; not ammunition, shields or creature weapons.
+bool WeaponBaseItem(int base_item);
 // Heat Metal: Again - a Bonus Action on a later turn (not the cast's), at an object someone holds or wears, within 60
 // feet (18.29 m, plus `slack`).
 enum class HeatAgain { kOk, kCastThisTurn, kNotHeld, kOutOfRange };
@@ -658,7 +682,8 @@ HeatAgain HeatMetalAgainNow(bool cast_this_turn, bool held_or_worn, float metres
 bool SorcererOnlySpell(int row);
 const std::vector<int>& SorcererOnlyRows();
 // A spell's own action while it lasts - a feat beside the spell in the radial (its levels, then the action), and on
-// the quickbar: Hunter's Mark: Move (0.99.20), Spiritual Weapon: Strike, Flame Blade: Evoke, Heat Metal: Again. Null
+// the quickbar: Hunter's Mark: Move (0.99.20), Spiritual Weapon: Strike, Flame Blade: Evoke (Heat Metal: Again is in its
+// menu, rules::ChoiceOptionFeat). Null
 // for any other spell.
 struct SpellActionLeaf {
   int spell = -1;

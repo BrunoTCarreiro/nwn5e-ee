@@ -162,6 +162,9 @@ const std::vector<int> kSpells = {
     1267,  // nwn5e_Dragons_Breath_Poison - Dragon's Breath
     1268,  // nwn5e_Dragons_Breath_Bonus_Action - Dragon's Breath (its Bonus Action's row)
     1274,  // nwn5e_Heat_Metal - Heat Metal (not its Again, 1275)
+    1276,  // nwn5e_Heat_Metal_Weapon - Heat Metal (its menu's objects)
+    1277,  // nwn5e_Heat_Metal_Shield - Heat Metal
+    1278,  // nwn5e_Heat_Metal_Armour - Heat Metal
 };
 
 }  // namespace

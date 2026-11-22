@@ -57,12 +57,13 @@ TEST(ConcentrationSpellsAreSrd52) {
   CHECK_EQ(IsConcentrationSpell(325), false);  // a deleted row
   CHECK_EQ(IsConcentrationSpell(-1), false);
   const std::vector<int>& all = ConcentrationSpells();
-  CHECK_EQ(all.size(), 150u);  // 84 of NWN's rows, Guidance and 29 variants, Dancing Lights and its Lights,
+  CHECK_EQ(all.size(), 153u);  // 84 of NWN's rows, Guidance and 29 variants, Dancing Lights and its Lights,
                                // Heroism (#39 2a build 1b), Hunter's Mark and three Bonus Action rows (2a),
                                // Faerie Fire and its three colours, Fog Cloud (2c), Ensnaring Strike (3),
                                // the Detects (4a), Silent Image and its five images (4b), Mind Spike and
                                // Shining Smite (level 2 build 1a); Spiritual Weapon, Flame Blade and Dragon's
-                               // Breath with their Bonus Action rows, Dragon's Breath's five types, Heat Metal (1b)
+                               // Breath with their Bonus Action rows, Dragon's Breath's five types, Heat Metal and its menu's
+                               // three objects (1b)
   CHECK_EQ(IsConcentrationSpell(1209) && IsConcentrationSpell(1214), true);
   CHECK_EQ(IsConcentrationSpell(1215), false);  // Silent Image's Move
   CHECK_EQ(IsConcentrationSpell(1202), false);  // Disguise Self

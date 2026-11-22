@@ -2329,6 +2329,50 @@ monster AC by CR.
           set off at once, as it was, it would refuse the equip.
         - The log names what was made ("appearance 298, its blade nw_wswdg001 (base item 22)"). Two seconds on it says
           what the hand holds, whether the caster sees the force, and whether it's commandable.
+    - *Decided (owner, 2026-11-22):* Heat Metal's rework. The owner on S2-25b: "the axe becomes on fire (the vfx need
+      to be adjusted so the weapon just glows red) but isn't visually dropped. Ah, a second time it was put away but the
+      orc immediately brought it back out AND attacked the same turn so testing S2-26b is very hard as they orc equips
+      it immediately"; then "shouldn't there also be an option between targetting a weapon and armor?"; then "for Heat
+      Metal, can you change the enemy AI? or is it too cumbersome?"; then "A with the pickup step plus intelligence
+      flavour, and A for the menu".
+    - *Built (Heat Metal's rework):*
+      - **The menu** (SRD 5.2.1: "Choose a manufactured metal object, such as a metal weapon or a suit of Heavy or
+        Medium metal armor"): Heat Metal opens Weapon, Shield and Armour (rows 1276-1278, Master 1274), each with its
+        slot levels, the way Dragon's Breath's types are; Heat Metal: Again sits beside them while it lasts (a feat
+        row, rules::ChoiceOptionFeat; its quickbar button stays).
+        - Weapon: a metal weapon in the main hand, else in the off hand. Shield: a shield in the off hand (NWN keeps no
+          material, so its three shields count as metal). Armour: Medium or Heavy metal armour.
+        - A choice the creature hasn't got is refused before anything is spent, saying what it needs ("a creature
+          holding a metal shield"). The master row's cast (an NPC's, a script's): its weapon, else its armour, else
+          its shield (rules::HeatMetalObjectFor).
+        - Again keeps the chosen object, wherever it goes.
+      - **A real drop** (SRD 5.2.1: "drop the object if it can"): a failed save drops the weapon to the ground at the
+        creature's feet. The held item is copied there (CopyObject) and destroyed in the hand at once - nothing is
+        queued, so no AI can equip it back from its pack, and the copy is the object Again follows. A puff of flame
+        where it lands. While it lies there no one is in contact: Again is refused before the Bonus Action is spent,
+        "the heated object lies on the ground; no one is touching it".
+        - Armour can't be dropped. A shield isn't either (my call): 2024 makes doffing a shield the Utilize action,
+          so it can't simply be let go of as the burn lands. It keeps hold, with Disadvantage on attack rolls and
+          ability checks until your next turn, as armour.
+      - **The pickup step** (rules::HeatMetalAfterDrop), at the creature's next turn - its round's end, or 6 seconds on:
+        - It carries another weapon (in a hand or its pack; rules::WeaponBaseItem): it equips that and fights on.
+        - None, and Intelligence 8 or more while the spell lasts: it leaves the red-hot weapon on the ground and
+          fights unarmed (or with its natural weapons). Once the spell ends it picks it up.
+        - Otherwise it walks to it (ActionPickUpItem), equips it in the hand it fell from and attacks its foe - in
+          contact again, so Again burns it again with a new save.
+        - The actions are queued once, after a ClearAllActions, and locked with SetCommandable(FALSE) until the
+          weapon is in its hand: an action after the equip unlocks it, with a 6 / 12 s failsafe. So its combat AI's
+          next decision (DetermineCombatRound, at its round's end) can't clear them; then its own AI fights on.
+        - Every creature but a player character (the player decides), henchmen and other associates too. Each
+          decision is logged ("Heat Metal's pickup step (its weapon 0x... on the ground; Intelligence 9, another
+          weapon 0x..., the spell lasting): ...") and told to the caster.
+      - **The look**, still a placeholder for a look pass: the weapon's flames (ITEM_VISUAL_FIRE) are gone. A weapon or
+        shield gives a dim red light (a tagged, temporary ItemPropertyLight); armour a red light round its wearer
+        (VFX_DUR_LIGHT_RED_5, in place of the red aura). NWN has no red-hot item visual (iprp_visualfx.2da: acid, cold,
+        electrical, fire, sonic, holy, evil).
+      - Text: three menu names and seven catalogue lines generated, the description's note rewritten (for review,
+        docs/TEXT-REVIEW.md).
+      - Tests Level2HeatMetalMenu; 17 of 17 mutations caught.
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).

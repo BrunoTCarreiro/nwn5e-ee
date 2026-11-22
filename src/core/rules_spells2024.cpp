@@ -5921,47 +5921,83 @@ void DragonsBreath(uint32_t self, void* caster, const rules::Spell2024& spell) {
   }
 }
 
-// --- Heat Metal: a red-hot weapon or armour ---
+// --- Heat Metal: a red-hot weapon, shield or armour ---
+// 2026-11-22 (owner: "A with the pickup step plus intelligence flavour, and A for the menu"): the object from its menu
+// (Weapon, Shield, Armour); a failed save drops a weapon to the ground at the creature's feet (SRD 5.2.1: "drop the
+// object if it can"); on its next turn the creature draws another weapon, leaves the hot one (Intelligence 8+, while
+// the spell lasts) or picks it up (rules::HeatMetalAfterDrop). The look, a placeholder for a later look pass: a dim red
+// light from the weapon or shield, a red light round the armour's wearer, a puff of flame where a dropped weapon lands
+// - no flames on the weapon (0.99.120's S2-25b: "the vfx need to be adjusted so the weapon just glows red").
 
 struct Heat {
   uint32_t item = 0;
   int row = rules::kHeatMetal;  // the row its mark carries
+  rules::HeatChoice choice = rules::HeatChoice::kAny;
   int dice = 2;
   int dc = 10;
   int slot = 2;
   uint32_t rounds = 0;      // its cast's turn: the caster's ended rounds then, and when
   uint64_t at = 0;
   uint32_t npc_rounds = 0;  // an NPC caster's round it last burned in
-  bool armour = false;
+  bool worn = false;        // armour: its glow on the wearer, not the item
 };
 std::unordered_map<uint32_t, Heat> g_heats;          // by caster
 std::unordered_map<uint32_t, uint64_t> g_heat_held;  // keeping hold of a heated object: until (game ms)
 
-rules::HeatedObject HeatedObjectOf(void* creature) {
-  return rules::HeatMetalObject(engine::BaseItemRowInSlot(creature, ee::kSlotRightHand),
-                                engine::BaseItemRowInSlot(creature, ee::kSlotLeftHand), ChestArmorClassOf(creature));
+// A creature whose heated weapon fell, waiting for its next turn (the pickup step).
+struct Dropped {
+  uint32_t caster = 0;
+  uint32_t item = 0;     // the weapon on the ground
+  uint32_t rounds = 0;   // its ended rounds when it fell
+  uint64_t at = 0;
+  bool off_hand = false;  // it fell from the off hand: taken up into it again
+  bool leaving = false;   // Intelligence 8+: left on the ground while the spell lasts
+};
+std::unordered_map<uint32_t, Dropped> g_dropped;  // by the creature
+
+rules::HeatedObject HeatedObjectOf(void* creature, rules::HeatChoice choice) {
+  return rules::HeatMetalObjectFor(choice, engine::BaseItemRowInSlot(creature, ee::kSlotRightHand),
+                                   engine::BaseItemRowInSlot(creature, ee::kSlotLeftHand), ChestArmorClassOf(creature));
 }
 
 void* HeatedItemOf(void* creature, rules::HeatedObject what) {
   switch (what) {
     case rules::HeatedObject::kRightHand: return engine::ItemInSlot(creature, ee::kSlotRightHand);
-    case rules::HeatedObject::kLeftHand: return engine::ItemInSlot(creature, ee::kSlotLeftHand);
+    case rules::HeatedObject::kLeftHand:
+    case rules::HeatedObject::kShield: return engine::ItemInSlot(creature, ee::kSlotLeftHand);
     case rules::HeatedObject::kArmour: return engine::ItemInSlot(creature, ee::kSlotChest);
     default: return nullptr;
   }
 }
 
+const char* RefuseKeyOf(rules::HeatChoice choice) {
+  switch (choice) {
+    case rules::HeatChoice::kWeapon: return "spells2024.refuse_no_metal_weapon";
+    case rules::HeatChoice::kShield: return "spells2024.refuse_no_metal_shield";
+    case rules::HeatChoice::kArmour: return "spells2024.refuse_no_metal_armour";
+    default: return "spells2024.refuse_no_metal";
+  }
+}
+
+bool IsHeatMetalCast(int row) { return row == rules::kHeatMetal || rules::HeatMetalChoiceOf(row) != rules::HeatChoice::kAny; }
+
+// A choice the target hasn't got: refused before anything is spent.
 bool HeatMetalOrder(void* /*creature*/, uint32_t id, const SpellOrder& order) {
-  if (static_cast<int>(order.spell) != rules::kHeatMetal) return false;
+  const int spell = static_cast<int>(order.spell);
+  if (!IsHeatMetalCast(spell)) return false;
   void* target = CreatureById(order.target);
-  if (!target || HeatedObjectOf(target) != rules::HeatedObject::kNone) return false;
-  return Refuse(id, SpellNameOf(rules::kHeatMetal), PlayerText("spells2024.refuse_no_metal"), order.target);
+  const rules::HeatChoice choice = rules::HeatMetalChoiceOf(spell);
+  if (!target || HeatedObjectOf(target, choice) != rules::HeatedObject::kNone) return false;
+  if (LogSlot()) Log("spells2024: 0x%08X Heat Metal (%s) at 0x%08X refused - it has no such metal object", id,
+                     choice == rules::HeatChoice::kWeapon ? "Weapon" : choice == rules::HeatChoice::kShield ? "Shield"
+                     : choice == rules::HeatChoice::kArmour ? "Armour" : "any", order.target);
+  return Refuse(id, SpellNameOf(rules::kHeatMetal), PlayerText(RefuseKeyOf(choice)), order.target);
 }
 
 // Who holds or wears the heated object now ("id:slot:metres;" - slot 1 the main hand, 2 the off hand, 3 worn; none:
-// "" - in a pack, on the ground, gone), and how far from the caster (another area: 9999).
+// "" - in a pack or gone; n5s_ground 1: it lies on the ground), and how far from the caster (another area: 9999).
 const char* const kHeatHolder = R"nss(
-object i = StringToObject("$ITEM"); string r = "";
+object i = StringToObject("$ITEM"); string r = ""; int ground = 0;
 if (GetIsObjectValid(i)) {
   object p = GetItemPossessor(i);
   int s = 0;
@@ -5969,6 +6005,8 @@ if (GetIsObjectValid(i)) {
     if (GetItemInSlot(INVENTORY_SLOT_RIGHTHAND, p) == i) s = 1;
     else if (GetItemInSlot(INVENTORY_SLOT_LEFTHAND, p) == i) s = 2;
     else if (GetItemInSlot(INVENTORY_SLOT_CHEST, p) == i) s = 3;
+  } else if (GetIsObjectValid(GetArea(i))) {
+    ground = 1;
   }
   if (s > 0) {
     float m = 9999.0;
@@ -5977,12 +6015,14 @@ if (GetIsObjectValid(i)) {
   }
 }
 SetLocalString(OBJECT_SELF, "n5s_hits", r);
+SetLocalInt(OBJECT_SELF, "n5s_ground", ground);
 )nss";
 
 struct Holder {
   uint32_t id = 0;
   rules::HeatedObject what = rules::HeatedObject::kNone;
   float metres = 0.0f;
+  bool ground = false;  // the object lies on the ground: no one in contact
 };
 
 Holder HeatHolder(uint32_t self, const Heat& heat) {
@@ -5992,11 +6032,13 @@ Holder HeatHolder(uint32_t self, const Heat& heat) {
   std::string code = kHeatHolder;
   Replace(&code, "$ITEM", ObjectHex(heat.item));
   Run(code, self, "Heat Metal's object");
+  holder.ground = engine::GetLocalInt(caster, "n5s_ground") == 1;
   const std::vector<Entry> found = Entries(caster);
   if (found.empty()) return holder;
   holder.id = ParseId(found[0].target);
+  const bool shield = heat.choice == rules::HeatChoice::kShield;
   holder.what = found[0].value == 1   ? rules::HeatedObject::kRightHand
-                : found[0].value == 2 ? rules::HeatedObject::kLeftHand
+                : found[0].value == 2 ? (shield ? rules::HeatedObject::kShield : rules::HeatedObject::kLeftHand)
                                       : rules::HeatedObject::kArmour;
   holder.metres = found[0].side;
   return holder;
@@ -6007,12 +6049,12 @@ bool HeatCastThisTurn(uint32_t self, const Heat& heat) {
                          static_cast<long long>(GameMs()) - static_cast<long long>(heat.at));
 }
 
-// The weapon's glow (its item property, tagged) or the armour's (a red aura on its wearer: the spell's effect, so
-// Concentration's end takes it off).
+// The glow: a weapon's or a shield's a dim red light of its own (an item property, tagged); armour's a red light round
+// its wearer (the spell's effect, so Concentration's end takes it off).
 const char* const kHeatGlow = R"nss(
 object i = StringToObject("$ITEM"); object t = StringToObject("$TARGET");
-if ($ARMOUR) ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectVisualEffect(VFX_DUR_AURA_RED), $ROW), "$TAG"), t, $SECONDS);
-else if (GetIsObjectValid(i)) AddItemProperty(DURATION_TYPE_TEMPORARY, TagItemProperty(ItemPropertyVisualEffect(ITEM_VISUAL_FIRE), "$TAG"), i, $SECONDS);
+if ($WORN) ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectVisualEffect(VFX_DUR_LIGHT_RED_5), $ROW), "$TAG"), t, $SECONDS);
+else if (GetIsObjectValid(i)) AddItemProperty(DURATION_TYPE_TEMPORARY, TagItemProperty(ItemPropertyLight(IP_CONST_LIGHTBRIGHTNESS_DIM, IP_CONST_LIGHTCOLOR_RED), "$TAG"), i, $SECONDS);
 )nss";
 
 const char* const kHeatCool = R"nss(
@@ -6026,27 +6068,56 @@ if (GetIsObjectValid(i)) {
 }
 )nss";
 
-// A failed save: the weapon goes into its holder's inventory (Q4 A); an NPC's AI is woken to fight on (it may take it
-// up again - and be burned again).
+// A failed save: the weapon falls to the ground at the creature's feet (SRD 5.2.1: "drop the object if it can") - the
+// item moved there at once (CopyObject, the held one destroyed), so no AI takes it straight back from its inventory
+// (0.99.120's S2-25b: "the orc immediately brought it back out AND attacked the same turn"). A puff of flame where it
+// lands. n5s_dropped: the item on the ground.
 const char* const kHeatDrop = R"nss(
-object t = StringToObject("$TARGET"); object i = StringToObject("$ITEM"); object c = OBJECT_SELF;
-if (!GetIsObjectValid(t) || !GetIsObjectValid(i)) return;
-AssignCommand(t, ClearAllActions());
-AssignCommand(t, ActionUnequipItem(i));
-if (!GetIsPC(t)) AssignCommand(t, ActionDoCommand(SignalEvent(t, EventSpellCastAt(c, $ROW, TRUE))));
+object t = StringToObject("$TARGET"); object i = StringToObject("$ITEM"); string r = "";
+if (GetIsObjectValid(t) && GetIsObjectValid(i)) {
+  location l = GetLocation(t);
+  object g = CopyObject(i, l);
+  if (GetIsObjectValid(g)) {
+    SetPlotFlag(i, FALSE);
+    DestroyObject(i);
+    ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_FLAME_S), l);
+    r = ObjectToString(g);
+  }
+}
+SetLocalString(OBJECT_SELF, "n5s_dropped", r);
 )nss";
 
-void HeatCool(uint32_t self, const Heat& heat) {
+void HeatCoolItem(uint32_t self, uint32_t item) {
   std::string code = kHeatCool;
-  Replace(&code, "$ITEM", ObjectHex(heat.item));
+  Replace(&code, "$ITEM", ObjectHex(item));
   Replace(&code, "$TAG", kTagHeatGlow);
-  Run(code, self, "Heat Metal's end");
+  Run(code, self, "Heat Metal's cooling");
+}
+
+void HeatCool(uint32_t self, const Heat& heat) { HeatCoolItem(self, heat.item); }
+
+std::string HeatGlowSeconds(const Heat& heat) {
+  const long long left =
+      static_cast<long long>(rules::SpellSeconds(rules::kHeatMetalMinutes)) * 1000 -
+      (static_cast<long long>(GameMs()) - static_cast<long long>(heat.at));
+  return Float(left > 1000 ? static_cast<float>(left) / 1000.0f : 1.0f);
+}
+
+void HeatGlow(uint32_t self, const Heat& heat, uint32_t holder) {
+  std::string glow = kHeatGlow;
+  Replace(&glow, "$ITEM", ObjectHex(heat.item));
+  Replace(&glow, "$TARGET", ObjectHex(holder));
+  Replace(&glow, "$WORN", heat.worn ? "TRUE" : "FALSE");
+  Replace(&glow, "$ROW", std::to_string(heat.row));
+  Replace(&glow, "$TAG", kTagHeatGlow);
+  Replace(&glow, "$SECONDS", HeatGlowSeconds(heat));
+  Run(glow, self, "Heat Metal's glow");
 }
 
 // Its damage on the one holding or wearing it - 2d8 Fire (1d8 more a slot level above 2) - then, when it took the
-// damage, the Constitution save: a failure drops a weapon; one that keeps hold of it (a success, or armour) has
-// Disadvantage on attack rolls and ability checks until the start of your next turn (a round).
-void HeatBurn(uint32_t self, const rules::Spell2024& spell, const Heat& heat, const Holder& holder, const char* how) {
+// damage, the Constitution save: a failure drops a weapon to the ground; one that keeps hold of it (a success, or
+// armour or a shield) has Disadvantage on attack rolls and ability checks until the start of your next turn (a round).
+void HeatBurn(uint32_t self, const rules::Spell2024& spell, Heat& heat, const Holder& holder, const char* how) {
   const std::string target = Hex(holder.id);
   const int amount = RollEngineDice(heat.dice, spell.die);
   const bool landed = Damage(self, spell, target, amount, rules::kDamageTypeFire, "VFX_IMP_FLAME_S", Look());
@@ -6063,18 +6134,31 @@ void HeatBurn(uint32_t self, const rules::Spell2024& spell, const Heat& heat, co
     std::string code = kHeatDrop;
     Replace(&code, "$TARGET", target);
     Replace(&code, "$ITEM", ObjectHex(heat.item));
-    Replace(&code, "$ROW", std::to_string(rules::kHeatMetal));
     Run(code, self, spell.script);
+    void* caster = CreatureById(self);
+    const uint32_t ground = caster ? ParseId(engine::GetLocalString(caster, "n5s_dropped")) : 0;
+    if (ground && ground != ee::kObjectInvalid) {
+      heat.item = ground;  // the same object for Again: it lies on the ground now
+      HeatCoolItem(self, ground);
+      void* creature = CreatureById(holder.id);
+      if (creature && !IsPlayerCreature(creature)) {
+        if (g_dropped.size() > 256) g_dropped.clear();
+        g_dropped[holder.id] = Dropped{self, ground, CombatRoundsEnded(holder.id), GameMs(),
+                                       holder.what == rules::HeatedObject::kLeftHand, false};
+      }
+    }
     line = PlayerText("spells2024.heat_metal_dropped", {{"name", name}, {"object", object}});
-    log = "Constitution save failed - drops it into its inventory";
+    log = "Constitution save failed - it drops it, on the ground at its feet (0x" + Hex(heat.item) + ")";
   } else if (outcome == rules::HeatOutcome::kDisadvantage) {
     if (g_heat_held.size() > 256) g_heat_held.clear();
     g_heat_held[holder.id] = GameMs() + kRoundMs;
     line = PlayerText("spells2024.heat_metal_holds", {{"name", name}, {"object", object}});
-    log = holder.what == rules::HeatedObject::kArmour
-              ? "armour can't be dropped - Disadvantage on its attack rolls and ability checks until your next turn"
-              : "Constitution save succeeded - it keeps hold: Disadvantage on its attack rolls and ability checks until "
-                "your next turn";
+    log = holder.what == rules::HeatedObject::kArmour   ? "armour can't be dropped - Disadvantage on its attack rolls "
+                                                           "and ability checks until your next turn"
+          : holder.what == rules::HeatedObject::kShield ? "a strapped shield isn't dropped as it burns - Disadvantage on "
+                                                           "its attack rolls and ability checks until your next turn"
+                                                         : "Constitution save succeeded - it keeps hold: Disadvantage on "
+                                                           "its attack rolls and ability checks until your next turn";
   } else {
     log = "no damage taken - no save";
   }
@@ -6094,10 +6178,11 @@ rules::HeatAgain HeatAgainNow(uint32_t self, const Heat& heat, Holder* holder) {
   return rules::HeatMetalAgainNow(HeatCastThisTurn(self, heat), holder->id != 0, holder->metres, kSlack);
 }
 
-std::string HeatAgainRefusal(rules::HeatAgain now) {
+std::string HeatAgainRefusal(rules::HeatAgain now, const Holder& holder) {
   switch (now) {
     case rules::HeatAgain::kCastThisTurn: return PlayerText("spells2024.heat_metal_again_this_turn");
-    case rules::HeatAgain::kNotHeld: return PlayerText("spells2024.heat_metal_again_not_held");
+    case rules::HeatAgain::kNotHeld:
+      return PlayerText(holder.ground ? "spells2024.heat_metal_again_on_ground" : "spells2024.heat_metal_again_not_held");
     case rules::HeatAgain::kOutOfRange: return PlayerText("spells2024.heat_metal_again_far");
     default: return std::string();
   }
@@ -6112,10 +6197,29 @@ void HeatMetalAgain(uint32_t self, void* caster, const rules::Spell2024& spell) 
   Holder holder;
   const rules::HeatAgain now = HeatAgainNow(self, it->second, &holder);
   if (now != rules::HeatAgain::kOk) {
-    TellPlayer(self, HeatAgainRefusal(now));
+    TellPlayer(self, HeatAgainRefusal(now, holder));
     return;
   }
   HeatBurn(self, spell, it->second, holder, "Heat Metal: Again, a Bonus Action");
+}
+
+const char* ChoiceName(rules::HeatChoice choice) {
+  switch (choice) {
+    case rules::HeatChoice::kWeapon: return "Weapon";
+    case rules::HeatChoice::kShield: return "Shield";
+    case rules::HeatChoice::kArmour: return "Armour";
+    default: return "no choice";
+  }
+}
+
+const char* HeatedName(rules::HeatedObject what) {
+  switch (what) {
+    case rules::HeatedObject::kRightHand: return "weapon";
+    case rules::HeatedObject::kLeftHand: return "off-hand weapon";
+    case rules::HeatedObject::kShield: return "shield";
+    case rules::HeatedObject::kArmour: return "armour";
+    default: return "nothing";
+  }
 }
 
 void HeatMetal(uint32_t self, void* caster, const rules::Spell2024& spell) {
@@ -6124,18 +6228,20 @@ void HeatMetal(uint32_t self, void* caster, const rules::Spell2024& spell) {
     HeatMetalAgain(self, caster, spell);
     return;
   }
+  const rules::HeatChoice choice = rules::HeatMetalChoiceOf(row);
   const int slot = SlotLevelOf(caster, spell);
   const int dc = SpellSaveDcForClassSlot(caster, -1);
   for (const Entry& one : OneTarget(self, spell, "0", 1, Look())) {
     const uint32_t id = ParseId(one.target);
     void* target = CreatureById(id);
-    const rules::HeatedObject what = target ? HeatedObjectOf(target) : rules::HeatedObject::kNone;
+    const rules::HeatedObject what = target ? HeatedObjectOf(target, choice) : rules::HeatedObject::kNone;
     void* item = target ? HeatedItemOf(target, what) : nullptr;
     const uint32_t item_id = engine::ItemId(item);  // 0.99.117 (S2-25, S2-34): its own id, not kObjectId's 0 / garbage
     if (!item || item_id == ee::kObjectInvalid || item_id == 0) {  // a cast with no order: the order's refused before
       TellPlayer(self, PlayerText("spells2024.refused", {{"name", std::string(spell.name)},
-                                                         {"why", PlayerText("spells2024.refuse_no_metal")}}));
-      if (LogSlot()) Log("spells2024: 0x%08X Heat Metal at 0x%08X - no metal weapon or armour to heat", self, id);
+                                                         {"why", PlayerText(RefuseKeyOf(choice))}}));
+      if (LogSlot()) Log("spells2024: 0x%08X Heat Metal (%s) at 0x%08X - no such metal object to heat", self,
+                         ChoiceName(choice), id);
       continue;
     }
     const auto before = g_heats.find(self);
@@ -6143,36 +6249,157 @@ void HeatMetal(uint32_t self, void* caster, const rules::Spell2024& spell) {
     Heat heat;
     heat.item = item_id;
     heat.row = row;
+    heat.choice = choice;
     heat.dice = rules::SpellDiceAt(spell, slot);
     heat.dc = dc;
     heat.slot = slot;
     heat.rounds = CombatRoundsEnded(self);
     heat.npc_rounds = heat.rounds;
     heat.at = GameMs();
-    heat.armour = what == rules::HeatedObject::kArmour;
+    heat.worn = what == rules::HeatedObject::kArmour;
     Mark(self, spell, Hex(self), row,
          MarkLook{kTagHeat, "EffectIcon(EFFECT_ICON_DAMAGE_INCREASE)", SecondsScript(rules::kHeatMetalMinutes),
                   "VFX_IMP_FLAME_S"});
-    std::string glow = kHeatGlow;
-    Replace(&glow, "$ITEM", ObjectHex(heat.item));
-    Replace(&glow, "$TARGET", one.target);
-    Replace(&glow, "$ARMOUR", heat.armour ? "TRUE" : "FALSE");
-    Replace(&glow, "$ROW", std::to_string(row));
-    Replace(&glow, "$TAG", kTagHeatGlow);
-    Replace(&glow, "$SECONDS", SecondsScript(rules::kHeatMetalMinutes));
-    Run(glow, self, spell.script);
+    HeatGlow(self, heat, id);
     GrantFeat(caster, rules::kFeatHeatMetalAgain);
     if (g_heats.size() > 256) g_heats.clear();
-    g_heats[self] = heat;
+    Heat& kept = g_heats[self] = heat;
     if (LogSlot()) {
-      Log("spells2024: 0x%08X Heat Metal (a level %d slot, Constitution DC %d) heats 0x%08X's %s 0x%08X - "
-          "Concentration up to 1 minute; Heat Metal: Again (feat %d) granted", self, slot, dc, id,
-          heat.armour ? "armour" : what == rules::HeatedObject::kLeftHand ? "off-hand weapon" : "weapon", heat.item,
-          rules::kFeatHeatMetalAgain);
+      Log("spells2024: 0x%08X Heat Metal (%s, a level %d slot, Constitution DC %d) heats 0x%08X's %s 0x%08X - "
+          "Concentration up to 1 minute; Heat Metal: Again (feat %d) granted", self, ChoiceName(choice), slot, dc, id,
+          HeatedName(what), kept.item, rules::kFeatHeatMetalAgain);
     }
-    HeatBurn(self, spell, heat, Holder{id, what, 0.0f}, "the cast");
+    HeatBurn(self, spell, kept, Holder{id, what, 0.0f, false}, "the cast");
     TellPlayer(self, PlayerText("spells2024.heat_metal_again_hint"));
   }
+}
+
+// The pickup step (owner, 2026-11-22: "A with the pickup step plus intelligence flavour"): on the turn after its weapon
+// fell, a creature (not a player character: the player decides) draws another weapon it carries, leaves the red-hot one
+// (Intelligence 8+, while the spell lasts) or picks it up and fights on. Queued once at its turn, its actions locked
+// until the weapon's in its hand (SetCommandable, the Command spell's way: its combat AI, deciding again at its round's
+// end, can't clear or undo them; a failsafe unlocks it), then it attacks and its own AI fights on.
+// A weapon still in a hand counts first (an off-hand weapon fell: the main one's still there).
+const char* const kCarriedWeapons = R"nss(
+object t = StringToObject("$TARGET"); string r = "";
+object h = GetItemInSlot(INVENTORY_SLOT_RIGHTHAND, t);
+if (GetIsObjectValid(h)) r += ObjectToString(h) + ":" + IntToString(GetBaseItemType(h)) + ";";
+object l = GetItemInSlot(INVENTORY_SLOT_LEFTHAND, t);
+if (GetIsObjectValid(l)) r += ObjectToString(l) + ":" + IntToString(GetBaseItemType(l)) + ";";
+object i = GetFirstItemInInventory(t);
+while (GetIsObjectValid(i) && GetStringLength(r) < 900) {
+  r += ObjectToString(i) + ":" + IntToString(GetBaseItemType(i)) + ";";
+  i = GetNextItemInInventory(t);
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+// Its foe: the one it was fighting, else the last to attack it, else the caster (an enemy).
+const char* const kFoe = R"nss(
+object f = GetAttackTarget(t);
+if (!GetIsObjectValid(f) || GetIsDead(f)) f = GetLastAttacker(t);
+if ((!GetIsObjectValid(f) || GetIsDead(f)) && GetIsEnemy(OBJECT_SELF, t)) f = OBJECT_SELF;
+)nss";
+
+const char* const kDrawOther = R"nss(
+object t = StringToObject("$TARGET"); object w = StringToObject("$WEAPON");
+if (!GetIsObjectValid(t) || !GetIsObjectValid(w)) return;
+$FOE
+AssignCommand(t, ClearAllActions());
+if (GetItemInSlot(INVENTORY_SLOT_RIGHTHAND, t) != w) AssignCommand(t, ActionEquipItem(w, INVENTORY_SLOT_RIGHTHAND));
+AssignCommand(t, ActionDoCommand(SetCommandable(TRUE, t)));
+if (GetIsObjectValid(f) && !GetIsDead(f)) AssignCommand(t, ActionAttack(f));
+AssignCommand(t, DelayCommand(6.0, SetCommandable(TRUE, t)));
+AssignCommand(t, SetCommandable(FALSE, t));
+)nss";
+
+// $GLOW: the weapon's red light again once it's back in the hand (the spell still lasting).
+const char* const kPickUp = R"nss(
+object t = StringToObject("$TARGET"); object g = StringToObject("$ITEM");
+if (!GetIsObjectValid(t) || !GetIsObjectValid(g) || GetIsObjectValid(GetItemPossessor(g))) return;
+$FOE
+AssignCommand(t, ClearAllActions());
+AssignCommand(t, ActionPickUpItem(g));
+AssignCommand(t, ActionEquipItem(g, $SLOT));
+if ($GLOW) AssignCommand(t, ActionDoCommand(AddItemProperty(DURATION_TYPE_TEMPORARY, TagItemProperty(ItemPropertyLight(IP_CONST_LIGHTBRIGHTNESS_DIM, IP_CONST_LIGHTCOLOR_RED), "$TAG"), g, $SECONDS)));
+AssignCommand(t, ActionDoCommand(SetCommandable(TRUE, t)));
+if (GetIsObjectValid(f) && !GetIsDead(f)) AssignCommand(t, ActionAttack(f));
+AssignCommand(t, DelayCommand(12.0, SetCommandable(TRUE, t)));
+AssignCommand(t, SetCommandable(FALSE, t));
+)nss";
+
+uint32_t OtherWeaponOf(uint32_t caster, uint32_t id, uint32_t hot) {
+  std::string code = kCarriedWeapons;
+  Replace(&code, "$TARGET", Hex(id));
+  Run(code, caster, "Heat Metal's pickup step");
+  void* runner = CreatureById(caster);
+  if (!runner) return 0;
+  for (const Entry& entry : Entries(runner)) {
+    const uint32_t item = ParseId(entry.target);
+    if (item != hot && rules::WeaponBaseItem(entry.value)) return item;
+  }
+  return 0;
+}
+
+void DropUpdate(void* creature, uint32_t id, uint64_t now) {
+  const auto it = g_dropped.find(id);
+  if (it == g_dropped.end()) return;
+  Dropped& drop = it->second;
+  if (engine::IsDeadOrDying(creature)) {
+    g_dropped.erase(it);
+    return;
+  }
+  const auto heat = g_heats.find(drop.caster);
+  const bool lasts = heat != g_heats.end() && heat->second.item == drop.item;
+  if (drop.leaving) {  // left while the spell lasts: once it's over, taken up again
+    if (lasts) return;
+  } else if (CombatRoundsEnded(id) == drop.rounds && now < drop.at + kRoundMs) {
+    return;  // its turn not yet come
+  }
+  const uint32_t caster = CreatureById(drop.caster) ? drop.caster : id;
+  void* stats = StatsOf(creature);
+  const int intelligence = stats ? engine::AbilityScore(stats, 3) : 10;
+  const uint32_t other = OtherWeaponOf(caster, id, drop.item);
+  const rules::AfterDrop after = drop.leaving ? rules::AfterDrop::kPickUp
+                                              : rules::HeatMetalAfterDrop(other != 0, intelligence, lasts);
+  const std::string name = NameOfId(caster, id);
+  const std::string object = NameOfId(caster, drop.item);
+  switch (after) {
+    case rules::AfterDrop::kDrawOther: {
+      std::string code = kDrawOther;
+      Replace(&code, "$FOE", kFoe);
+      Replace(&code, "$TARGET", Hex(id));
+      Replace(&code, "$WEAPON", Hex(other));
+      Run(code, caster, "Heat Metal's pickup step");
+      TellPlayer(drop.caster, PlayerText("spells2024.heat_metal_draws_other", {{"name", name}}));
+      break;
+    }
+    case rules::AfterDrop::kPickUp: {
+      std::string code = kPickUp;
+      Replace(&code, "$FOE", kFoe);
+      Replace(&code, "$TARGET", Hex(id));
+      Replace(&code, "$ITEM", ObjectHex(drop.item));
+      Replace(&code, "$SLOT", drop.off_hand ? "INVENTORY_SLOT_LEFTHAND" : "INVENTORY_SLOT_RIGHTHAND");
+      Replace(&code, "$GLOW", lasts ? "TRUE" : "FALSE");
+      Replace(&code, "$TAG", kTagHeatGlow);
+      Replace(&code, "$SECONDS", lasts ? HeatGlowSeconds(heat->second) : std::string("1.0"));
+      Run(code, caster, "Heat Metal's pickup step");
+      TellPlayer(drop.caster, PlayerText("spells2024.heat_metal_picks_up", {{"name", name}, {"object", object}}));
+      break;
+    }
+    case rules::AfterDrop::kLeave:
+      drop.leaving = true;
+      TellPlayer(drop.caster, PlayerText("spells2024.heat_metal_leaves_it", {{"name", name}, {"object", object}}));
+      break;
+  }
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Heat Metal's pickup step (its weapon 0x%08X on the ground; Intelligence %d, another weapon "
+        "0x%08X, the spell %s): %s", id, drop.item, intelligence, other, lasts ? "lasting" : "over",
+        after == rules::AfterDrop::kDrawOther ? "it draws the other weapon"
+        : after == rules::AfterDrop::kPickUp  ? "it picks the hot one up and fights on"
+                                              : "it leaves it on the ground while the spell lasts");
+  }
+  if (after != rules::AfterDrop::kLeave) g_dropped.erase(it);
 }
 
 // --- The feats' guard: refused before the Bonus Action (or the action) is spent ---
@@ -6234,11 +6461,12 @@ bool Level2FeatGuard(void* creature, uint32_t id, int feat) {
     Holder holder;
     const rules::HeatAgain now = HeatAgainNow(id, it->second, &holder);
     if (now != rules::HeatAgain::kOk) {
-      TellPlayer(id, HeatAgainRefusal(now));
+      TellPlayer(id, HeatAgainRefusal(now, holder));
       if (LogSlot()) {
         Log("spells2024: 0x%08X Heat Metal: Again refused - %s", id,
             now == rules::HeatAgain::kCastThisTurn ? "cast this turn"
-            : now == rules::HeatAgain::kNotHeld    ? "no one holds or wears it"
+            : now == rules::HeatAgain::kNotHeld    ? (holder.ground ? "it lies on the ground: no one in contact"
+                                                                    : "no one holds or wears it")
                                                    : "out of range");
       }
       return false;
@@ -6447,6 +6675,7 @@ void Level2bUpdate(void* creature) {
   BladeUpdate(creature, id);
   if (!g_breaths.empty()) BreathUpdate(creature, id, now);
   if (!g_heats.empty() || !g_heat_held.empty()) HeatUpdate(creature, id, now);
+  if (!g_dropped.empty()) DropUpdate(creature, id, now);  // Heat Metal's pickup step
 }
 
 // n5_s_spiritswing (option C): the force's swing, run as the force (kForceStrike's DelayCommand).
@@ -6461,6 +6690,7 @@ void Level2bGameStarted() {
   g_breaths.clear();
   g_heats.clear();
   g_heat_held.clear();
+  g_dropped.clear();
 }
 
 void Cast(uint32_t self, int row) {

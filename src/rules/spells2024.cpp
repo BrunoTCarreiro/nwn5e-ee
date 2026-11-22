@@ -504,13 +504,17 @@ bool SilentImageMoveAllowed(float feet_from_caster) {
   return feet_from_caster <= static_cast<float>(kSilentImageRangeFeet);
 }
 
-bool IsNoSlotOption(int row) { return row == kSilentImageMove || row == kFamiliarDismiss || row == kFamiliarRecall; }
+bool IsNoSlotOption(int row) {
+  return row == kSilentImageMove || row == kFamiliarDismiss || row == kFamiliarRecall ||
+         row == kHeatMetalAgain;  // #39 level 2 build 1b: Heat Metal's menu
+}
 
 int ChoiceOptionFeat(int row) {
   switch (row) {
     case kSilentImageMove: return kFeatSilentImageMove;
     case kFamiliarDismiss: return kFeatFamiliarDismiss;  // build 4c
     case kFamiliarRecall: return kFeatFamiliarRecall;
+    case kHeatMetalAgain: return kFeatHeatMetalAgain;  // #39 level 2 build 1b: in Heat Metal's menu while it lasts
     default: return 0;
   }
 }
@@ -833,8 +837,52 @@ HeatedObject HeatMetalObject(int right_hand_base_item, int left_hand_base_item, 
 
 HeatOutcome HeatMetalOutcome(HeatedObject object, int damage, bool save_failed) {
   if (object == HeatedObject::kNone || damage <= 0) return HeatOutcome::kNothing;
-  const bool can_drop = object != HeatedObject::kArmour;
+  // "drop the object if it can": a weapon, yes; armour can't be, nor a strapped shield as the burn lands (2024:
+  // doffing a shield takes the Utilize action) - it keeps hold.
+  const bool can_drop = object == HeatedObject::kRightHand || object == HeatedObject::kLeftHand;
   return save_failed && can_drop ? HeatOutcome::kDrops : HeatOutcome::kDisadvantage;
+}
+
+HeatChoice HeatMetalChoiceOf(int row) {
+  switch (row) {
+    case kHeatMetalWeapon: return HeatChoice::kWeapon;
+    case kHeatMetalShield: return HeatChoice::kShield;
+    case kHeatMetalArmour: return HeatChoice::kArmour;
+    default: return HeatChoice::kAny;
+  }
+}
+
+bool MetalShieldBaseItem(int base_item) { return base_item == 14 || base_item == 56 || base_item == 57; }
+
+HeatedObject HeatMetalObjectFor(HeatChoice choice, int right_hand_base_item, int left_hand_base_item, int armour_tier) {
+  switch (choice) {
+    case HeatChoice::kWeapon:
+      if (MetalWeaponBaseItem(right_hand_base_item)) return HeatedObject::kRightHand;
+      return MetalWeaponBaseItem(left_hand_base_item) ? HeatedObject::kLeftHand : HeatedObject::kNone;
+    case HeatChoice::kShield:
+      return MetalShieldBaseItem(left_hand_base_item) ? HeatedObject::kShield : HeatedObject::kNone;
+    case HeatChoice::kArmour:
+      return MetalArmourTier(armour_tier) ? HeatedObject::kArmour : HeatedObject::kNone;
+    case HeatChoice::kAny:
+      break;
+  }
+  const HeatedObject first = HeatMetalObject(right_hand_base_item, left_hand_base_item, armour_tier);
+  if (first != HeatedObject::kNone) return first;
+  return MetalShieldBaseItem(left_hand_base_item) ? HeatedObject::kShield : HeatedObject::kNone;
+}
+
+AfterDrop HeatMetalAfterDrop(bool carries_other_weapon, int intelligence, bool spell_lasts) {
+  if (carries_other_weapon) return AfterDrop::kDrawOther;
+  if (spell_lasts && intelligence >= kHeatMetalWaryIntelligence) return AfterDrop::kLeave;
+  return AfterDrop::kPickUp;
+}
+
+bool WeaponBaseItem(int base_item) {
+  // Besides the metal ones: 6 heavy crossbow, 7 light crossbow, 8 longbow, 11 shortbow, 28 club, 31 dart, 50
+  // quarterstaff, 61 sling, 108 whip.
+  static const int kOther[] = {6, 7, 8, 11, 28, 31, 50, 61, 108};
+  return MetalWeaponBaseItem(base_item) ||
+         std::find(std::begin(kOther), std::end(kOther), base_item) != std::end(kOther);
 }
 
 HeatAgain HeatMetalAgainNow(bool cast_this_turn, bool held_or_worn, float metres, float slack) {
@@ -859,7 +907,6 @@ const SpellActionLeaf* SpellActionLeafOf(int spell) {
       {kHuntersMark, kFeatHuntersMarkMove, "Hunter's Mark", "Hunter's Mark: Move"},
       {kSpiritualWeapon, kFeatSpiritualWeaponStrike, "Spiritual Weapon", "Spiritual Weapon: Strike"},
       {kFlameBlade, kFeatFlameBladeEvoke, "Flame Blade", "Flame Blade: Evoke"},
-      {kHeatMetal, kFeatHeatMetalAgain, "Heat Metal", "Heat Metal: Again"},
   };
   for (const SpellActionLeaf& leaf : kLeaves) {
     if (leaf.spell == spell) return &leaf;

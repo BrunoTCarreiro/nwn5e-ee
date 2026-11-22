@@ -302,9 +302,62 @@ TEST(Level2Build1bRules) {
   CHECK_EQ(SpellActionLeafOf(kSpiritualWeapon)->feat, kFeatSpiritualWeaponStrike);
   CHECK_EQ(std::string(SpellActionLeafOf(kSpiritualWeapon)->spell_name) == "Spiritual Weapon", true);
   CHECK_EQ(SpellActionLeafOf(kFlameBlade)->feat, kFeatFlameBladeEvoke);
-  CHECK_EQ(SpellActionLeafOf(kHeatMetal)->feat, kFeatHeatMetalAgain);
-  CHECK_EQ(std::string(SpellActionLeafOf(kHeatMetal)->label) == "Heat Metal: Again", true);
+  // Heat Metal: Again sits in its menu instead (2026-11-22's menu): a feat row, no slot levels.
+  CHECK_EQ(SpellActionLeafOf(kHeatMetal) == nullptr, true);
+  CHECK_EQ(ChoiceOptionFeat(kHeatMetalAgain), kFeatHeatMetalAgain);
+  CHECK_EQ(IsNoSlotOption(kHeatMetalAgain), true);
   CHECK_EQ(SpellActionLeafOf(kDragonsBreath) == nullptr && SpellActionLeafOf(kBless) == nullptr, true);
+}
+
+// Heat Metal's rework (owner, 2026-11-22: "A with the pickup step plus intelligence flavour, and A for the menu"):
+// its menu's object, what drops, and the pickup step.
+TEST(Level2HeatMetalMenu) {
+  CHECK_EQ(HeatMetalChoiceOf(kHeatMetalWeapon) == HeatChoice::kWeapon, true);
+  CHECK_EQ(HeatMetalChoiceOf(kHeatMetalShield) == HeatChoice::kShield, true);
+  CHECK_EQ(HeatMetalChoiceOf(kHeatMetalArmour) == HeatChoice::kArmour, true);
+  CHECK_EQ(HeatMetalChoiceOf(kHeatMetal) == HeatChoice::kAny, true);
+  CHECK_EQ(HeatMetalChoiceOf(kHeatMetalAgain) == HeatChoice::kAny, true);
+  // The menu: Weapon, Shield, Armour (their slot levels) and Again (a feat, no levels).
+  const ChoiceCantrip* menu = ChoiceCantripOf(kHeatMetalShield);
+  CHECK_EQ(menu != nullptr && menu->master == kHeatMetal, true);
+  CHECK_EQ(menu->options.size(), 4u);
+  CHECK_EQ(ChoiceCantripOf(kHeatMetalAgain) == menu, true);
+  CHECK_EQ(IsNoSlotOption(kHeatMetalWeapon) || IsNoSlotOption(kHeatMetalArmour), false);
+  CHECK_EQ(IsConcentrationSpell(kHeatMetalWeapon) && IsConcentrationSpell(kHeatMetalShield) &&
+               IsConcentrationSpell(kHeatMetalArmour),
+           true);
+  CHECK_EQ(BonusActionSpellOf(kHeatMetalWeapon) == nullptr, true);
+  // Shields: NWN's three.
+  CHECK_EQ(MetalShieldBaseItem(14) && MetalShieldBaseItem(56) && MetalShieldBaseItem(57), true);
+  CHECK_EQ(MetalShieldBaseItem(1) || MetalShieldBaseItem(-1) || MetalShieldBaseItem(15), false);  // a torch
+  // Weapon: the main hand's metal weapon, else the off hand's; never a shield or armour.
+  CHECK_EQ(HeatMetalObjectFor(HeatChoice::kWeapon, 1, 14, 8) == HeatedObject::kRightHand, true);
+  CHECK_EQ(HeatMetalObjectFor(HeatChoice::kWeapon, 50, 22, 8) == HeatedObject::kLeftHand, true);
+  CHECK_EQ(HeatMetalObjectFor(HeatChoice::kWeapon, 50, 14, 8) == HeatedObject::kNone, true);
+  // Shield: a shield in the off hand, whatever else it has.
+  CHECK_EQ(HeatMetalObjectFor(HeatChoice::kShield, 1, 56, 8) == HeatedObject::kShield, true);
+  CHECK_EQ(HeatMetalObjectFor(HeatChoice::kShield, 1, 22, 8) == HeatedObject::kNone, true);
+  // Armour: Medium or Heavy metal armour, whatever it holds.
+  CHECK_EQ(HeatMetalObjectFor(HeatChoice::kArmour, 1, 56, 5) == HeatedObject::kArmour, true);
+  CHECK_EQ(HeatMetalObjectFor(HeatChoice::kArmour, 1, 56, 3) == HeatedObject::kNone, true);
+  // No choice (an NPC's cast): the weapon, else the armour, else the shield.
+  CHECK_EQ(HeatMetalObjectFor(HeatChoice::kAny, 1, 56, 8) == HeatedObject::kRightHand, true);
+  CHECK_EQ(HeatMetalObjectFor(HeatChoice::kAny, 50, 56, 8) == HeatedObject::kArmour, true);
+  CHECK_EQ(HeatMetalObjectFor(HeatChoice::kAny, 50, 56, 2) == HeatedObject::kShield, true);
+  CHECK_EQ(HeatMetalObjectFor(HeatChoice::kAny, 50, -1, 2) == HeatedObject::kNone, true);
+  // A shield isn't dropped as it burns (2024: doffing it takes the Utilize action): Disadvantage, as armour.
+  CHECK_EQ(HeatMetalOutcome(HeatedObject::kShield, 9, true) == HeatOutcome::kDisadvantage, true);
+  CHECK_EQ(HeatMetalOutcome(HeatedObject::kShield, 0, true) == HeatOutcome::kNothing, true);
+  // The pickup step: another weapon first; else Intelligence 8+ leaves it while the spell lasts; else picks it up.
+  CHECK_EQ(HeatMetalAfterDrop(true, 3, true) == AfterDrop::kDrawOther, true);
+  CHECK_EQ(HeatMetalAfterDrop(true, 15, true) == AfterDrop::kDrawOther, true);
+  CHECK_EQ(HeatMetalAfterDrop(false, 8, true) == AfterDrop::kLeave, true);
+  CHECK_EQ(HeatMetalAfterDrop(false, 7, true) == AfterDrop::kPickUp, true);
+  CHECK_EQ(HeatMetalAfterDrop(false, 15, false) == AfterDrop::kPickUp, true);  // the spell over: taken up again
+  CHECK_EQ(HeatMetalAfterDrop(false, 6, false) == AfterDrop::kPickUp, true);
+  // Weapons a hand holds: metal ones and the others; not shields, armour, ammunition or creature weapons.
+  for (int weapon : {1, 22, 53, 6, 8, 28, 31, 50, 61, 108}) CHECK_EQ(WeaponBaseItem(weapon), true);
+  for (int other : {-1, 14, 16, 20, 25, 27, 36, 49, 69, 160}) CHECK_EQ(WeaponBaseItem(other), false);
 }
 
 // Option C (owner, 2026-11-22: "if you can build it faithfuly, then yes, C"): Spiritual Weapon's force - a Strike's

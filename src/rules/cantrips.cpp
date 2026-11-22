@@ -104,6 +104,12 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                         {kDragonsBreathLightning, kDamageTypeLightning, "Lightning"},
                         {kDragonsBreathPoison, kDamageTypePoison, "Poison"}}};
   all.push_back(breath);
+  // #39 level 2 build 1b (owner, 2026-11-22: "A for the menu"): Heat Metal's object, each opening its slot levels, and
+  // its Again (a feat, shown while held).
+  ChoiceCantrip heat{kHeatMetal, "n5_s_heatmetal", ChoiceKind::kMode,
+                     {{kHeatMetalWeapon, 1, "Weapon"}, {kHeatMetalShield, 2, "Shield"}, {kHeatMetalArmour, 3, "Armour"},
+                      {kHeatMetalAgain, 4, "Heat Metal: Again"}}};
+  all.push_back(heat);
   // #39 2a build 2b: Command's words (Approach left out - the owner's brief, 2026-11-12), each opening its slot levels.
   ChoiceCantrip command{kCommand, "n5_s_command", ChoiceKind::kMode,
                        {{kCommandDrop, 0, "Drop"}, {kCommandFlee, 1, "Flee"}, {kCommandGrovel, 2, "Grovel"},

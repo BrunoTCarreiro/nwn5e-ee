@@ -759,12 +759,19 @@ spells2024.dragons_breath_you | generated | nwn5e: Dragon's Breath - you can exh
 spells2024.dragons_breath_given | generated | nwn5e: Dragon's Breath - {name} can exhale a 15-foot Cone of {type} while you concentrate.
 spells2024.dragons_breath_exhale_no | generated | nwn5e: Dragon's Breath: Exhale - the spell has ended.
 spells2024.refuse_no_metal | generated | a creature holding a metal weapon or wearing Medium or Heavy metal armour.
+spells2024.refuse_no_metal_weapon | generated | a creature holding a metal weapon.
+spells2024.refuse_no_metal_shield | generated | a creature holding a metal shield.
+spells2024.refuse_no_metal_armour | generated | a creature wearing Medium or Heavy metal armour.
 spells2024.heat_metal_armour | generated | armour
-spells2024.heat_metal_dropped | generated | nwn5e: Heat Metal - {name} drops the red-hot {object}.
+spells2024.heat_metal_dropped | generated | nwn5e: Heat Metal - {name} drops the red-hot {object}; it falls to the ground.
+spells2024.heat_metal_draws_other | generated | nwn5e: Heat Metal - {name} draws another weapon.
+spells2024.heat_metal_picks_up | generated | nwn5e: Heat Metal - {name} picks up the red-hot {object} again.
+spells2024.heat_metal_leaves_it | generated | nwn5e: Heat Metal - {name} won't touch the red-hot {object} while it glows.
 spells2024.heat_metal_holds | generated | nwn5e: Heat Metal - {name} keeps the red-hot {object}: Disadvantage on attack rolls and ability checks until the start of your next turn.
 spells2024.heat_metal_again_hint | generated | nwn5e: Heat Metal - on your later turns, Heat Metal: Again (a Bonus Action on your quickbar) burns it again while you concentrate.
 spells2024.heat_metal_again_no | generated | nwn5e: Heat Metal: Again - no Heat Metal of yours lasts.
 spells2024.heat_metal_again_this_turn | generated | nwn5e: Heat Metal: Again - not on the turn you cast it (on your later turns).
+spells2024.heat_metal_again_on_ground | generated | nwn5e: Heat Metal: Again - the heated object lies on the ground; no one is touching it.
 spells2024.heat_metal_again_not_held | generated | nwn5e: Heat Metal: Again - no one holds or wears the heated object now.
 spells2024.heat_metal_again_far | generated | nwn5e: Heat Metal: Again - the heated object is out of range (60 feet).
 
