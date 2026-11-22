@@ -5663,6 +5663,26 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   the cones cut at walls (owner: "How hard to do is this though?" - answered in chat: the rule already needs a
   clear line; the drawing is the work); d) "yes, sounds fun but we have to tune this" - idle guards looking
   about, tuned in play.
+  *Built (#9 part 1):* the cones cut at walls (c). A calm hostile's cone, drawn while a player character hides, is
+  15-degree slices (a 90-degree cone: 6), each as long as the creature's line of sight along the slice's middle -
+  CNWSArea::ClearLineOfSight from its position + 1 m to a point 1 m over the ground there, the call and the heights
+  DoPerceptionUpdateOnCreature uses (read from nwmain: +0x2c2) - rounded down to one of 16 drawn lengths (1, 2, 3,
+  4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 35, 40, 50 m), never past its sight range. One test per slice when clear;
+  blocked, the engine's block point gives the length (one more test), else a search (about 4). Measured in the
+  pass, once a second, for the hostiles whose rings the last pass drew (the nearest stealth_rings: at most 6 x 6
+  slices, about 40-80 sight lines a second; the first batch's cost is logged); each slice its own effect, swapped
+  only when its row changes; the whole cone shows until a creature's first slices are in. Models and rows as the
+  cones' (tools/data/stealth_rings.py): 5 colours x 10 positions (-75 ... +75 degrees, so 60 / 90 / 120 / 150 all
+  fit) x 16 lengths = 800 models n5_cs*, rows 2260-3059 (data/rows/visualeffects.slices.txt); the filled
+  translucent look and the margin colours kept, the slices with hard sides (they meet side by side) and no lighter
+  near end. The rule agrees with the drawing (rules_perception.cpp, stealth_watch.cpp ConeCutsSight): a calm
+  hostile whose cone is drawn in slices sees a hider only inside a drawn slice, no farther than that slice's length,
+  read from the rows drawn - it never sees past where its slice is cut. The engine's own line of sight still
+  applies inside a slice, so a pillar off a slice's middle still hides you: the drawing can show more than it
+  sees, never less. rules/cone_slices.h (tested); `cone_walls` (on). Approximated: one line per slice (its middle),
+  so a slice whose middle passes a doorway shows its full length beside the door frame; the lengths round down
+  (up to 5 m short of a far wall; the guard doesn't see that last stretch either); a sight range between steps
+  (28 m) draws and sees to the step below (25 m).
 - **Light where you hide** (0.32.0; owner: "do the sensible distances, I'll add
   light queries down the line"). The !light readings (Training Halls, night,
   interior): moon ambient 58 (dim), braziers / torch brackets found lit by

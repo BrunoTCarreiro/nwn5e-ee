@@ -32,6 +32,9 @@
 //   still observer); outside the cone, not at all. Searching observers see all
 //   round. A calm look that sees or misses a hiding player character is told
 //   to it too. vision_cone=0 is D as it was (calm observers see no hider);
+//   cut at walls (#9 c, cone_walls): a calm observer whose cone is drawn in
+//   slices (stealth_watch.cpp) sees a hider only inside a drawn slice, no
+//   farther than its length - never past where the drawing is cut;
 // - found ends hiding (F; owner, 2026-10-25: "once discovered the PC leaves
 //   stealth mode"): a hostile that sees a hiding player character - a search,
 //   a look inside its cone, or up close - takes it out of stealth mode (on the
@@ -108,6 +111,7 @@ bool InFogCloud(void* creature);                                  // rules_spell
 bool IllusionReactionUnderWay(uint32_t creature);                 // rules_utility_cantrips.cpp (#152's ordering)
 void IllusionReactionResume(uint32_t creature);                   // rules_utility_cantrips.cpp
 bool MindSpikeKnows(void* observer, void* target);                // rules_spells2024.cpp (#39 level 2 build 1a)
+bool ConeCutsSight(void* observer, void* hider, float* metres, float* reach);  // stealth_watch.cpp (#9 c)
 extern "C" __declspec(dllimport) unsigned short __stdcall RtlCaptureStackBackTrace(unsigned long skip, unsigned long count,
                                                                                  void** frames, unsigned long* hash);
 extern "C" __declspec(dllimport) unsigned long long __stdcall GetTickCount64();
@@ -789,15 +793,24 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
     return 1;
   }
   if (!observer || !target || !Hiding(target)) return result;
-  char up_close[64] = "";
+  char up_close[128] = "";
   float metres = 0.0f;
   // D / E: a calm observer sees a hider only inside its vision cone (it can
   // hear one anywhere); searching ones see all round.
   const bool searching = Searching(observer);
-  const bool in_cone = !searching && g_config.hiders_need_search && InVisionCone(observer, target);
+  bool in_cone = !searching && g_config.hiders_need_search && InVisionCone(observer, target);
+  // #9 c: its cone drawn cut at walls - not past where its slice is cut (the rule reads the slices drawn).
+  float cut_metres = 0.0f, cut_reach = 0.0f;
+  const bool cut = spot && in_cone && ConeCutsSight(observer, target, &cut_metres, &cut_reach);
+  if (cut) in_cone = false;
   if (spot && result && g_config.hiders_need_search && !searching && !in_cone) {
     result = 0;
-    sprintf_s(up_close, "; calm, outside its %d-degree cone: unseen", g_config.vision_cone);
+    if (cut) {
+      sprintf_s(up_close, "; calm, past where its cone is cut (%.1f m away, its slice %.0f m): unseen", cut_metres,
+                cut_reach);
+    } else {
+      sprintf_s(up_close, "; calm, outside its %d-degree cone: unseen", g_config.vision_cone);
+    }
   }
   if (spot && result && LightTerm(observer, target) == kUnseen) {  // G: darkness, no darkvision
     result = 0;

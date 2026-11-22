@@ -71,6 +71,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.alert_creatures_search = ReadBool(ini, L"alert_creatures_search", g_config.alert_creatures_search);
   g_config.hiders_need_search = ReadBool(ini, L"hiders_need_search", g_config.hiders_need_search);
   g_config.vision_cone = GetPrivateProfileIntW(L"rules", L"vision_cone", g_config.vision_cone, ini);
+  g_config.cone_walls = ReadBool(ini, L"cone_walls", g_config.cone_walls);
   g_config.found_ends_hiding = ReadBool(ini, L"found_ends_hiding", g_config.found_ends_hiding);
   g_config.stealth_light = ReadBool(ini, L"stealth_light", g_config.stealth_light);
   g_config.stealth_ghost = ReadBool(ini, L"stealth_ghost", g_config.stealth_ghost);
@@ -203,9 +204,9 @@ void ConfigLoad(const wchar_t* directory) {
   Log("config: spellcasting=%s radial=%s", VariantName(g_config.spellcasting), VariantName(g_config.radial));
   if (g_config.perception == rules::RuleVariant::kFaithful) {
     Log("config: hiding_needs_15=%d found_up_close=%d alert_creatures_search=%d hiders_need_search=%d vision_cone=%d "
-        "found_ends_hiding=%d",
+        "cone_walls=%d found_ends_hiding=%d",
         g_config.hiding_needs_15, g_config.found_up_close, g_config.alert_creatures_search, g_config.hiders_need_search,
-        g_config.vision_cone, g_config.found_ends_hiding);
+        g_config.vision_cone, g_config.cone_walls, g_config.found_ends_hiding);
   }
   if (g_config.debug_players_poisoned) {
     Log("config: [debug] players_poisoned=1 - player characters count as poisoned for ability checks");

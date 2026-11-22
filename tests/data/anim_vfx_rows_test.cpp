@@ -83,4 +83,9 @@ TEST(VisualEffectsRowFilesNeverShareARow) {
     CHECK_EQ(owner.count(row) == 1 && owner[row] == "visualeffects.debris.txt", true);
   }
   CHECK_EQ(owner.count(2259), 0u);
+  // #9 c's cone slices (tools/data/stealth_rings.py): 800 rows from 2260, a file of their own
+  int slices = 0;
+  for (int row = 2260; row <= 3059; ++row) slices += owner.count(row) == 1 && owner[row] == "visualeffects.slices.txt";
+  CHECK_EQ(slices, 800);
+  CHECK_EQ(owner.count(3060), 0u);
 }

@@ -29,6 +29,18 @@
 //   6+ (it sees you in its cone, still or not), orange-red 1-5 (it sees you; a
 //   still hider's -5 may save you), orange -4-0 (it doesn't; moving may change
 //   that), yellow-orange -9 to -5, yellow -10 or less.
+//   Cut at walls (#9 c; owner, 2026-11-15: "yes" - "How hard to do is this though?": the rule already needs a
+//   clear line, the drawing is the work): with cone_walls, a calm hostile's cone is drawn as 15-degree slices
+//   (visualeffects 2260-3059, tools/data/stealth_rings.py), each as long as its line of sight along the slice's
+//   middle - the engine's CNWSArea::ClearLineOfSight from its eyes (+1 m), as its own perception calls it -
+//   rounded down to a drawn length (1 ... 50 m; rules/cone_slices.h), never past its sight. Measured once a
+//   second, in the pass, for the hostiles whose rings were drawn in the last one (the nearest stealth_rings, so at
+//   most 6 x 6 slices a second by default), just before the pass puts them on; each slice its own effect, changed
+//   only when its row does. Until a creature's first slices are measured its whole cone shows. The rule agrees
+//   (ConeCutsSight, rules_perception.cpp): a calm hostile whose cone is drawn in slices sees a hider only inside a
+//   drawn slice, no farther than its length, read from the rows drawn - so it never sees past where its slice is
+//   cut; the engine's own line of sight still applies inside a slice (a pillar off the slice's middle still hides
+//   you), so the drawing may show more than it sees, never less.
 // - Heard, not seen (0.27.0; owner: "for the hearing detection, do option 2"):
 //   2024 rules (perception=faithful) - finding a hider by hearing is finding it,
 //   so a hostile that hears it but doesn't see it investigates: it walks to where
@@ -112,6 +124,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "config.h"
 #include "creature.h"
@@ -119,7 +132,9 @@
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
+#include "hooks.h"
 #include "log.h"
+#include "rules/cone_slices.h"
 #include "rules/skills.h"
 
 bool SpotMargin(void* observer, void* hider, int* margin);  // rules_perception.cpp
@@ -164,6 +179,30 @@ std::unordered_map<uint32_t, int64_t> g_rings;  // by creature: the rows written
 bool g_investigate = false;
 uint32_t g_hider = 0;                            // the hiding player character the cones are coloured against
 std::unordered_map<uint32_t, uint64_t> g_next_colour;  // by creature: when its colour is weighed again
+std::unordered_map<uint32_t, int> g_colour;            // by creature: its cone's colour (ColourOf)
+
+// #9 c: the cones cut at walls.
+struct Vec3 {
+  float x, y, z;
+};
+using ClearLineOfSightFn = int (*)(void* area, Vec3 from, Vec3 to, Vec3* hit, uint32_t* hit_object, uint32_t from_id,
+                                   uint32_t to_id, int flag);
+using ComputeHeightFn = float (*)(void* area, Vec3 at);
+ClearLineOfSightFn g_clear_line_of_sight = nullptr;
+ComputeHeightFn g_compute_height = nullptr;
+int g_pass = 0;                     // the hiding player character's last pass (its nwn5e_watch_pass)
+std::unordered_set<uint32_t> g_drawn;  // creatures whose rings that pass drew: the next pass measures their slices
+std::unordered_map<uint32_t, int> g_slice_sig;  // by creature: the signature last written on it
+constexpr const char* kVarSlice = "nwn5e_cs";         // + position: the slice's row wanted (0 none)
+constexpr const char* kVarSliceSig = "nwn5e_csig";    // their signature (0: none measured - the whole cone shows)
+constexpr const char* kVarSliceDrawn = "nwn5e_csh";   // + position: the row drawn (the pass script's)
+constexpr const char* kVarSliceDrawnSig = "nwn5e_csigh";  // the signature drawn (0: not drawn in slices)
+
+bool SlicesOn() {
+  return g_config.cone_walls && g_config.stealth_rings > 0 && g_config.perception == rules::RuleVariant::kFaithful &&
+         g_config.hiders_need_search && g_config.vision_cone > 0 && g_config.vision_cone < 360 &&
+         g_clear_line_of_sight && g_compute_height;
+}
 
 int Nearest(const float* values, int count, float value) {
   int best = 0;
@@ -211,6 +250,119 @@ void Run(const std::string& code, uint32_t pc, const char* what) {
 }
 
 std::string Num(int value) { return std::to_string(value); }
+
+// #9 c: one creature's slices, measured now - the row for each position (0: none). `tests` counts the sight lines.
+void MeasureSlices(void* creature, uint32_t id, float sight, int colour, int rows[rules::kConeSlicePositions],
+                   int* tests) {
+  for (int k = 0; k < rules::kConeSlicePositions; ++k) rows[k] = 0;
+  void* area = engine::AreaOf(creature);
+  const int top = rules::ConeSliceLengthAtMost(sight);
+  if (!area || top < 0) return;
+  const float x = Field<float>(creature, ee::kObjectPositionX);
+  const float y = Field<float>(creature, ee::kObjectPositionY);
+  const float z = Field<float>(creature, ee::kObjectPositionZ);
+  const float facing = atan2f(Field<float>(creature, ee::kObjectOrientationY),
+                              Field<float>(creature, ee::kObjectOrientationX));
+  const Vec3 eye{x, y, z + 1.0f};  // as perception looks: 1 m up, to 1 m over the ground there
+  const rules::SliceSpan span = rules::ConeSliceSpan(rules::DrawnConeDegrees(g_config.vision_cone));
+  for (int k = span.first; k < span.first + span.count; ++k) {
+    const float a = facing + rules::ConeSliceMiddle(k) * 3.14159265f / 180.0f;
+    const float cx = cosf(a), cy = sinf(a);
+    Vec3 hit{0.0f, 0.0f, 0.0f};
+    const auto clear = [&](int i, Vec3* blocked_at) {
+      ++*tests;
+      const float metres = rules::kConeSliceLengths[i];
+      Vec3 to{x + cx * metres, y + cy * metres, z + 1.0f};
+      if (g_compute_height) {
+        // Off the area's tile grid: blocked, without asking (perception never looks there).
+        const float ground = g_compute_height(area, to);
+        if (ground <= ee::kAreaOffGridHeight + 0.01f) {
+          if (blocked_at) *blocked_at = to;
+          return false;
+        }
+        to.z = ground + 1.0f;
+      }
+      Vec3 at = to;
+      uint32_t object = ee::kObjectInvalid;
+      const bool open = g_clear_line_of_sight(area, eye, to, &at, &object, id, ee::kObjectInvalid, 1) == 1;
+      if (blocked_at) *blocked_at = at;
+      return open;
+    };
+    int reach = top;
+    if (!clear(top, &hit)) {
+      // Where the engine found it blocked, if that is on the line short of its end: the length just short of it.
+      const float along = (hit.x - x) * cx + (hit.y - y) * cy;
+      const float across = fabsf((hit.y - y) * cx - (hit.x - x) * cy);
+      const int hint = along >= 0.0f && along < rules::kConeSliceLengths[top] - 0.05f && across < 1.0f
+                           ? rules::ConeSliceLengthAtMost(along)
+                           : -1;
+      reach = rules::ConeSliceReach(top - 1, hint, [&](int i) { return clear(i, nullptr); });
+    }
+    rows[k] = reach >= 0 ? rules::ConeSliceRow(colour, k, reach) : 0;
+  }
+}
+
+// #9 c: the slices of the creatures whose rings the last pass drew, written on them for this pass to put on. The cost
+// (sight lines, time) logged once; each creature's lengths when they change (30 lines at most).
+void MeasureDrawn(void* area) {
+  if (g_drawn.empty()) return;
+  LARGE_INTEGER start, stop, frequency;
+  QueryPerformanceCounter(&start);
+  int creatures = 0, slices = 0, tests = 0;
+  for (auto it = g_drawn.begin(); it != g_drawn.end();) {
+    const uint32_t id = *it;
+    void* creature = CreatureById(id);
+    if (!creature || engine::AreaOf(creature) != area) {
+      g_slice_sig.erase(id);
+      it = g_drawn.erase(it);
+      continue;
+    }
+    ++it;
+    const bool calm = Field<uint8_t>(creature, ee::kCreatureDetectMode) == 0 &&
+                      !(g_config.alert_creatures_search && Field<int32_t>(creature, ee::kCreatureInCombat) != 0);
+    int rows[rules::kConeSlicePositions] = {};
+    if (calm && engine::GetLocalInt(creature, kVarConeRing) > 0) {
+      const bool fighting = Field<int32_t>(creature, ee::kCreatureInCombat) != 0;
+      const auto colour = g_colour.find(id);
+      MeasureSlices(creature, id, Field<float>(creature, kSightRange + (fighting ? 4 : 0)),
+                    colour != g_colour.end() ? colour->second : 2, rows, &tests);
+      ++creatures;
+      for (int row : rows) slices += row != 0;
+    }
+    const int sig = rules::ConeSliceSignature(rows);
+    int& last = g_slice_sig.emplace(id, -1).first->second;
+    if (sig == last) continue;
+    last = sig;
+    for (int k = 0; k < rules::kConeSlicePositions; ++k) {
+      engine::SetLocalInt(creature, (std::string(kVarSlice) + std::to_string(k)).c_str(), rows[k]);
+    }
+    engine::SetLocalInt(creature, kVarSliceSig, sig);
+    static int logged = 0;
+    if (sig && logged < 30) {
+      ++logged;
+      std::string lengths;
+      for (int row : rows) {
+        int c = 0, k = 0, i = 0;
+        if (!rules::ConeSliceRowParts(row, &c, &k, &i)) continue;
+        char part[16];
+        sprintf_s(part, "%s%g", lengths.empty() ? "" : " / ", rules::kConeSliceLengths[i]);
+        lengths += part;
+      }
+      Log("stealth watch: 0x%08X cone in slices, right to left: %s m (colour %d)", id, lengths.c_str(),
+          g_colour.count(id) ? g_colour[id] : 2);
+    }
+  }
+  QueryPerformanceCounter(&stop);
+  QueryPerformanceFrequency(&frequency);
+  static bool costed = false;
+  if (!costed && creatures > 0) {
+    costed = true;
+    Log("stealth watch: cone slices - %d hostiles, %d slices, %d line-of-sight tests in %.3f ms (once a second while "
+        "you hide; at most the nearest %d; logged once)",
+        creatures, slices, tests, 1000.0 * (stop.QuadPart - start.QuadPart) / frequency.QuadPart,
+        g_config.stealth_rings);
+  }
+}
 
 // The light where the hider stands (G): 0 dark, 1 dim, 2 bright, stored + 1;
 // with `zones`, the light zones round the sources near it too (the player's).
@@ -347,6 +499,9 @@ std::string LightPart(int carried, bool zones) {
 // The pass, on the hiding character.
 void Pass(uint32_t pc, int carried) {
   const int rings = g_config.stealth_rings;
+  const bool slices = SlicesOn();
+  void* hider = CreatureById(pc);
+  if (slices && hider) MeasureDrawn(engine::AreaOf(hider));
   std::string code =
       "object pc = OBJECT_SELF; location at = GetLocation(pc);"
       "int pass = GetLocalInt(pc, \"nwn5e_watch_pass\") + 1; SetLocalInt(pc, \"nwn5e_watch_pass\", pass);"
@@ -384,7 +539,15 @@ void Pass(uint32_t pc, int carried) {
         // Calm: its vision cone; searching: the full ring - it sees all round.
         "  int searching = GetActionMode(o, ACTION_MODE_DETECT) || (" + Num(g_config.alert_creatures_search ? 1 : 0) +
         " && GetIsInCombat(o));"
-        "  int look = searching || cone == 0 ? sight : (cone > 0 ? cone : 0);"
+        "  int look = searching || cone == 0 ? sight : (cone > 0 ? cone : 0);";
+    if (slices) {
+      // #9 c: a calm one's cone in slices once they're measured (its whole cone until then).
+      code +=
+          "  int csig = GetLocalInt(o, \"nwn5e_ring_pass\") == pass && hear > 0 && !searching && cone > 0"
+          "   ? GetLocalInt(o, \"" + std::string(kVarSliceSig) + "\") : 0;"
+          "  if (csig) look = 0;";
+    }
+    code +=
         "  int ring = 0;"
         "  if (GetLocalInt(o, \"nwn5e_ring_pass\") == pass && hear > 0) ring = look * 10000 + hear;"
         "  if (ring != GetLocalInt(o, \"nwn5e_ring\")) {"
@@ -399,6 +562,26 @@ void Pass(uint32_t pc, int carried) {
         "   }"
         "   SetLocalInt(o, \"nwn5e_ring\", ring);"
         "  }";
+    if (slices) {
+      // Each slice its own effect (tag nwn5e_cs<k>), changed only when its row does.
+      code +=
+          "  if (csig != GetLocalInt(o, \"" + std::string(kVarSliceDrawnSig) + "\")) {"
+          "   float clift = IntToFloat(GetLocalInt(o, \"" + std::string(kVarRingLift) + "\")) / 100.0;"
+          "   int k = 0;"
+          "   for (k = 0; k < " + Num(rules::kConeSlicePositions) + "; k++) {"
+          "    string ks = IntToString(k);"
+          "    int w = csig ? GetLocalInt(o, \"" + std::string(kVarSlice) + "\" + ks) : 0;"
+          "    if (w != GetLocalInt(o, \"" + std::string(kVarSliceDrawn) + "\" + ks)) {"
+          "     effect e = GetFirstEffect(o);"
+          "     while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"nwn5e_cs\" + ks) RemoveEffect(o, e); e = GetNextEffect(o); }"
+          "     if (w) ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect("
+          "      EffectVisualEffect(w, FALSE, 1.0, Vector(0.0, 0.0, clift))), \"nwn5e_cs\" + ks), o);"
+          "     SetLocalInt(o, \"" + std::string(kVarSliceDrawn) + "\" + ks, w);"
+          "    }"
+          "   }"
+          "   SetLocalInt(o, \"" + std::string(kVarSliceDrawnSig) + "\", csig);"
+          "  }";
+    }
   }
   if (g_investigate) {
     code +=
@@ -429,6 +612,7 @@ void Pass(uint32_t pc, int carried) {
       " o = GetNextObjectInShape(SHAPE_SPHERE, 50.0, at, FALSE, OBJECT_TYPE_CREATURE);"
       "}";
   Run(code, pc, "watch");
+  if (hider) g_pass = engine::GetLocalInt(hider, "nwn5e_watch_pass");
 }
 
 // Every marker and ring in the character's area off.
@@ -436,14 +620,18 @@ void Clear(uint32_t pc) {
   Run("object area = GetArea(OBJECT_SELF);"
       "object o = GetFirstObjectInArea(area, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
       "while (GetIsObjectValid(o)) {"
-      " if (GetLocalInt(o, \"nwn5e_noticed\") || GetLocalInt(o, \"nwn5e_ring\") || GetLocalInt(o, \"nwn5e_lring\")) {"
+      " if (GetLocalInt(o, \"nwn5e_noticed\") || GetLocalInt(o, \"nwn5e_ring\") || GetLocalInt(o, \"nwn5e_lring\")"
+      "     || GetLocalInt(o, \"nwn5e_csigh\")) {"
       "  effect e = GetFirstEffect(o);"
       "  while (GetIsEffectValid(e)) {"
       "   string t = GetEffectTag(e);"
-      "   if (t == \"nwn5e_noticed\" || t == \"nwn5e_ring\" || t == \"nwn5e_lring\") RemoveEffect(o, e);"
+      "   if (t == \"nwn5e_noticed\" || t == \"nwn5e_ring\" || t == \"nwn5e_lring\" || GetStringLeft(t, 8) == \"nwn5e_cs\")"
+      "    RemoveEffect(o, e);"
       "   e = GetNextEffect(o);"
       "  }"
       "  DeleteLocalInt(o, \"nwn5e_noticed\"); DeleteLocalInt(o, \"nwn5e_ring\"); DeleteLocalInt(o, \"nwn5e_lring\");"
+      "  int k = 0; for (k = 0; k < 10; k++) DeleteLocalInt(o, \"nwn5e_csh\" + IntToString(k));"
+      "  DeleteLocalInt(o, \"nwn5e_csigh\"); DeleteLocalInt(o, \"nwn5e_csig\");"
       " }"
       " o = GetNextObjectInArea(area, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
       "}"
@@ -452,6 +640,10 @@ void Clear(uint32_t pc) {
       "while (GetIsEffectValid(g)) { if (GetEffectTag(g) == \"nwn5e_ghost\") RemoveEffect(OBJECT_SELF, g); g = GetNextEffect(OBJECT_SELF); }",
       pc, "clearing");
   SetStealthOpacity(pc, 0.0f);
+  // #9 c: nothing drawn now - the next hide measures afresh.
+  g_drawn.clear();
+  g_slice_sig.clear();
+  g_pass = 0;
 }
 
 // How visible a hider is drawn: its light, less its Stealth bonus (RB1).
@@ -572,8 +764,13 @@ void WriteRanges(void* creature, uint32_t id) {
   const float hear = Field<float>(creature, kHearRange + (fighting ? 4 : 0));
   const int sight_row = RingRow(kSightRingRow, sight), hear_row = RingRow(kHearRingRow, hear);
   // The cone's colour: this creature's look against the hiding character, once a second.
-  static std::unordered_map<uint32_t, int> colours;
-  int& colour = colours.emplace(id, 2).first->second;
+  int& colour = g_colour.emplace(id, 2).first->second;
+  // #9 c: drawn in the last pass - its slices are measured in the next.
+  if (g_hider && g_hider != id && g_pass > 0 && engine::GetLocalInt(creature, "nwn5e_ring_pass") == g_pass) {
+    g_drawn.insert(id);
+  } else if (!g_drawn.empty()) {
+    g_drawn.erase(id);
+  }
   const uint64_t now = GetTickCount64();
   uint64_t& next = g_next_colour[id];
   if (g_hider && g_hider != id && now >= next) {
@@ -645,11 +842,53 @@ void Update(void* creature) {
 
 }  // namespace
 
+// #9 c: the rule's side of the cut cones (rules_perception.cpp) - whether `observer`'s cone, drawn in slices, keeps
+// `hider` out of its sight: outside every drawn slice, or past the length of the one its bearing falls in (`metres`
+// how far it is, `reach` that slice's length, 0 for none). False when its cone isn't drawn in slices - the rows read
+// are the ones drawn, so the rule and the drawing agree.
+bool ConeCutsSight(void* observer, void* hider, float* metres, float* reach) {
+  *metres = 0.0f;
+  *reach = 0.0f;
+  if (!SlicesOn() || !observer || !hider || engine::GetLocalInt(observer, kVarSliceDrawnSig) == 0) return false;
+  const float dx = Field<float>(hider, ee::kObjectPositionX) - Field<float>(observer, ee::kObjectPositionX);
+  const float dy = Field<float>(hider, ee::kObjectPositionY) - Field<float>(observer, ee::kObjectPositionY);
+  const float off = rules::DegreesOffFacing(dx, dy, Field<float>(observer, ee::kObjectOrientationX),
+                                            Field<float>(observer, ee::kObjectOrientationY));
+  *metres = sqrtf(dx * dx + dy * dy);
+  int rows[rules::kConeSlicePositions] = {};
+  const int k = rules::ConeSliceAt(off);
+  if (k >= 0) {
+    rows[k] = engine::GetLocalInt(observer, (std::string(kVarSliceDrawn) + std::to_string(k)).c_str());
+    int c = 0, position = 0, length = 0;
+    if (rules::ConeSliceRowParts(rows[k], &c, &position, &length)) *reach = rules::kConeSliceLengths[length];
+  }
+  return !rules::SeenInsideSlices(rows, off, *metres);
+}
+
 void InstallStealthWatch() {
   g_investigate = g_config.heard_investigates && g_config.perception == rules::RuleVariant::kFaithful;
   if (!g_config.stealth_marker && g_config.stealth_rings <= 0 && !g_investigate) return;
+  g_clear_line_of_sight = reinterpret_cast<ClearLineOfSightFn>(EngineExport(ee::kClearLineOfSight));
+  g_compute_height = reinterpret_cast<ComputeHeightFn>(EngineExport(ee::kComputeHeight));
   if (AddCreatureUpdateListener(&Update)) {
     Log("stealth watch: while a player character hides - markers %s, rings on the nearest %d, heard -> investigate %s",
         g_config.stealth_marker ? "on" : "off", g_config.stealth_rings, g_investigate ? "on (2024)" : "off");
+    // #9 c's launch line: its key and what it does.
+    if (!g_config.cone_walls) {
+      Log("stealth watch: vision cones cut at walls off (cone_walls=0) - whole cones, drawn through walls");
+    } else if (!SlicesOn()) {
+      Log("stealth watch: vision cones cut at walls - cone_walls=1 but not drawn: %s",
+          !g_clear_line_of_sight || !g_compute_height ? "NO CNWSArea::ClearLineOfSight / ComputeHeight export"
+          : g_config.stealth_rings <= 0 ? "stealth_rings=0" : "no calm cones (perception, hiders_need_search, vision_cone)");
+    } else {
+      Log("stealth watch: vision cones cut at walls - cone_walls=1: %d-degree slices (%d for a %d-degree cone), each "
+          "its line of sight (CNWSArea::ClearLineOfSight, to 1 m over the ground there), 1-50 m in %d steps, rows "
+          "%d-%d; the nearest %d hostiles, "
+          "once a second",
+          static_cast<int>(rules::kConeSliceDegrees),
+          rules::ConeSliceSpan(rules::DrawnConeDegrees(g_config.vision_cone)).count,
+          rules::DrawnConeDegrees(g_config.vision_cone),
+          rules::kConeSliceLengthCount, rules::kConeSliceRow, rules::kConeSliceRowLast, g_config.stealth_rings);
+    }
   }
 }

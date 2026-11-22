@@ -88,6 +88,11 @@ struct Config {
   // Stealth total); outside, not at all; searching ones see all round. 0 = calm
   // creatures see no hider (D as it was); 360 = all round.
   int vision_cone = 90;  // owner, 2026-10-25: "Vision cones should be 90 degrees"
+  // #9 c (owner, 2026-11-15: "yes" - the cones cut at walls): a calm creature's cone, drawn while a player character
+  // hides, is cut where walls and large placeables cut its sight - 15-degree slices, each its line of sight along its
+  // middle, measured once a second (stealth_watch.cpp) - and the rule agrees: it doesn't see past where a slice is
+  // cut (rules_perception.cpp). Off: whole cones, drawn through walls.
+  bool cone_walls = true;
   // SK5 F (owner, 2026-10-25: "once discovered the PC leaves stealth mode"): a
   // hostile that sees a hiding player character takes it out of stealth mode.
   bool found_ends_hiding = true;

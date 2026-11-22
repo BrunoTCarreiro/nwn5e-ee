@@ -295,6 +295,10 @@ constexpr float kAreaOffGridHeight = -6.0f;
 // the line is walkable (ComputeSafeLocation +0x1bc, where 1.69 called
 // NoNonWalkPolysOnLine).
 constexpr const char* kTestLineWalkable = "?TestLineWalkable@CNWSArea@@QEAAHMMMM@Z";
+// int CNWSArea::ClearLineOfSight(Vector from, Vector to, Vector* hit, unsigned int* hit_object, unsigned int from_id,
+// unsigned int to_id, int): 1 when clear. Perception's own sight line (DoPerceptionUpdateOnCreature +0x2c2, rva
+// 0x35c590 in 89.8193.37): from the observer's position + 1 m up to the target's + 1 m, the two ids, last 1.
+constexpr const char* kClearLineOfSight = "?ClearLineOfSight@CNWSArea@@QEAAHVVector@@0PEAV2@PEAIIIH@Z";
 // The area's static objects (placeables' walkmesh boxes; doors are not in it):
 // int CNWArea::NoNonWalkPolysInDoors(x1, y1, x2, y2, zLow, zHigh, radius,
 // exclude id, unsigned int& blocker, int flag, CExoArrayList<CGameObject*>*
