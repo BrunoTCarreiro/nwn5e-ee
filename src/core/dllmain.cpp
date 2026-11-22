@@ -114,7 +114,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.99.120";
+constexpr const char* kVersion = "0.99.121";
 
 // #173 (owner, 2026-11-20: "is there a way in-game to check the installed version?" - "A for the version command"):
 // "!version" answers with this DLL's version.

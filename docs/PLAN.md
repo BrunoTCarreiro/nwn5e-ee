@@ -2314,7 +2314,7 @@ monster AC by CR.
       - **The end:** the spell ending (Concentration, its minute) fades the force. A force lost, or left in another
         area, ends the spell. A save's leftover forces go at the player's first update of the game, once.
       - Tests Level2SpiritualWeaponForce; 13 of 13 mutations caught.
-      - *Fixed (owner, 2026-11-22: "S2-17c: no weapon shows up"):* the force was made and worked. The log showed it
+      - *Fixed 0.99.121 (owner, 2026-11-22: "S2-17c: no weapon shows up"):* the force was made and worked. The log showed it
         "at 29.2, 28.2 (beside the creature ...)", striking, and moving 0.89 m. But it had no weapon to draw:
         - `x2_s_faerie001`'s blueprint has an empty Equip_ItemList.
         - Its body is appearance 298, Invisible_Human_Male (model c_invsguy).
