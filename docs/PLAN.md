@@ -2335,7 +2335,7 @@ monster AC by CR.
       it immediately"; then "shouldn't there also be an option between targetting a weapon and armor?"; then "for Heat
       Metal, can you change the enemy AI? or is it too cumbersome?"; then "A with the pickup step plus intelligence
       flavour, and A for the menu".
-    - *Built (Heat Metal's rework):*
+    - *Built 0.99.123 (Heat Metal's rework):*
       - **The menu** (SRD 5.2.1: "Choose a manufactured metal object, such as a metal weapon or a suit of Heavy or
         Medium metal armor"): Heat Metal opens Weapon, Shield and Armour (rows 1276-1278, Master 1274), each with its
         slot levels, the way Dragon's Breath's types are; Heat Metal: Again sits beside them while it lasts (a feat
@@ -2376,7 +2376,7 @@ monster AC by CR.
     - *Decided (owner, 2026-11-22):* the four build 1b questions left. NPC casters repeating by themselves: "make it a
       probability dependent on their int/wis, whichever one is highest". Flame Blade and Action Surge: "go with rec".
       Dragon's Breath's touch: "Walk over and cast". Heat Metal on a creature immune to Fire: "fix it".
-    - *Built (the four answers):*
+    - *Built 0.99.123 (the four answers):*
       - **An NPC caster's repeats, by chance** (rules::NpcBonusRepeatChance): each round it could, its Spiritual Weapon:
         Strike (moving the force) and its Heat Metal: Again happen with 50% + 10% for each point of the higher of its
         Intelligence and Wisdom modifiers, kept from 10% to 95% (10 is 50%, 16 is 80%, 6 is 30%). The numbers are
