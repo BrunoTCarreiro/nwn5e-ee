@@ -27,7 +27,6 @@ enum class RadialPage {
   kSpecialAttacks,    // the self ring's slot 3 (IR_XATTACK) and the quickbar's "Assign Special Attacks"
   kSpecialAbilities,  // the self ring's slot 6 (IR_XABILITY) and the quickbar's "Assign Special Abilities"
   kCastSpell,         // the self ring's slot 1, another creature's slot 1, the quickbar's "Assign Spell"
-  kAssignOtherActions,  // the quickbar's assign ring (a player's), slot 4: Assign Examine, Talk To, Barter ...
 };
 
 // A feat whose entry `page` adds only when the character has it, left out in faithful: the page doesn't see the feat
@@ -51,23 +50,8 @@ struct RadialFixedEntry {
 // Special Attacks 0 Parry Mode (NWN's parry skill; SK8: no parry mode); Special Abilities 0 Crafting Skills (NWN's
 // Craft Trap; owner, 2026-11-21, #183: "A with c for later"), 1 Taunt (SK8: Taunt does nothing); Cast Spell 6 Spell
 // Special Abilities - NWN's Counterspell (2024's is a spell) and Defensive Casting Mode (SK7: no defensive casting),
-// its only two entries; the quickbar's Assign Other Actions 7 Assign Barter (RadialBarterShows). None in NWN mode
-// (*count 0, nullptr).
+// its only two entries. None in NWN mode (*count 0, nullptr).
 const RadialFixedEntry* RadialFixedEntries(RuleVariant radial, size_t* count);
-
-// Barter - NWN's trade window between two players - and where a player is offered it (owner, 2026-11-22: "Leave
-// the barter then but it probably should only appear when showing the radial menu on another player?"). The game:
-// another creature's ring, slot 7, only when that creature is a player character (Talk To / Loot there for anyone
-// else), and the quickbar's Assign Other Actions page, slot 7, always (a button with no one to trade with); a
-// DM's Socialize pages grey it unless the target is a player.
-// Faithful: another player character's ring alone - the quickbar's Assign Barter taken out (RadialFixedEntries);
-// NWN mode (and off): the game's.
-enum class BarterTarget {
-  kAnotherPlayer,  // another player character's ring
-  kNonPlayer,      // an NPC's, a henchman's, an associate's, your own
-  kNoTarget,       // the quickbar's assign menus
-};
-bool RadialBarterShows(RuleVariant radial, BarterTarget target);
 
 // A class section feat (cls_feat OnMenu 1) the faithful radial hides - NWN-only, or replaced by a spell: Divine Might
 // (413), Divine Shield (414), Remove Disease (302), Elemental Shape (304), Animal Companion (199), Summon Familiar

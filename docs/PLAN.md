@@ -2653,7 +2653,11 @@ the movement extras (#55); then the staple actions (#56, a decision first).
     ring's slot 7 as the game's (another player only); Assign Barter's call taken out (radial_pages.cpp, its strref
     67569 finding the page; RadialFixedEntries' fifth row) - that slot stays empty; the DM's pages kept.
     rules::RadialBarterShows (another player / anyone else / no one). Tests RadialBarterShows,
-    RadialFixedEntriesLeftOut (9 of 9 mutations caught).
+    RadialFixedEntriesLeftOut (9 of 9 mutations caught). Installed 0.99.115.
+  - *Decided (owner, 2026-11-22, after 0.99.115: "I guess you should be able to assign barter to a quick bar slot
+    too"):* Assign Barter back on the quickbar's Assign Other Actions (slot 7). Built 0.99.116: 0.99.115's change
+    reverted, so Barter is the game's own again: another player character's ring and the quickbar's assign menu,
+    never an NPC's, a henchman's or your own ring.
 *Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
 0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
 Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).

@@ -35,7 +35,6 @@ constexpr RadialFixedEntry kFixedEntries[] = {
     {RadialPage::kSpecialAbilities, 0, "ir_craft", false, "Crafting Skills"},
     {RadialPage::kSpecialAbilities, 1, "isk_taunt", false, "Taunt"},
     {RadialPage::kCastSpell, 6, "IR_SPELL_ABS", true, "Spell Special Abilities (Counterspell, Defensive Casting Mode)"},
-    {RadialPage::kAssignOtherActions, 7, "IR_BARTER", false, "Assign Barter"},
 };
 
 constexpr int kClassFeats[] = {
@@ -83,8 +82,6 @@ bool RadialPageHidesFeat(RuleVariant radial, RadialPage page, int feat) {
       return Listed(kCastSpellFeats, feat);
     case RadialPage::kSpecialAbilities:
       return false;  // its feat entries are the class sections' (RadialHidesClassFeat) and the horse menu (kept)
-    case RadialPage::kAssignOtherActions:
-      return false;  // skills and actions, no feats
   }
   return false;
 }
@@ -93,18 +90,6 @@ const RadialFixedEntry* RadialFixedEntries(RuleVariant radial, size_t* count) {
   const bool faithful = Faithful(radial);
   if (count) *count = faithful ? sizeof(kFixedEntries) / sizeof(kFixedEntries[0]) : 0;
   return faithful ? kFixedEntries : nullptr;
-}
-
-bool RadialBarterShows(RuleVariant radial, BarterTarget target) {
-  switch (target) {
-    case BarterTarget::kAnotherPlayer:
-      return true;
-    case BarterTarget::kNonPlayer:
-      return false;
-    case BarterTarget::kNoTarget:
-      return !Faithful(radial);
-  }
-  return false;
 }
 
 bool RadialHidesClassFeat(RuleVariant radial, int feat) { return Faithful(radial) && Listed(kClassFeats, feat); }

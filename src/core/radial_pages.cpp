@@ -32,12 +32,6 @@
 //   uses the feat at the menu's target as the class section's entry does (radial_retarget.cpp's hook on it: a
 //   self-only feat used at once), or assigns it in the quickbar's assign mode. radial_class_feats.cpp leaves it out
 //   of the class sections once this is in place (RadialSpellsEntriesPlaced).
-// - Barter (owner, 2026-11-22: "Leave the barter then but it probably should only appear when showing the radial
-//   menu on another player?"): another creature's ring puts it in slot 7 only for a player character (6ac100:
-//   the target's player entry; Talk To or Loot otherwise) - left as it is; the quickbar's assign ring (a player's,
-//   9adb20) has Assign Other Actions (9ac920) with Assign Barter in slot 7 for no one in particular - its call
-//   taken out (found by its strref 67569, the page by its one IR_BARTER lea). A DM's Socialize pages (992540,
-//   994b40) keep theirs (greyed unless the target is a player).
 // - Which ring opened (0.99.111's first test, owner: "there's nothing much on the radial" - the log showed only
 //   Special Abilities pages built for a menu with no creature: the ring the ground opens, 84def0 - Cast Spell, Move
 //   To, More Actions, Special Abilities -, which never had Special Attacks): the creature menu's ring builder (98e550:
@@ -86,9 +80,6 @@ constexpr size_t kEntryCallWithin = 64;               // the setter's call after
 constexpr const char* kSpecialAbilitiesAnchor = "isk_taunt";  // referenced by the Special Abilities page alone
 constexpr const char* kCastSpellAnchor = "IR_SPELL_ABS";      // by the spell menu's constructor alone
 constexpr const char* kGroundRingAnchor = "IR_MOVETO";        // by the ground's ring alone
-// The quickbar's Assign Other Actions page (9ac920), its Assign Barter: mov r9d,67569 ("Assign Barter");
-// lea r8,["IR_BARTER"]; mov edx,7; mov rcx,rbx; call SetEntryx
-constexpr const char* kAssignBarterPattern = "41 B9 F1 07 01 00 4C 8D 05 ?? ?? ?? ?? BA 07 00 00 00 48 8B CB E8";
 // Epic Spells' page (9a2180), a feat's entry: lea rbp,[the spell menu's feat leaf]; nop; mov rax,[rdi+878h];
 // mov rcx,[rax]; mov [rsp+50h],rbp; mov [rsp+58h],r15d; movaps; movdqa [rsp+60h]; lea rax,[rsp+60h];
 // mov [rsp+20h],rax; mov r9d,ebx; mov r8,rsi; movzx edx,word [rcx]; mov rcx,rdi; call <the feat entry helper>
@@ -121,8 +112,6 @@ const char* PageName(rules::RadialPage page) {
       return "Special Abilities";
     case rules::RadialPage::kCastSpell:
       return "Cast Spell";
-    case rules::RadialPage::kAssignOtherActions:
-      return "quickbar's Assign Other Actions";
   }
   return "?";
 }
@@ -335,14 +324,6 @@ void InstallRadialPages(void* (*player_creature)(void* client_app)) {
                            FunctionReferencing("the Special Abilities page", kSpecialAbilitiesAnchor));
   const uintptr_t spell_menu = FunctionReferencing("the spell menu (Cast Spell)", kCastSpellAnchor);
   RemoveRadialFixedEntries(rules::RadialPage::kCastSpell, spell_menu);
-  // Barter on another player character's ring alone: the quickbar's Assign Barter out (the ring is the game's).
-  if (!rules::RadialBarterShows(g_config.radial, rules::BarterTarget::kNoTarget)) {
-    const uintptr_t barter = FindPattern("the quickbar's Assign Barter (Assign Other Actions)", kAssignBarterPattern);
-    if (RemoveRadialFixedEntries(rules::RadialPage::kAssignOtherActions, barter ? FunctionEntry(barter) : 0)) {
-      Log("radial: Barter only on another player character's ring (its slot 7, the game's) - the quickbar's Assign "
-          "Barter taken out (faithful, #126)");
-    }
-  }
   if (!g_player_creature || !g_app_manager) {
     Log("SKIP radial: Cast Spell keeps 3e Metamagic and Epic Spells for a character with their feats - the client's "
         "creature getter wasn't found");
