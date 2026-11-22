@@ -191,13 +191,18 @@ std::string DraftKeys(const std::vector<VfxKeys>& keys) {
       if (!k.birthrate.empty()) out += std::string(anim) + "_birthrate = " + Row(k.birthrate) + "\n";
       if (!k.alpha_start.empty()) out += std::string(anim) + "_alpha_start = " + Row(k.alpha_start) + "\n";
       if (!k.alpha_end.empty()) out += std::string(anim) + "_alpha_end = " + Row(k.alpha_end) + "\n";
+      // #179 Phase 3, an emitter's colour and size at birth and at the end: after the rest, the same way.
+      if (!k.color_start.empty()) out += std::string(anim) + "_color_start = " + Row(k.color_start) + "\n";
+      if (!k.color_end.empty()) out += std::string(anim) + "_color_end = " + Row(k.color_end) + "\n";
+      if (!k.size_start.empty()) out += std::string(anim) + "_size_start = " + Row(k.size_start) + "\n";
+      if (!k.size_end.empty()) out += std::string(anim) + "_size_end = " + Row(k.size_end) + "\n";
     }
   }
   return out;
 }
 
 // A draft line that is a key list ("<anim>_position" / "_orientation" / "_color" / "_radius" / "_alpha" / "_scale" /
-// KF's "_birthrate" / "_alpha_start" / "_alpha_end").
+// KF's "_birthrate" / "_alpha_start" / "_alpha_end" / #179's "_color_start" / "_color_end" / "_size_start" / "_size_end").
 bool DraftKeyLine(const std::string& key, const std::vector<std::string>& words, std::vector<VfxKeys>* keys) {
   for (const char* anim : kAnims) {
     const std::string a(anim);
@@ -237,6 +242,22 @@ bool DraftKeyLine(const std::string& key, const std::vector<std::string>& words,
       ReadAll(words, &FindKeys(keys, a, true)->alpha_end);
       return true;
     }
+    if (key == a + "_color_start") {  // #179 Phase 3, an emitter's
+      ReadAll(words, &FindKeys(keys, a, true)->color_start);
+      return true;
+    }
+    if (key == a + "_color_end") {
+      ReadAll(words, &FindKeys(keys, a, true)->color_end);
+      return true;
+    }
+    if (key == a + "_size_start") {
+      ReadAll(words, &FindKeys(keys, a, true)->size_start);
+      return true;
+    }
+    if (key == a + "_size_end") {
+      ReadAll(words, &FindKeys(keys, a, true)->size_end);
+      return true;
+    }
   }
   return false;
 }
@@ -259,8 +280,11 @@ float LastKeyTime(const VfxEffect& effect, const std::string& anim) {
     scan(e.keys);
     for (const VfxKeys& k : e.keys) {  // KF: its own birthrate, alphaStart and alphaEnd (what the model keys of them)
       if (k.anim != anim) continue;
-      for (const std::vector<float>* list : {&k.birthrate, &k.alpha_start, &k.alpha_end}) {
+      for (const std::vector<float>* list : {&k.birthrate, &k.alpha_start, &k.alpha_end, &k.size_start, &k.size_end}) {
         for (size_t i = 0; i + 1 < list->size(); i += 2) last = std::max(last, (*list)[i]);
+      }
+      for (const std::vector<float>* list : {&k.color_start, &k.color_end}) {  // #179 Phase 3 (t r g b rows)
+        for (size_t i = 0; i + 3 < list->size(); i += 4) last = std::max(last, (*list)[i]);
       }
     }
   }
@@ -870,6 +894,18 @@ std::string WriteVfxModel(const VfxEffect& original, const std::string& model) {
       // KF: its own alphaStart and alphaEnd keys (controllers 84 and 80, the game's spelling) after its move and turn.
       if (const std::vector<float>* fade = own(&VfxKeys::alpha_start)) list_lines("alphaStartkey", *fade, 2);
       if (const std::vector<float>* fade = own(&VfxKeys::alpha_end)) list_lines("alphaEndkey", *fade, 2);
+      // #179 Phase 3: its colour and size keys (controllers 108, 96, 168, 172: the game's colorStartkey, colorEndkey,
+      // sizeStartkey, sizeEndkey) after them - of each kind the first list in this animation with a whole row.
+      const auto whole = [&](std::vector<float> VfxKeys::*list, size_t width) -> const std::vector<float>* {
+        for (const VfxKeys& keys : e.keys) {
+          if (keys.anim == name && (keys.*list).size() >= width) return &(keys.*list);
+        }
+        return nullptr;
+      };
+      if (const std::vector<float>* c = whole(&VfxKeys::color_start, 4)) list_lines("colorStartkey", *c, 4);
+      if (const std::vector<float>* c = whole(&VfxKeys::color_end, 4)) list_lines("colorEndkey", *c, 4);
+      if (const std::vector<float>* z = whole(&VfxKeys::size_start, 2)) list_lines("sizeStartkey", *z, 2);
+      if (const std::vector<float>* z = whole(&VfxKeys::size_end, 2)) list_lines("sizeEndkey", *z, 2);
       lines.push_back("endnode");
     }
     // #145: in the effect's last animation (a lasting one's cessation, a one-shot's impact) a light without radius keys
@@ -1335,6 +1371,17 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
           std::vector<float>& out = key_name == "birthratekey" ? k->birthrate : key_name == "alphastartkey" ? k->alpha_start : k->alpha_end;
           for (const auto& row : rows) {
             if (row.size() >= 2) out.insert(out.end(), row.begin(), row.begin() + 2);
+          }
+        }
+        // #179 Phase 3: its colour and size keys the same way (t r g b, t s).
+        if (!own_model && (key_name == "colorstartkey" || key_name == "colorendkey" || key_name == "sizestartkey" || key_name == "sizeendkey")) {
+          VfxKeys* k = FindKeys(&geo[current].keys, anim, true);
+          const bool colour = key_name == "colorstartkey" || key_name == "colorendkey";
+          const size_t width = colour ? 4 : 2;
+          std::vector<float>& out = key_name == "colorstartkey" ? k->color_start : key_name == "colorendkey" ? k->color_end
+                                    : key_name == "sizestartkey" ? k->size_start : k->size_end;
+          for (const auto& row : rows) {
+            if (row.size() >= width) out.insert(out.end(), row.begin(), row.begin() + width);
           }
         }
         std::vector<std::pair<float, float>> keys;
@@ -2139,6 +2186,19 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
         }
         if (emitting && c.columns == 1 && c.values.size() >= rows && (c.type == 88 || c.type == 84 || c.type == 80)) {
           scalar(&emitting->keys, c.type == 88 ? &VfxKeys::birthrate : c.type == 84 ? &VfxKeys::alpha_start : &VfxKeys::alpha_end, c);
+          continue;
+        }
+        // #179 Phase 3: its size (168 at birth, 172 at the end: one column) and colour (108, 96: three) keys, as read.
+        if (emitting && c.columns == 1 && c.values.size() >= rows && (c.type == 168 || c.type == 172)) {
+          scalar(&emitting->keys, c.type == 168 ? &VfxKeys::size_start : &VfxKeys::size_end, c);
+          continue;
+        }
+        if (emitting && c.columns == 3 && c.values.size() >= rows * 3 && (c.type == 108 || c.type == 96)) {
+          std::vector<float>& out = FindKeys(&emitting->keys, a.first, true)->*(c.type == 108 ? &VfxKeys::color_start : &VfxKeys::color_end);
+          for (size_t r = 0; r < rows; ++r) {
+            out.push_back(c.times[r]);
+            out.insert(out.end(), c.values.begin() + r * 3, c.values.begin() + r * 3 + 3);
+          }
           continue;
         }
         if (plane && (c.type == 8 || c.type == 20)) {  // its move and turn, as a node's below (a single row at rest: none)

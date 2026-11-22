@@ -39,6 +39,16 @@ struct VfxKeys {
   std::vector<float> birthrate;
   std::vector<float> alpha_start;
   std::vector<float> alpha_end;
+  // #179 Phase 3 (the owner, 2026-11-22: "3 start it" - an emitter's colour and size keyable, as its place and turn), an
+  // emitter's: its colour at birth and at the end (t r g b) and its size at birth and at the end (t s) - the game's
+  // controllers 108, 96, 168 and 172, the ASCII model's colorStartkey, colorEndkey, sizeStartkey and sizeEndkey (nwmain.exe's
+  // controller names, beside alphaStartkey's). The game draws every live particle with the emitter's current values each
+  // frame, so a key changes them all at once (the VFX Bench's PARTICLES.md); its controllers hold their value into the next
+  // animation, as alphaStart's. Read from a game effect's model as KF's lists are; only an emitter's are written into the model.
+  std::vector<float> color_start;
+  std::vector<float> color_end;
+  std::vector<float> size_start;
+  std::vector<float> size_end;
 };
 
 // #145: a light of the effect (a light node of its model): where it hangs, its colour, radius (metres) and

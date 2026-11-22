@@ -95,6 +95,22 @@ quoted here, as in PLAN.md.
   label dragged onto a node's row hangs it there (onto the ruler: the character's point), a loop refused, one Undo
   step. browser_check 150 ok, check_beats, composer_check, the spell bench's checks pass. Tests KP-1b, KP-2b,
   TR-1..4.
+  *Phase 3 (owner, 2026-11-22: "3 start it"; built - nwn5e-ee src/data/vfx_model.{h,cpp} and the bench):* an
+  emitter's colour and size at birth and at the end keyed like its place and turn. The draft gains
+  `<anim>_color_start = t r g b ...`, `_color_end`, `_size_start = t s ...`, `_size_end` (after the KF lines, only when
+  set: every draft before is byte for byte the same); WriteVfxModel writes them as the game's colorStartkey,
+  colorEndkey, sizeStartkey, sizeEndkey (the names in nwmain.exe's strings, beside alphaStartkey / alphaEndkey; the
+  shipped n5_ds_* markers already use sizeStartkey / sizeEndkey in game); the readers keep a game effect's own (ASCII
+  rows 4 / 2 wide, compiled controllers 108 / 96 colour, 168 / 172 size) - nwn5e's own models none - and LastKeyTime
+  counts them. The bench: Key records them, their Look fields are red at a key, a change where it has keys of one makes
+  an automatic key, Move all keys moves theirs by the same change, Delete keys has colour and size; the preview holds
+  them as the game's controllers hold an opacity key (into the next animation) and draws every live particle with the
+  values keyed now (the render reads the emitter's current fields each frame - a key changes them all at once).
+  test.bat 711 ok (3 new), 15 of 15 C++ breaks caught, 15 of 15 bench breaks; check.js 576 drafts byte for byte, and
+  with a helper built from this tree 416 game effects (386 colour / size key lines) round trip; browser_check 153 ok,
+  composer_check, check_beats / effect / parts / area / area_tiles / textures, common and the spell bench's checks pass.
+  Needs an install (the DLL built from main) before Play in game writes them; the game's own effects show theirs on
+  the stage once that build writes the bench's game library again (a start with vfx_bench, or `!vfxexport`).
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 

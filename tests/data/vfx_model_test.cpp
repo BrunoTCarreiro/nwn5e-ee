@@ -3764,11 +3764,16 @@ TEST(VfxKeptDraftsHaveNoneOfTheGamesOwnKeys) {
     CHECK_EQ(ReadVfxDraft(text, &effect, &error) && WriteVfxDraft(effect) == text, true);
     bool kept = effect.transtime[0] != -1.0f || effect.transtime[1] != -1.0f || effect.transtime[2] != -1.0f;
     for (const VfxEmitter& e : effect.emitters) {
-      for (const VfxKeys& k : e.keys) kept = kept || !k.birthrate.empty() || !k.alpha_start.empty() || !k.alpha_end.empty();
+      for (const VfxKeys& k : e.keys) {
+        kept = kept || !k.birthrate.empty() || !k.alpha_start.empty() || !k.alpha_end.empty() || !k.color_start.empty() || !k.color_end.empty() ||
+               !k.size_start.empty() || !k.size_end.empty();
+      }
     }
     CHECK_EQ(kept, false);
     const std::string model = WriteVfxModel(effect, "n5t");
-    CHECK_EQ(Contains(model, "alphaStartkey") || Contains(model, "alphaEndkey"), false);
+    CHECK_EQ(Contains(model, "alphaStartkey") || Contains(model, "alphaEndkey") || Contains(model, "colorStartkey") || Contains(model, "colorEndkey") ||
+                 Contains(model, "sizeStartkey") || Contains(model, "sizeEndkey"),
+             false);
   }
 }
 
@@ -3842,7 +3847,10 @@ namespace {
 bool NoneOfTheGamesKeys(const VfxEffect& effect) {
   bool none = effect.transtime[0] == -1.0f && effect.transtime[1] == -1.0f && effect.transtime[2] == -1.0f;
   for (const VfxEmitter& e : effect.emitters) {
-    for (const VfxKeys& k : e.keys) none = none && k.birthrate.empty() && k.alpha_start.empty() && k.alpha_end.empty();
+    for (const VfxKeys& k : e.keys) {
+      none = none && k.birthrate.empty() && k.alpha_start.empty() && k.alpha_end.empty() && k.color_start.empty() && k.color_end.empty() &&
+             k.size_start.empty() && k.size_end.empty();  // (#179 Phase 3's too)
+    }
   }
   for (const VfxPlane& p : effect.planes) none = none && p.keys.empty();
   return none;
@@ -3865,7 +3873,8 @@ TEST(VfxNwn5esOwnModelsKeepNoneOfTheGamesKeys) {
   }
   for (const char* size : {"h", "l", "m", "s"}) paths.push_back(std::string("tools/data/vfx/n5_detmag_") + size + ".vfx");
   const auto lines = [](const std::string& draft) {
-    for (const char* kind : {"_transtime = ", "_birthrate = ", "_alpha_start = ", "_alpha_end = "}) {
+    for (const char* kind : {"_transtime = ", "_birthrate = ", "_alpha_start = ", "_alpha_end = ", "_color_start = ", "_color_end = ", "_size_start = ",
+                             "_size_end = "}) {
       if (Contains(draft, kind)) return true;
     }
     for (size_t at = draft.find("\n[plane "); at != std::string::npos; at = draft.find("\n[plane ", at + 1)) {
@@ -4401,4 +4410,183 @@ TEST(VfxDraftAreaShapeRoundTrip) {
   CHECK_EQ(old.find("area_shape") == std::string::npos && old.find("area_edge") == std::string::npos, true);
   CHECK_EQ(ReadVfxDraft(old, &back, &error) && back.emitters[0].area_shape == 0 && back.emitters[0].area_edge == 0,
            true);
+}
+
+// --- #179 Phase 3 (the owner, 2026-11-22: "3 start it" - an emitter's colour and size keyable, as its place and turn): an
+// emitter's colour at birth and at the end (t r g b) and size at birth and at the end (t s) - through the draft
+// ("<anim>_color_start" / "_color_end" / "_size_start" / "_size_end", after KF's lists, only when there), into the model as
+// the game's own controllers (colorStartkey, colorEndkey, sizeStartkey, sizeEndkey - nwmain.exe's names, beside
+// alphaStartkey's), and kept from a game effect's model by both readers (controllers 108, 96, 168, 172). ---
+
+namespace {
+
+// FlameEffect keyed: in the impact its alphaEnd (KF's), its colour at birth red -> green and its size at the end 0.1 -> 0.4
+// over 2 s; in the duration its colour at the end blue and its size at birth 0.2 from 0.25 s.
+VfxEffect ColouredFlame() {
+  VfxEffect effect = FlameEffect();
+  VfxKeys impact;
+  impact.anim = "impact";
+  impact.alpha_end = {0, 1};
+  impact.color_start = {0, 1, 0, 0, 0.5f, 0, 1, 0};
+  impact.size_end = {0, 0.1f, 2, 0.4f};
+  VfxKeys loop;
+  loop.anim = "duration";
+  loop.color_end = {0, 0, 0, 1};
+  loop.size_start = {0.25f, 0.2f};
+  effect.emitters[0].keys = {impact, loop};
+  return effect;
+}
+
+// A compiled model (built here) whose emitter "flame" keys its colour at birth (108: red -> green over 0.5 s) and its size
+// at the end (172: 0.1 -> 0.4 over 1 s) in the impact, and its colour at the end (96: blue) and size at birth (168: 0.3) in
+// the duration.
+std::string ColouredModel() {
+  KfModel m("test_cs");
+  const size_t root = m.Node("test_cs", 0x1, {{8, 3, {0}, {0, 0, 0}}});
+  const size_t flame = m.Node("flame", 0x5, {{8, 3, {0}, {0, 0, 0.5f}}, {88, 1, {0}, {20}}});
+  m.Emitter(flame);
+  m.Children(root, {flame});
+  m.Put32(KfModel::kBase + 0x48, static_cast<uint32_t>(root - 0x10 - KfModel::kBase));
+  {
+    const size_t r = m.Node("test_cs", 0x1, {});
+    const size_t f = m.Node("flame", 0x5, {{108, 3, {0, 0.5f}, {1, 0, 0, 0, 1, 0}}, {172, 1, {0, 1}, {0.1f, 0.4f}}});
+    m.Children(r, {f});
+    m.Anim("impact", 1.0f, 0.25f, r);
+  }
+  {
+    const size_t r = m.Node("test_cs", 0x1, {});
+    const size_t f = m.Node("flame", 0x5, {{96, 3, {0}, {0, 0, 1}}, {168, 1, {0}, {0.3f}}});
+    m.Children(r, {f});
+    m.Anim("duration", 1.0f, 0.25f, r);
+  }
+  m.List();
+  return m.b;
+}
+
+}  // namespace
+
+// The draft: the four lists after KF's (its alphaEnd's), in each animation, only when there - read back as written. In any
+// section, as every key list: a node's read and written back, never reaching the model.
+TEST(VfxDraftKeepsAnEmittersColourAndSizeKeys) {
+  const std::string draft = WriteVfxDraft(ColouredFlame());
+  CHECK_EQ(Contains(draft, "\nflags =\nimpact_alpha_end = 0 1\nimpact_color_start = 0 1 0 0 0.5 0 1 0\nimpact_size_end = 0 0.1 2 0.4\n"
+                           "duration_color_end = 0 0 0 1\nduration_size_start = 0.25 0.2\n"),
+           true);
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(draft, &back, &error) && WriteVfxDraft(back) == draft, true);
+  const VfxKeys* impact = back.emitters.empty() ? nullptr : KeysOf(back.emitters[0].keys, "impact");
+  const VfxKeys* loop = back.emitters.empty() ? nullptr : KeysOf(back.emitters[0].keys, "duration");
+  CHECK_EQ(impact && Numbers(impact->color_start) == "0 1 0 0 0.5 0 1 0" && Numbers(impact->size_end) == "0 0.1 2 0.4" &&
+               impact->color_end.empty() && impact->size_start.empty(),
+           true);
+  CHECK_EQ(loop && Numbers(loop->color_end) == "0 0 0 1" && Numbers(loop->size_start) == "0.25 0.2" && loop->color_start.empty(), true);
+  VfxEffect node;
+  CHECK_EQ(ReadVfxDraft("name = x\n[node hub]\nimpact_color_start = 0 1 1 1\nimpact_size_end = 0 2\n", &node, &error) && node.nodes.size() == 1,
+           true);
+  CHECK_EQ(Contains(WriteVfxDraft(node), "\norientation = 0 0 0 0\nimpact_color_start = 0 1 1 1\nimpact_size_end = 0 2\n"), true);
+  const std::string node_model = WriteVfxModel(node, "n5t");
+  CHECK_EQ(Contains(node_model, "colorStartkey") || Contains(node_model, "sizeEndkey"), false);
+}
+
+// The model: the emitter's colorStartkey, colorEndkey, sizeStartkey and sizeEndkey after its alphaStartkey / alphaEndkey,
+// in each animation that keys them (t r g b, t s rows); nwn5e's own emission keys as before; the geometry as before; the
+// animations last them; a list without a whole row writes nothing.
+TEST(VfxModelWritesAnEmittersColourAndSizeKeys) {
+  const std::string before = WriteVfxModel(FlameEffect(), "n5t");
+  const std::string model = WriteVfxModel(ColouredFlame(), "n5t");
+  CHECK_EQ(EmitterIn(model, "impact", "n5t_0_flame") ==
+               "node emitter n5t_0_flame\n  parent n5t\n  birthratekey 1\n    0 100\n  alphaEndkey 1\n    0 1\n"
+               "  colorStartkey 2\n    0 1 0 0\n    0.5 0 1 0\n  sizeEndkey 2\n    0 0.1\n    2 0.4\n",
+           true);
+  CHECK_EQ(EmitterIn(model, "duration", "n5t_0_flame") ==
+               "node emitter n5t_0_flame\n  parent n5t\n  birthratekey 1\n    0 100\n  colorEndkey 1\n    0 0 0 1\n  sizeStartkey 1\n    0.25 0.2\n",
+           true);
+  CHECK_EQ(EmitterIn(model, "cessation", "n5t_0_flame") == EmitterIn(before, "cessation", "n5t_0_flame"), true);
+  const auto geometry = [](const std::string& m) { return Section(m, "beginmodelgeom n5t", "endmodelgeom n5t"); };
+  CHECK_EQ(!geometry(model).empty() && geometry(model) == geometry(before), true);
+  CHECK_EQ(Milli(AnimLength(model, "impact")), 2000);  // its size key at 2 s
+  // Each kind's own: colour at the end and size at birth in the impact, a colour key at 3 s in the cessation.
+  VfxEffect other = FlameEffect();
+  VfxKeys a, c;
+  a.anim = "impact";
+  a.color_end = {0, 0.5f, 0.5f, 0.5f};
+  a.size_start = {0, 1};
+  c.anim = "cessation";
+  c.color_start = {0, 1, 1, 1, 3, 0, 0, 0};
+  other.emitters[0].keys = {a, c};
+  const std::string other_model = WriteVfxModel(other, "n5t");
+  CHECK_EQ(Contains(EmitterIn(other_model, "impact", "n5t_0_flame"), "  colorEndkey 1\n    0 0.5 0.5 0.5\n  sizeStartkey 1\n    0 1\n"), true);
+  CHECK_EQ(Contains(EmitterIn(other_model, "impact", "n5t_0_flame"), "colorStartkey") || Contains(EmitterIn(other_model, "impact", "n5t_0_flame"), "sizeEndkey"),
+           false);
+  CHECK_EQ(Contains(EmitterIn(other_model, "cessation", "n5t_0_flame"), "  colorStartkey 2\n    0 1 1 1\n    3 0 0 0\n"), true);
+  CHECK_EQ(Milli(AnimLength(other_model, "cessation")), 3000);
+  // Not a whole row (a colour of three numbers, a size of one): nothing - the model as without them.
+  VfxEffect few = FlameEffect();
+  VfxKeys f;
+  f.anim = "impact";
+  f.color_start = {0, 1, 0};
+  f.size_end = {0.5f};
+  few.emitters[0].keys = {f};
+  CHECK_EQ(WriteVfxModel(few, "n5t") == before, true);
+  // Of each kind the first list in the animation with a whole row, as KF's: a short one before a whole one - the whole one.
+  VfxEffect two = FlameEffect();
+  VfxKeys g;
+  g.anim = "impact";
+  g.color_start = {0, 0, 1, 0};
+  two.emitters[0].keys = {f, g};
+  CHECK_EQ(Contains(EmitterIn(WriteVfxModel(two, "n5t"), "impact", "n5t_0_flame"), "  colorStartkey 1\n    0 0 1 0\n"), true);
+}
+
+// The readers: a game effect's compiled model keeps its emitter's colour and size keys (108, 96, 168, 172) in each
+// animation, as read - the draft carries them and the model written has them; that model read as a game's ASCII model (its
+// nwn5e line out) keeps them too, and writes the same model again; written by hand (an endlist list, another case) as well.
+// nwn5e's own model (its line in) keeps none: its draft is the source.
+TEST(VfxReadsTheGamesColourAndSizeKeys) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(ColouredModel(), &effect, &error) && effect.emitters.size() == 1, true);
+  if (effect.emitters.size() != 1) return;
+  const VfxKeys* impact = KeysOf(effect.emitters[0].keys, "impact");
+  const VfxKeys* loop = KeysOf(effect.emitters[0].keys, "duration");
+  CHECK_EQ(impact && Numbers(impact->color_start) == "0 1 0 0 0.5 0 1 0" && Numbers(impact->size_end) == "0 0.1 1 0.4" &&
+               impact->color_end.empty() && impact->size_start.empty(),
+           true);
+  CHECK_EQ(loop && Numbers(loop->color_end) == "0 0 0 1" && Numbers(loop->size_start) == "0 0.3", true);
+  CHECK_EQ(Contains(WriteVfxDraft(effect), "\nimpact_color_start = 0 1 0 0 0.5 0 1 0\nimpact_size_end = 0 0.1 1 0.4\n"), true);
+  const std::string model = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(Contains(model, "  colorStartkey 2\n    0 1 0 0\n    0.5 0 1 0\n  sizeEndkey 2\n    0 0.1\n    1 0.4\n") &&
+               Contains(model, "  colorEndkey 1\n    0 0 0 1\n  sizeStartkey 1\n    0 0.3\n"),
+           true);
+  const size_t mark = model.find(std::string("\n") + kVfxModelMark);
+  CHECK_EQ(mark != std::string::npos, true);
+  if (mark == std::string::npos) return;
+  const std::string as_game = model.substr(0, mark) + model.substr(model.find('\n', mark + 1));
+  VfxEffect back;
+  CHECK_EQ(ReadVfxAsciiModel(as_game, &back, &error) && back.emitters.size() == 1, true);
+  if (back.emitters.size() != 1) return;
+  const VfxKeys* again = KeysOf(back.emitters[0].keys, "impact");
+  CHECK_EQ(again && Numbers(again->color_start) == "0 1 0 0 0.5 0 1 0" && Numbers(again->size_end) == "0 0.1 1 0.4", true);
+  CHECK_EQ(KeysOf(back.emitters[0].keys, "duration") && Numbers(KeysOf(back.emitters[0].keys, "duration")->size_start) == "0 0.3", true);
+  back.name = effect.name;
+  back.emitters[0].name = effect.emitters[0].name;
+  CHECK_EQ(WriteVfxModel(back, "n5t") == model, true);
+  // nwn5e's own (its line in): none kept.
+  VfxEffect own;
+  CHECK_EQ(ReadVfxAsciiModel(model, &own, &error) && NoneOfTheGamesKeys(own), true);
+  // By hand: an endlist list, the game's spelling and another case.
+  const std::string text =
+      "newmodel hand\nbeginmodelgeom hand\nnode dummy hand\n  parent NULL\nendnode\nnode emitter spark\n  parent hand\n"
+      "  update Fountain\n  birthrate 10\n  sizeStart 0.2\nendnode\nendmodelgeom hand\n"
+      "newanim impact hand\n  length 1\n  transtime 0.25\n  animroot hand\nnode emitter spark\n  parent hand\n"
+      "  colorStartkey\n    0 1 1 1\n    1 1 0 0\n  endlist\n  COLORENDKEY 1\n    0 0 0 0\n  sizeStartkey 2\n    0 0.2\n    1 0.6\n"
+      "  sizeEndkey 1\n    0 0.05\nendnode\ndoneanim impact hand\ndonemodel hand\n";
+  VfxEffect hand;
+  CHECK_EQ(ReadVfxAsciiModel(text, &hand, &error) && hand.emitters.size() == 1, true);
+  if (hand.emitters.size() != 1) return;
+  const VfxKeys* spark = KeysOf(hand.emitters[0].keys, "impact");
+  CHECK_EQ(spark && Numbers(spark->color_start) == "0 1 1 1 1 1 0 0" && Numbers(spark->color_end) == "0 0 0 0" &&
+               Numbers(spark->size_start) == "0 0.2 1 0.6" && Numbers(spark->size_end) == "0 0.05",
+           true);
+  CHECK_EQ(Milli(hand.emitters[0].size_start), 200);  // its geometry's, as before
 }
