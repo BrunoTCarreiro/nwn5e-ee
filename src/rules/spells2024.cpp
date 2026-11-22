@@ -4,7 +4,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 
+#include "rules/armor.h"
 #include "rules/cantrips.h"
 
 namespace rules {
@@ -91,7 +93,11 @@ std::vector<Spell2024> Build() {
   spells.push_back(Damage(kBless, "Bless", "n5_s_bless", E::kBuff, 0, 0, 0, 0));
   spells.push_back(Saved(Damage(kBane, "Bane", "n5_s_bane", E::kBuff, 0, 0, 0, 0), Ability::kCharisma, false));
   for (const BonusActionSpell& bonus : BonusActionSpells()) {
-    if (bonus.spell == kHealingWord) continue;
+    // Build 2a's buffs (not Healing Word, nor level 2's Bonus Action spells: build 1b's, below).
+    if (bonus.spell == kHealingWord || bonus.spell == kSpiritualWeapon || bonus.spell == kFlameBlade ||
+        bonus.spell == kDragonsBreath) {
+      continue;
+    }
     const char* script = bonus.spell == kShieldOfFaith ? "n5_s_shieldfaith"
                          : bonus.spell == kDivineFavor ? "n5_s_divfavor"
                          : bonus.spell == kSanctuary   ? "n5_s_sanctuary"
@@ -189,6 +195,24 @@ std::vector<Spell2024> Build() {
     // #171: Scorching Ray - each ray 2d6 Fire; the slot adds rays, not dice (upcast_dice 0).
     spells.push_back(level2(Damage(kScorchingRay, "Scorching Ray", "n5_s_scorchray", E::kSpellAttack, 2, 6, 0,
                                    kDamageTypeFire)));
+    // Build 1b: Spiritual Weapon and Flame Blade (melee spell attacks, + the spellcasting ability modifier), Dragon's
+    // Breath (the breath's 15-foot Cone, its type the menu's), Heat Metal (its damage; the save is the drop's).
+    Spell2024 weapon = level2(Touch(Damage(kSpiritualWeapon, "Spiritual Weapon", "n5_s_spiritweap", E::kSpellAttack, 1,
+                                           8, 1, kDamageTypeForce)));
+    weapon.bonus_action = true;
+    spells.push_back(weapon);
+    Spell2024 blade = level2(Touch(Damage(kFlameBlade, "Flame Blade", "n5_s_flameblade", E::kSpellAttack, 3, 6, 1,
+                                          kDamageTypeFire)));
+    blade.bonus_action = true;
+    spells.push_back(blade);
+    Spell2024 breath = level2(Area(Saved(Damage(kDragonsBreath, "Dragon's Breath", "n5_s_dragbreath", E::kSave, 3, 6, 1,
+                                                kDamageTypeFire),
+                                         Ability::kDexterity, true),
+                                   SpellShape2024::kCone, kDragonsBreathConeFeet));
+    breath.bonus_action = true;
+    spells.push_back(breath);
+    spells.push_back(level2(Saved(Damage(kHeatMetal, "Heat Metal", "n5_s_heatmetal", E::kSave, 2, 8, 1, kDamageTypeFire),
+                                  Ability::kConstitution, false)));
   }
   std::sort(spells.begin(), spells.end(), [](const Spell2024& a, const Spell2024& b) { return a.row < b.row; });
   return spells;
@@ -257,13 +281,20 @@ const std::vector<BonusActionSpell>& BonusActionSpells() {
       {kSanctuary, kSanctuaryBonus, kFeatSanctuary, 30, "Sanctuary"},
       {kExpeditiousRetreat, kExpeditiousRetreatBonus, kFeatExpeditiousRetreat, 0, "Expeditious Retreat"},
       {kHuntersMark, kHuntersMarkBonus, kFeatHuntersMark, 90, "Hunter's Mark"},
+      // #39 level 2 build 1b.
+      {kSpiritualWeapon, kSpiritualWeaponBonus, kFeatSpiritualWeapon, kSpiritualWeaponFeet, "Spiritual Weapon"},
+      {kFlameBlade, kFlameBladeBonus, kFeatFlameBlade, 0, "Flame Blade"},
+      {kDragonsBreath, kDragonsBreathBonus, kFeatDragonsBreath, kDragonsBreathTouchFeet, "Dragon's Breath"},
   };
   return spells;
 }
 
 const BonusActionSpell* BonusActionSpellOf(int row) {
+  // #39 level 2 build 1b: a menu's row (Dragon's Breath's types) is its master's.
+  const ChoiceCantrip* menu = ChoiceOptionOf(row) ? ChoiceCantripOf(row) : nullptr;
+  const int spell_row = menu ? menu->master : row;
   for (const BonusActionSpell& spell : BonusActionSpells()) {
-    if (spell.spell == row || spell.bonus_row == row) return &spell;
+    if (spell.spell == spell_row || spell.bonus_row == row) return &spell;
   }
   return nullptr;
 }
@@ -276,6 +307,9 @@ const char* SlotSpellBonusFeatName(int feat) {
   }
   if (feat == kFeatExpeditiousDash) return "Expeditious Retreat: Dash";
   if (feat == kFeatHuntersMarkMove) return "Hunter's Mark: Move";
+  if (feat == kFeatSpiritualWeaponStrike) return "Spiritual Weapon: Strike";  // #39 level 2 build 1b
+  if (feat == kFeatFlameBladeEvoke) return "Flame Blade: Evoke";
+  if (feat == kFeatHeatMetalAgain) return "Heat Metal: Again";
   return "";
 }
 
@@ -701,6 +735,114 @@ std::vector<uint32_t> PrayerOfHealingTargetsOf(uint32_t caster, std::vector<Pray
     picked.push_back(one.id);
   }
   return picked;
+}
+
+// #39 Part 2, level 2, build 1b.
+bool SpiritualWeaponReaches(float metres_from_force, float slack) {
+  return metres_from_force <= FeetToMetres(kSpiritualWeaponMoveFeet + kSpiritualWeaponReachFeet) + slack;
+}
+
+bool IsDragonsBreathRow(int row) {
+  return row == kDragonsBreath || row == kDragonsBreathBonus || (row >= kDragonsBreathAcid && row <= kDragonsBreathPoison);
+}
+
+namespace {
+constexpr uint32_t kBreathTypes[] = {kDamageTypeAcid, kDamageTypeCold, kDamageTypeFire, kDamageTypeLightning,
+                                     kDamageTypePoison};
+constexpr int kBreathTypeCount = static_cast<int>(sizeof(kBreathTypes) / sizeof(kBreathTypes[0]));
+int BreathTypeIndex(uint32_t damage_type) {
+  for (int i = 0; i < kBreathTypeCount; ++i) {
+    if (kBreathTypes[i] == damage_type) return i;
+  }
+  return -1;
+}
+}  // namespace
+
+uint32_t DragonsBreathType(int row) {
+  if (row >= kDragonsBreathAcid && row <= kDragonsBreathPoison) return kBreathTypes[row - kDragonsBreathAcid];
+  if (IsDragonsBreathExhaleRow(row)) return kBreathTypes[row - kDragonsBreathExhaleFirst];
+  return row == kDragonsBreath || row == kDragonsBreathBonus ? kDamageTypeFire : 0;
+}
+
+int DragonsBreathExhaleRow(uint32_t damage_type) {
+  const int i = BreathTypeIndex(damage_type);
+  return i < 0 ? -1 : kDragonsBreathExhaleFirst + i;
+}
+
+int DragonsBreathExhaleFeat(uint32_t damage_type) {
+  const int i = BreathTypeIndex(damage_type);
+  return i < 0 ? -1 : kFeatDragonsBreathExhaleFirst + i;
+}
+
+bool IsDragonsBreathExhaleRow(int row) { return row >= kDragonsBreathExhaleFirst && row <= kDragonsBreathExhaleLast; }
+
+bool IsDragonsBreathExhaleFeat(int feat) {
+  return feat >= kFeatDragonsBreathExhaleFirst && feat <= kFeatDragonsBreathExhaleLast;
+}
+
+bool MetalWeaponBaseItem(int base_item) {
+  // baseitems.2da: 0 Shortsword, 1 Longsword, 2 Battleaxe, 3 Bastard Sword, 4 Light Flail, 5 Warhammer, 9 Light Mace,
+  // 10 Halberd, 12 Two-Bladed Sword, 13 Greatsword, 18 Greataxe, 22 Dagger, 32 Dire Mace, 33 Double Axe, 35 Heavy
+  // Flail, 37 Light Hammer, 38 Handaxe, 40 Kama, 41 Katana, 42 Kukri, 47 Morningstar, 51 Rapier, 53 Scimitar, 55
+  // Scythe, 58 Spear, 59 Shuriken, 60 Sickle, 63 Throwing Axe, 78 Dwarven Waraxe, 95 Trident. Not: bows, crossbows,
+  // the club, the quarterstaff, the sling, darts, the whip, staves, rods, wands, shields, creature weapons.
+  static const int kMetal[] = {0, 1, 2, 3, 4, 5, 9, 10, 12, 13, 18, 22, 32, 33, 35, 37, 38, 40, 41, 42, 47, 51, 53, 55,
+                               58, 59, 60, 63, 78, 95};
+  return std::find(std::begin(kMetal), std::end(kMetal), base_item) != std::end(kMetal);
+}
+
+bool MetalArmourTier(int nwn_base_ac) {
+  // armor.h: the Medium and Heavy tiers (4-8) are all metal - Scale Mail, Chain Mail, Splint, Half Plate, Plate.
+  const ArmorCategory category = ArmorForNwnTier(nwn_base_ac).category;
+  return category == ArmorCategory::kMedium || category == ArmorCategory::kHeavy;
+}
+
+HeatedObject HeatMetalObject(int right_hand_base_item, int left_hand_base_item, int armour_tier) {
+  if (MetalWeaponBaseItem(right_hand_base_item)) return HeatedObject::kRightHand;
+  if (MetalWeaponBaseItem(left_hand_base_item)) return HeatedObject::kLeftHand;
+  if (MetalArmourTier(armour_tier)) return HeatedObject::kArmour;
+  return HeatedObject::kNone;
+}
+
+HeatOutcome HeatMetalOutcome(HeatedObject object, int damage, bool save_failed) {
+  if (object == HeatedObject::kNone || damage <= 0) return HeatOutcome::kNothing;
+  const bool can_drop = object != HeatedObject::kArmour;
+  return save_failed && can_drop ? HeatOutcome::kDrops : HeatOutcome::kDisadvantage;
+}
+
+HeatAgain HeatMetalAgainNow(bool cast_this_turn, bool held_or_worn, float metres, float slack) {
+  if (cast_this_turn) return HeatAgain::kCastThisTurn;
+  if (!held_or_worn) return HeatAgain::kNotHeld;
+  if (metres > FeetToMetres(kHeatMetalFeet) + slack) return HeatAgain::kOutOfRange;
+  return HeatAgain::kOk;
+}
+
+const std::vector<int>& SorcererOnlyRows() {
+  static const std::vector<int> kRows{kSorcerousBurst, kFlameBlade};
+  return kRows;
+}
+
+bool SorcererOnlySpell(int row) {
+  const std::vector<int>& rows = SorcererOnlyRows();
+  return std::find(rows.begin(), rows.end(), row) != rows.end();
+}
+
+const SpellActionLeaf* SpellActionLeafOf(int spell) {
+  static const SpellActionLeaf kLeaves[] = {
+      {kHuntersMark, kFeatHuntersMarkMove, "Hunter's Mark", "Hunter's Mark: Move"},
+      {kSpiritualWeapon, kFeatSpiritualWeaponStrike, "Spiritual Weapon", "Spiritual Weapon: Strike"},
+      {kFlameBlade, kFeatFlameBladeEvoke, "Flame Blade", "Flame Blade: Evoke"},
+      {kHeatMetal, kFeatHeatMetalAgain, "Heat Metal", "Heat Metal: Again"},
+  };
+  for (const SpellActionLeaf& leaf : kLeaves) {
+    if (leaf.spell == spell) return &leaf;
+  }
+  return nullptr;
+}
+
+bool IsBonusActionSpellOrder(int row) {
+  const BonusActionSpell* bonus = BonusActionSpellOf(row);
+  return bonus && row != bonus->bonus_row;
 }
 
 }  // namespace rules

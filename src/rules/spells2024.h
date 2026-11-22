@@ -554,4 +554,104 @@ struct PrayerCandidate {
 };
 std::vector<uint32_t> PrayerOfHealingTargetsOf(uint32_t caster, std::vector<PrayerCandidate> candidates);
 
+// ===== Level 2, build 1b (owner, 2026-11-22: "start it"; the build's brief decided 2026-11-18 - Q1 A, Q2 A, Q4 A, and
+// level 2's Q1 A), SRD 5.2.1:
+// - Spiritual Weapon (Cleric; a Bonus Action, 60 feet, Concentration up to 1 minute): a spectral force at a creature
+//   and a melee spell attack at once - 1d8 + the spellcasting ability modifier Force on a hit; on your later turns a
+//   Bonus Action (Spiritual Weapon: Strike, the quickbar and the radial) moves it up to 20 feet and strikes a
+//   creature within 5 feet of it again. 1d8 more a slot level above 2.
+// - Flame Blade (Druid, Sorcerer; a Bonus Action, Self, Concentration up to 10 minutes): a fiery blade in your hand (Q1
+//   A: an equipped blade - your attacks with it the spell's, one a round, the Magic action) - a melee spell attack,
+//   3d6 + the spellcasting ability modifier Fire; Bright Light 10 feet, Dim 10 more. Let go of it, it disappears; a
+//   Bonus Action (Flame Blade: Evoke) brings it back. 1d6 more a slot level above 2.
+// - Dragon's Breath (Sorcerer, Wizard; a Bonus Action, Touch, Concentration up to 1 minute): a willing creature (Q2
+//   A: any - a player's breath a quickbar action, a henchman's by its AI) and a type from the menu - Acid, Cold, Fire,
+//   Lightning or Poison; until the spell ends it can exhale a 15-foot Cone (a Magic action): a Dexterity save, 3d6 of
+//   the type, half on a success. 1d6 more a slot level above 2.
+// - Heat Metal (Bard, Druid; an Action, 60 feet, Concentration up to 1 minute): a creature's metal weapon, else its
+//   Medium or Heavy metal armour (Q4 A), glows red-hot - 2d8 Fire to the one holding or wearing it, then a
+//   Constitution save: a failure drops the weapon (into its inventory; armour can't be dropped), and one that doesn't
+//   drop it has Disadvantage on attack rolls and ability checks until the start of your next turn. On your later
+//   turns a Bonus Action (Heat Metal: Again, the quickbar) deals it again while it's within range. 1d8 more a slot
+//   level above 2.
+constexpr int kSpiritualWeapon = 1256;
+constexpr int kSpiritualWeaponBonus = 1257;   // its Bonus Action: the row its feat casts
+constexpr int kSpiritualWeaponStrike = 1258;  // its later strike (feat 1568, a Bonus Action, no slot)
+constexpr int kFlameBlade = 1259;
+constexpr int kFlameBladeBonus = 1260;
+constexpr int kFlameBladeEvoke = 1261;        // the blade evoked again (feat 1570, a Bonus Action, no slot)
+constexpr int kDragonsBreath = 1262;          // its five types, 1263-1267: cantrips.h's choice menus
+constexpr int kDragonsBreathAcid = 1263;
+constexpr int kDragonsBreathCold = 1264;
+constexpr int kDragonsBreathFire = 1265;
+constexpr int kDragonsBreathLightning = 1266;
+constexpr int kDragonsBreathPoison = 1267;
+constexpr int kDragonsBreathBonus = 1268;     // its Bonus Action (any type: the order's)
+constexpr int kDragonsBreathExhaleFirst = 1269;  // the exhale, a row per type (Acid, Cold, Fire, Lightning, Poison)
+constexpr int kDragonsBreathExhaleLast = 1273;
+constexpr int kHeatMetal = 1274;
+constexpr int kHeatMetalAgain = 1275;         // its damage again (feat 1577, a Bonus Action, no slot)
+constexpr int kFeatSpiritualWeapon = 1567;
+constexpr int kFeatSpiritualWeaponStrike = 1568;
+constexpr int kFeatFlameBlade = 1569;
+constexpr int kFeatFlameBladeEvoke = 1570;
+constexpr int kFeatDragonsBreath = 1571;
+constexpr int kFeatDragonsBreathExhaleFirst = 1572;  // a feat per type, casting its exhale row (a Magic action)
+constexpr int kFeatDragonsBreathExhaleLast = 1576;
+constexpr int kFeatHeatMetalAgain = 1577;
+constexpr int kSpiritualWeaponFeet = 60;
+constexpr int kSpiritualWeaponMoveFeet = 20;
+constexpr int kSpiritualWeaponReachFeet = 5;
+constexpr int kSpiritualWeaponMinutes = 1;
+constexpr int kFlameBladeMinutes = 10;
+constexpr int kDragonsBreathMinutes = 1;
+constexpr int kDragonsBreathConeFeet = 15;
+constexpr int kDragonsBreathTouchFeet = 5;  // nwn5e: "a creature you touch" - within 5 feet
+constexpr int kHeatMetalFeet = 60;
+constexpr int kHeatMetalMinutes = 1;
+// Spiritual Weapon's later strike: the force moves up to 20 feet and strikes a creature within 5 feet of it - a
+// creature at most 25 feet (7.62 m, plus `slack`: its own half-width) from where the force was.
+bool SpiritualWeaponReaches(float metres_from_force, float slack);
+// Dragon's Breath: a row's type - a type's row, its exhale row or (none chosen: the master, its Bonus Action's row, an
+// item's) Fire; 0 for a row that isn't Dragon's Breath's.
+bool IsDragonsBreathRow(int row);  // the spell, a type, its Bonus Action's row (not an exhale)
+uint32_t DragonsBreathType(int row);
+// The exhale row and its feat for a type (-1: not one of the five).
+int DragonsBreathExhaleRow(uint32_t damage_type);
+int DragonsBreathExhaleFeat(uint32_t damage_type);
+bool IsDragonsBreathExhaleRow(int row);
+bool IsDragonsBreathExhaleFeat(int feat);
+// Heat Metal: what it heats on a creature - its weapon (a manufactured metal one, the main hand's first), else its
+// Medium or Heavy metal armour (NWN's tiers 4-8: Scale Mail, Chain Mail, Splint, Half Plate, Plate); kNone: nothing to
+// heat (the cast is refused, nothing spent).
+enum class HeatedObject { kNone, kRightHand, kLeftHand, kArmour };
+bool MetalWeaponBaseItem(int base_item);  // baseitems.2da: metal blades, heads and points - no wood, bows or slings
+bool MetalArmourTier(int nwn_base_ac);
+HeatedObject HeatMetalObject(int right_hand_base_item, int left_hand_base_item, int armour_tier);
+// After its damage (none dealt: nothing): a failed save drops a weapon; one that doesn't drop the object (a success,
+// or armour, which can't be dropped) - Disadvantage on attack rolls and ability checks until the start of your next
+// turn.
+enum class HeatOutcome { kNothing, kDrops, kDisadvantage };
+HeatOutcome HeatMetalOutcome(HeatedObject object, int damage, bool save_failed);
+// Heat Metal: Again - a Bonus Action on a later turn (not the cast's), at an object someone holds or wears, within 60
+// feet (18.29 m, plus `slack`).
+enum class HeatAgain { kOk, kCastThisTurn, kNotHeld, kOutOfRange };
+HeatAgain HeatMetalAgainNow(bool cast_this_turn, bool held_or_worn, float metres, float slack);
+// The Sorcerer's alone of the arcane spells NWN's one Wiz_Sorc column shares: not the Wizard's - Sorcerous Burst
+// (cantrips.h), Flame Blade.
+bool SorcererOnlySpell(int row);
+const std::vector<int>& SorcererOnlyRows();
+// A spell's own action while it lasts - a feat beside the spell in the radial (its levels, then the action), and on
+// the quickbar: Hunter's Mark: Move (0.99.20), Spiritual Weapon: Strike, Flame Blade: Evoke, Heat Metal: Again. Null
+// for any other spell.
+struct SpellActionLeaf {
+  int spell = -1;
+  int feat = -1;
+  const char* spell_name = "";
+  const char* label = "";
+};
+const SpellActionLeaf* SpellActionLeafOf(int spell);
+// A Bonus Action spell's order: its row, or one of its menu's (Dragon's Breath's types) - cast through its feat.
+bool IsBonusActionSpellOrder(int row);
+
 }  // namespace rules

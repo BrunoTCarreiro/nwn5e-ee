@@ -156,6 +156,7 @@
 #include "spell_impact.h"
 #include "staple_actions.h"
 #include "target_window.h"
+#include "weapon_cantrips.h"
 #include "rules/cantrips.h"
 #include "condition_effects.h"
 #include "rest.h"
@@ -1065,7 +1066,8 @@ bool SpentThisTurn(uint32_t id, bool* bonus) {
 // The willing-creature spells: an enemy is no target (0.99.3, Heroism's; build 2a: Mage Armor, Protection from Evil
 // and Good).
 bool WillingSpell(int spell) {
-  return spell == rules::kHeroism || spell == rules::kMageArmor || spell == rules::kProtectionFromEvilAndGood;
+  return spell == rules::kHeroism || spell == rules::kMageArmor || spell == rules::kProtectionFromEvilAndGood ||
+         rules::IsDragonsBreathRow(spell);  // #39 level 2 build 1b (Q2 A: any willing creature)
 }
 
 bool Refuse(uint32_t id, const std::string& name, const std::string& why, uint32_t target) {
@@ -1080,6 +1082,8 @@ bool RitualOrder(void* creature, uint32_t id, const SpellOrder& order);      // 
 bool SilentImageMoveOrder(void* creature, uint32_t id, const SpellOrder& order);  // build 4b, below
 bool SilentImageLasts(uint32_t id);                                               // build 4b (0.99.47), below
 bool LongCastOrder(void* creature, uint32_t id, const SpellOrder& order);        // build 4c, below
+bool HeatMetalOrder(void* creature, uint32_t id, const SpellOrder& order);  // level 2 build 1b, below
+bool Level2FeatGuard(void* creature, uint32_t id, int feat);                // level 2 build 1b, below
 
 // Refused before the cast, nothing spent (true): a willing creature's spell at an enemy, Mage Armor on one wearing
 // armour, an enemy's spell at a creature its Sanctuary keeps it from. A Bonus Action spell's order becomes its feat's
@@ -1118,13 +1122,15 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
                     order.target);
     }
   }
+  // #39 level 2 build 1b (Q4 A): Heat Metal at a creature with no metal weapon and no metal armour - nothing to heat.
+  if (HeatMetalOrder(creature, id, order)) return true;
   if (target && target != creature && engine::IsEnemy(creature, order.target) &&
       !SanctuaryLetsThrough(creature, target, "cast a spell at")) {
     return true;  // told
   }
   if (!ActionEconomyOn() || order.class_slot < 0 || order.class_slot > 7) return false;
   const rules::BonusActionSpell* bonus = rules::BonusActionSpellOf(spell);
-  if (!bonus || bonus->spell != spell) {
+  if (!bonus || !rules::IsBonusActionSpellOrder(spell)) {  // level 2 build 1b: a menu's row too (Dragon's Breath's)
     bool spent_bonus = false;
     if (InnateLevel(order.spell) >= 1 && SpentThisTurn(id, &spent_bonus) && spent_bonus) {
       TellPlayer(id, PlayerText("spells2024.you_cast_a_bonus_action"));
@@ -1173,6 +1179,7 @@ struct CastInfo {
   int slot = 1;
   int class_slot = -1;  // a Bonus Action spell's (its order's class)
   bool bonus = false;
+  int order_spell = -1;  // #39 level 2 build 1b: the order's row (a menu's: Dragon's Breath's type)
 };
 
 CastInfo CastInfoOf(uint32_t self, void* caster, int level, const char* name) {
@@ -1186,7 +1193,7 @@ CastInfo CastInfoOf(uint32_t self, void* caster, int level, const char* name) {
   info.bonus = true;
   const auto at = g_bonus_casts.find(self);
   if (at == g_bonus_casts.end() || GameMs() > at->second.at + 10000 ||
-      static_cast<int>(at->second.spell) != bonus->spell) {
+      rules::BonusActionSpellOf(static_cast<int>(at->second.spell)) != bonus) {  // level 2 build 1b: a menu's row
     if (at != g_bonus_casts.end()) g_bonus_casts.erase(at);
     TellPlayer(self, PlayerText("spells2024.cast_it_from_your_spells", {{"name", std::string(name)}}));
     info.ok = false;
@@ -1206,6 +1213,7 @@ CastInfo CastInfoOf(uint32_t self, void* caster, int level, const char* name) {
   const int chosen = rules::ChosenSlotLevel(level, cast.domain_level);
   info.slot = chosen >= level ? chosen : level;
   info.class_slot = cast.class_slot;
+  info.order_spell = static_cast<int>(cast.spell);
   return info;
 }
 
@@ -1909,7 +1917,7 @@ bool BuffFeatGuard(void* creature, int feat) {
     }
     at->second.armed = 0;  // moved by hand: an armed one is done with
   }
-  return true;
+  return Level2FeatGuard(creature, id, feat);  // #39 level 2 build 1b
 }
 
 // The attacker's Wisdom save against the target's Sanctuary (true: it goes on).
@@ -5030,10 +5038,1058 @@ void Level2GameStarted() {
   g_shining.clear();
 }
 
+// ===== #39 Part 2, level 2, build 1b (owner, 2026-11-22: "start it"; the brief decided 2026-11-18): Spiritual Weapon
+// ("A your Bonus Action strike, chosen (quickbar and radial; the weapon a look that flies there and strikes)"), Flame
+// Blade (Q1 "A an equipped blade, your attacks with it the spell's (one a round, the Magic action)"), Dragon's Breath
+// (Q2 "A any willing creature (a player's breath a quickbar action, a henchman's by its AI)"), Heat Metal (Q4 "A its
+// weapon else its armour, a dropped weapon into the inventory, armour Disadvantage, the repeat a quickbar action").
+// Each spell's mark carries the row cast and its caster, so Concentration holds it and ends it; a creature update
+// notices the end.
+constexpr const char* kTagSpiritWeapon = "n5s_spiritweap";
+constexpr const char* kTagFlameBlade = "n5s_flameblade";
+constexpr const char* kTagBreath = "n5s_dragbreath";
+constexpr const char* kTagHeat = "n5s_heatmetal";
+constexpr const char* kTagHeatGlow = "n5s_heatglow";
+constexpr const char* kBladeResRef = "nw_wswsc001";  // the game's scimitar: "similar in size and shape to a scimitar"
+constexpr uint64_t kBladeEquipMs = 6000;              // the blade's equip on its way (the caster's queue cleared)
+
+// A spell attack rolled outside its cast (Spiritual Weapon's later strikes; a Bonus Action spell's feat cast): the
+// class slot and row it was cast from, so the 2024 spell attack bonus (rules_save_roll.cpp's SpellDc2024 reads the
+// caster's casting slot, casting feat, item flag and last spell) is that class's while the roll runs. A class slot
+// below 0 (an item's, a script's): left as it is.
+class CastAs {
+ public:
+  CastAs(void* creature, int row, int class_slot)
+      : creature_(class_slot >= 0 && class_slot <= 7 ? creature : nullptr) {
+    if (!creature_) return;
+    spell_ = Field<int32_t>(creature_, ee::kObjectLastSpellId);
+    slot_ = Field<uint8_t>(creature_, ee::kCreatureCastingSlot);
+    feat_ = Field<uint16_t>(creature_, ee::kCreatureCastingFeat);
+    item_ = Field<int32_t>(creature_, ee::kCreatureCastingFromItem);
+    SetField<int32_t>(creature_, ee::kObjectLastSpellId, row);
+    SetField<uint8_t>(creature_, ee::kCreatureCastingSlot, static_cast<uint8_t>(class_slot));
+    SetField<uint16_t>(creature_, ee::kCreatureCastingFeat, static_cast<uint16_t>(0xFFFF));
+    SetField<int32_t>(creature_, ee::kCreatureCastingFromItem, 0);
+  }
+  ~CastAs() {
+    if (!creature_) return;
+    SetField<int32_t>(creature_, ee::kObjectLastSpellId, spell_);
+    SetField<uint8_t>(creature_, ee::kCreatureCastingSlot, slot_);
+    SetField<uint16_t>(creature_, ee::kCreatureCastingFeat, feat_);
+    SetField<int32_t>(creature_, ee::kCreatureCastingFromItem, item_);
+  }
+  CastAs(const CastAs&) = delete;
+  CastAs& operator=(const CastAs&) = delete;
+
+ private:
+  void* creature_;
+  int32_t spell_ = 0;
+  uint8_t slot_ = 0xFF;
+  uint16_t feat_ = 0xFFFF;
+  int32_t item_ = 0;
+};
+
+// The class slot a cast came from (-1: an item's or a script's) and its spellcasting ability modifier.
+int CastClassSlot(const CastInfo& cast, uint8_t casting_slot, bool from_item) {
+  if (cast.bonus) return cast.class_slot;
+  return !from_item && casting_slot <= 7 ? casting_slot : -1;
+}
+
+int CastModifier(void* caster, int class_slot) {
+  return class_slot >= 0 ? CastingModifierOfClassSlot(caster, class_slot) : SpellcastingModifier2024(caster);
+}
+
+std::string Signed(int value) { return (value >= 0 ? "+" : "") + std::to_string(value); }
+
+void GrantFeat(void* creature, int feat) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  if (stats && !engine::HasFeat(stats, feat)) engine::AddFeat(stats, feat);
+}
+
+void TakeFeat(void* creature, int feat) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  if (stats && engine::HasFeat(stats, feat)) engine::RemoveFeat(stats, feat);
+}
+
+float MetresBetween(const void* a, const void* b) { return std::sqrt(engine::CentreDistanceSquared(a, b)); }
+
+// The game's dart flight time (Magic Missile's, kDarts).
+float TravelSeconds(float metres) { return metres > 1.0f ? metres / (3.0f * std::log(metres) + 2.0f) : 0.1f; }
+
+// A save against a DC on the 2024 scale already (the cast's, kept for later turns - not the creature's own
+// GetSpellSaveDC() then): 0 failed, 1 succeeded, -1 gone.
+const char* const kSaveDc = R"nss(
+object t = StringToObject("$TARGET"); int s = -1;
+if (GetIsObjectValid(t) && !GetIsDead(t)) s = $SAVE(t, $DC, SAVING_THROW_TYPE_NONE, OBJECT_SELF);
+SetLocalInt(OBJECT_SELF, "n5s_save", s);
+)nss";
+
+int SaveAgainst(uint32_t self, const char* what, rules::Ability ability, const std::string& target, int dc) {
+  void* caster = CreatureById(self);
+  if (!caster) return -1;
+  std::string code = kSaveDc;
+  Replace(&code, "$TARGET", target);
+  Replace(&code, "$SAVE", SaveCall(ability));
+  Replace(&code, "$DC", std::to_string(dc));
+  RememberSaveDc2024(self, dc);
+  Run(code, self, what);
+  return engine::GetLocalInt(caster, kVarSave);
+}
+
+// A Dexterity save for half against such a DC: the damage it leaves (Evasion's too; -1: gone).
+const char* const kReflexHalfDc = R"nss(
+object t = StringToObject("$TARGET"); int n = -1;
+if (GetIsObjectValid(t) && !GetIsDead(t)) {
+  if (t != OBJECT_SELF) SignalEvent(t, EventSpellCastAt(OBJECT_SELF, $ROW, TRUE));
+  n = GetReflexAdjustedDamage($AMOUNT, t, $DC, SAVING_THROW_TYPE_NONE, OBJECT_SELF);
+}
+SetLocalInt(OBJECT_SELF, "n5s_save", n);
+)nss";
+
+int ReflexHalfAgainst(uint32_t self, const char* what, int row, const std::string& target, int amount, int dc) {
+  void* creature = CreatureById(self);
+  if (!creature) return -1;
+  std::string code = kReflexHalfDc;
+  Replace(&code, "$TARGET", target);
+  Replace(&code, "$AMOUNT", std::to_string(amount));
+  Replace(&code, "$DC", std::to_string(dc));
+  Replace(&code, "$ROW", std::to_string(row));
+  RememberSaveDc2024(self, dc);
+  Run(code, self, what);
+  return engine::GetLocalInt(creature, kVarSave);
+}
+
+// --- Spiritual Weapon: a Bonus Action's strike, now and on later turns ---
+
+struct SpiritWeapon {
+  int row = rules::kSpiritualWeapon;  // the row its mark carries (the one cast: Concentration's)
+  int class_slot = -1;                // the class it was cast from (-1: an item's, a script's)
+  int slot = 2;
+  int modifier = 0;
+  float x = 0.0f, y = 0.0f;  // where the force is: beside the creature it last struck (at the cast: by the caster)
+  uint32_t last = 0;         // that creature (its next flight starts there)
+  uint32_t rounds = 0;       // an NPC caster's round it last struck in
+};
+std::unordered_map<uint32_t, SpiritWeapon> g_spirit_weapons;  // by caster
+
+const char* const kSpiritAttack = R"nss(
+object t = StringToObject("$TARGET"); string r = "";
+if (GetIsObjectValid(t) && !GetIsDead(t)) {
+  SignalEvent(t, EventSpellCastAt(OBJECT_SELF, $ROW, TRUE));
+  r = ObjectToString(t) + ":" + IntToString(TouchAttackMelee(t)) + ";";
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+// The look until one is made for row 1256 (the look pass): the game's MIRV bolt flies from where the force was (run as
+// that creature, or as the caster) to the target, and on a hit the Divine Strike's holy flash lands with it.
+const char* const kSpiritFlight = R"nss(
+object t = StringToObject("$TARGET");
+if (!GetIsObjectValid(t)) return;
+ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MIRV), t);
+if ($HIT) DelayCommand($TRAVEL, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_DIVINE_STRIKE_HOLY), t));
+)nss";
+
+float SpiritMetres(const SpiritWeapon& weapon, void* creature) {
+  const float dx = Field<float>(creature, ee::kObjectPositionX) - weapon.x;
+  const float dy = Field<float>(creature, ee::kObjectPositionY) - weapon.y;
+  return std::sqrt(dx * dx + dy * dy);
+}
+
+bool SpiritReaches(const SpiritWeapon& weapon, void* creature) {
+  return rules::SpiritualWeaponReaches(SpiritMetres(weapon, creature), kSlack);
+}
+
+// One strike of the force at `target`: a melee spell attack with its class's bonus; on a hit 1d8 (1d8 more a slot
+// level above 2; twice the dice on a Critical Hit) + the spellcasting ability modifier, Force. The look (or its
+// placeholder) flies there first; the force then stands beside the target.
+void SpiritStrike(uint32_t self, void* caster, const rules::Spell2024& spell, SpiritWeapon& weapon, uint32_t target,
+                  const char* how) {
+  void* creature = CreatureById(target);
+  if (!creature) return;
+  std::string code = kSpiritAttack;
+  Replace(&code, "$TARGET", Hex(target));
+  Replace(&code, "$ROW", std::to_string(rules::kSpiritualWeapon));
+  {
+    CastAs as(caster, rules::kSpiritualWeapon, weapon.class_slot);
+    Run(code, self, spell.script);
+  }
+  const std::vector<Entry> hits = Entries(caster);
+  if (hits.empty()) return;  // gone, or down already
+  const int result = hits[0].value;
+  void* from_creature = weapon.last ? CreatureById(weapon.last) : nullptr;
+  float lands = result > 0 ? PlaySpellLook(self, target, rules::kSpiritualWeapon)
+                           : PlaySpellLookMiss(self, target, rules::kSpiritualWeapon);
+  const bool look = lands > 0.0f;
+  if (!look) {
+    lands = TravelSeconds(MetresBetween(from_creature ? from_creature : caster, creature));
+    std::string flight = kSpiritFlight;
+    Replace(&flight, "$TARGET", Hex(target));
+    Replace(&flight, "$HIT", result > 0 ? "TRUE" : "FALSE");
+    Replace(&flight, "$TRAVEL", Float(lands));
+    Run(flight, from_creature ? weapon.last : self, "Spiritual Weapon's flight");
+  }
+  std::string log = result == 2 ? "a Critical Hit" : result == 1 ? "a hit" : "a miss";
+  if (result > 0) {
+    const bool critical = result == 2;
+    const int dice = rules::CriticalDice(rules::SpellDiceAt(spell, weapon.slot), critical);
+    const int roll = RollEngineDice(dice, spell.die);
+    const int amount = std::max(0, roll + weapon.modifier);
+    const bool landed = Damage(self, spell, Hex(target), amount, spell.damage_type, "", Look(), lands);
+    if (landed) HuntersMarkHit(self, target, critical, lands);  // build 2a: an attack roll's hit
+    log += ": " + Dice(dice, spell.die) + " = " + std::to_string(roll) + " " + Signed(weapon.modifier) + " = " +
+           std::to_string(amount) + " Force" + (landed ? "" : " - immune");
+  }
+  weapon.x = Field<float>(creature, ee::kObjectPositionX);
+  weapon.y = Field<float>(creature, ee::kObjectPositionY);
+  weapon.last = target;
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Spiritual Weapon (a level %d slot) strikes 0x%08X (%s; %s, lands in %s s): %s", self,
+        weapon.slot, target, how, look ? "its look" : "the placeholder look", Float(lands).c_str(), log.c_str());
+  }
+}
+
+// Spiritual Weapon: Strike (row 1258, feat 1568): the force moves up to 20 feet and strikes again - no slot.
+void SpiritualWeaponStrike(uint32_t self, void* caster, const rules::Spell2024& spell) {
+  const auto it = g_spirit_weapons.find(self);
+  if (it == g_spirit_weapons.end() || !HasSpellEffect(caster, it->second.row, -1, self)) {
+    TellPlayer(self, PlayerText("spells2024.spiritual_weapon_strike_no"));
+    return;
+  }
+  const std::vector<Entry> one = OneTarget(self, spell, "0", -1, Look());
+  const uint32_t target = one.empty() ? 0 : ParseId(one[0].target);
+  void* creature = target ? CreatureById(target) : nullptr;
+  if (!creature || creature == caster) {
+    TellPlayer(self, PlayerText("spells2024.spiritual_weapon_strike_pick"));
+    return;
+  }
+  if (!SpiritReaches(it->second, creature)) {
+    TellPlayer(self, PlayerText("spells2024.spiritual_weapon_strike_far"));
+    if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon: Strike at 0x%08X - %.2f m from the force, too far", self,
+                       target, SpiritMetres(it->second, creature));
+    return;
+  }
+  SpiritStrike(self, caster, spell, it->second, target, "a Bonus Action");
+}
+
+void SpiritualWeapon(uint32_t self, void* caster, const rules::Spell2024& spell) {
+  const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);
+  if (row == rules::kSpiritualWeaponStrike) {
+    SpiritualWeaponStrike(self, caster, spell);
+    return;
+  }
+  const uint8_t casting_slot = Field<uint8_t>(caster, ee::kCreatureCastingSlot);
+  const bool from_item = Field<int32_t>(caster, ee::kCreatureCastingFromItem) != 0;
+  const CastInfo cast = CastInfoOf(self, caster, spell.level, spell.name);
+  if (!cast.ok) return;
+  SpiritWeapon weapon;
+  weapon.row = row;
+  weapon.class_slot = CastClassSlot(cast, casting_slot, from_item);
+  weapon.slot = cast.slot;
+  weapon.modifier = CastModifier(caster, weapon.class_slot);
+  weapon.x = Field<float>(caster, ee::kObjectPositionX);
+  weapon.y = Field<float>(caster, ee::kObjectPositionY);
+  weapon.rounds = CombatRoundsEnded(self);
+  const std::vector<Entry> one = OneTarget(self, spell, "0", -1, Look());
+  Mark(self, spell, Hex(self), row,
+       MarkLook{kTagSpiritWeapon, "EffectIcon(EFFECT_ICON_DAMAGE_INCREASE)", SecondsScript(rules::kSpiritualWeaponMinutes),
+                "VFX_IMP_HEAD_HOLY"});
+  GrantFeat(caster, rules::kFeatSpiritualWeaponStrike);
+  SpiritWeapon& kept = g_spirit_weapons[self] = weapon;
+  TellPlayer(self, PlayerText("spells2024.spiritual_weapon_cast",
+                              {{"dice", Dice(rules::SpellDiceAt(spell, cast.slot), spell.die)},
+                               {"mod", Signed(weapon.modifier)}}));
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Spiritual Weapon (a level %d slot%s, class slot %d, modifier %+d) - Concentration up to 1 "
+        "minute; Spiritual Weapon: Strike (feat %d) granted", self, cast.slot, cast.bonus ? ", a Bonus Action" : "",
+        weapon.class_slot, weapon.modifier, rules::kFeatSpiritualWeaponStrike);
+  }
+  const uint32_t target = one.empty() ? 0 : ParseId(one[0].target);
+  void* creature = target ? CreatureById(target) : nullptr;
+  if (creature && creature != caster) SpiritStrike(self, caster, spell, kept, target, "at once");
+}
+
+// --- Flame Blade: an equipped blade, its attacks the spell's ---
+
+struct Blade {
+  int row = rules::kFlameBlade;  // the row its mark carries
+  int dice = 3;
+  int modifier = 0;
+  uint32_t item = 0;  // the blade (0: let go)
+  uint32_t old = 0;   // the weapon the hand held before it (back in the hand when the spell ends)
+  uint64_t made = 0;  // game ms: the blade made (its equip on its way)
+  bool held = false;  // seen in the hand since it was made
+};
+std::unordered_map<uint32_t, Blade> g_blades;  // by caster
+std::unordered_set<uint32_t> g_blades_swept;   // creatures whose saved, unbound blades were looked for this game
+
+// The blade: the game's scimitar, made Flame Blade - undroppable, cursed (not sold or given), on fire, a light (Bright
+// 10 feet and Dim 10 more: NWN's 10 m light, rounded up as Produce Flame's is) - and equipped in the main hand, the
+// caster's queue cleared for it and its attack target taken up again. "id:0;" the blade, "id:1;" the weapon it
+// replaced.
+const char* const kBladeMake = R"nss(
+object old = GetItemInSlot(INVENTORY_SLOT_RIGHTHAND);
+object b = CreateItemOnObject("$RESREF", OBJECT_SELF, 1, "$TAG");
+string r = "";
+if (GetIsObjectValid(b)) {
+  SetName(b, "$NAME");
+  SetIdentified(b, TRUE);
+  SetDroppableFlag(b, FALSE);
+  SetItemCursedFlag(b, TRUE);
+  SetPlotFlag(b, TRUE);
+  AddItemProperty(DURATION_TYPE_PERMANENT, ItemPropertyVisualEffect(ITEM_VISUAL_FIRE), b);
+  AddItemProperty(DURATION_TYPE_PERMANENT, ItemPropertyLight(IP_CONST_LIGHTBRIGHTNESS_LOW, IP_CONST_LIGHTCOLOR_ORANGE), b);
+  object at = GetAttackTarget();
+  AssignCommand(OBJECT_SELF, ClearAllActions());
+  AssignCommand(OBJECT_SELF, ActionEquipItem(b, INVENTORY_SLOT_RIGHTHAND));
+  if (GetIsObjectValid(at) && !GetIsDead(at)) AssignCommand(OBJECT_SELF, ActionAttack(at));
+  ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_FLAME_M), OBJECT_SELF);
+  r = ObjectToString(b) + ":0;";
+  if (GetIsObjectValid(old)) r += ObjectToString(old) + ":1;";
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+// The blade gone (destroyed); $PUT_BACK: the weapon it replaced back in the hand, if the caster still has it.
+const char* const kBladeGone = R"nss(
+object b = StringToObject("$BLADE");
+int held = GetItemInSlot(INVENTORY_SLOT_RIGHTHAND) == b || !GetIsObjectValid(GetItemInSlot(INVENTORY_SLOT_RIGHTHAND));
+if (GetIsObjectValid(b)) { SetPlotFlag(b, FALSE); SetItemCursedFlag(b, FALSE); DestroyObject(b); }
+object old = StringToObject("$OLD");
+if ($PUT_BACK && held && GetIsObjectValid(old) && GetItemPossessor(old) == OBJECT_SELF && !GetIsDead(OBJECT_SELF))
+  DelayCommand(0.3, AssignCommand(OBJECT_SELF, ActionEquipItem(old, INVENTORY_SLOT_RIGHTHAND)));
+)nss";
+
+// A save made while a blade was out holds the item, unbound: it goes at the creature's first update of the game.
+const char* const kBladeSweep = R"nss(
+object i = GetFirstItemInInventory();
+while (GetIsObjectValid(i)) {
+  if (GetTag(i) == "$TAG") { SetPlotFlag(i, FALSE); SetItemCursedFlag(i, FALSE); DestroyObject(i); }
+  i = GetNextItemInInventory();
+}
+object r = GetItemInSlot(INVENTORY_SLOT_RIGHTHAND);
+if (GetTag(r) == "$TAG") { SetPlotFlag(r, FALSE); SetItemCursedFlag(r, FALSE); DestroyObject(r); }
+)nss";
+
+bool MakeBlade(uint32_t self, void* caster, Blade& blade, bool first) {
+  std::string code = kBladeMake;
+  Replace(&code, "$RESREF", kBladeResRef);
+  Replace(&code, "$TAG", kTagFlameBlade);
+  Replace(&code, "$NAME", PlayerText("spells2024.flame_blade_item"));
+  Run(code, self, "n5_s_flameblade");
+  uint32_t item = 0;
+  for (const Entry& entry : Entries(caster)) {
+    if (entry.value == 0) item = ParseId(entry.target);
+    if (entry.value == 1 && first) blade.old = ParseId(entry.target);
+  }
+  blade.item = item;
+  blade.made = GameMs();
+  blade.held = false;
+  SetFlameBlade(self, item, blade.dice, blade.modifier);
+  return item != 0;
+}
+
+void BladeGone(uint32_t self, const Blade& blade, bool put_back) {
+  std::string code = kBladeGone;
+  Replace(&code, "$BLADE", Hex(blade.item));
+  Replace(&code, "$OLD", Hex(blade.old ? blade.old : ee::kObjectInvalid));
+  Replace(&code, "$PUT_BACK", put_back ? "TRUE" : "FALSE");
+  Run(code, self, "Flame Blade's end");
+}
+
+// Flame Blade: Evoke (row 1261, feat 1570): the blade again while the spell lasts - a Bonus Action, no slot.
+void FlameBladeEvoke(uint32_t self, void* caster) {
+  const auto it = g_blades.find(self);
+  if (it == g_blades.end() || !HasSpellEffect(caster, it->second.row, -1, self)) {
+    TellPlayer(self, PlayerText("spells2024.flame_blade_evoke_no"));
+    return;
+  }
+  if (it->second.item) {
+    TellPlayer(self, PlayerText("spells2024.flame_blade_evoke_held"));
+    return;
+  }
+  const bool made = MakeBlade(self, caster, it->second, false);
+  if (made) TakeFeat(caster, rules::kFeatFlameBladeEvoke);
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Flame Blade: Evoke (a Bonus Action) - %s 0x%08X", self,
+        made ? "the blade again," : "no blade made", it->second.item);
+  }
+}
+
+void FlameBlade(uint32_t self, void* caster, const rules::Spell2024& spell) {
+  const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);
+  if (row == rules::kFlameBladeEvoke) {
+    FlameBladeEvoke(self, caster);
+    return;
+  }
+  const uint8_t casting_slot = Field<uint8_t>(caster, ee::kCreatureCastingSlot);
+  const bool from_item = Field<int32_t>(caster, ee::kCreatureCastingFromItem) != 0;
+  const CastInfo cast = CastInfoOf(self, caster, spell.level, spell.name);
+  if (!cast.ok) return;
+  Blade blade;
+  const auto before = g_blades.find(self);
+  if (before != g_blades.end()) {  // cast again: the last blade goes, the weapon it replaced stays the one to put back
+    blade.old = before->second.old;
+    if (before->second.item) BladeGone(self, before->second, false);
+    g_blades.erase(before);
+  }
+  blade.row = row;
+  blade.dice = rules::SpellDiceAt(spell, cast.slot);
+  blade.modifier = CastModifier(caster, CastClassSlot(cast, casting_slot, from_item));
+  Mark(self, spell, Hex(self), row,
+       MarkLook{kTagFlameBlade, "EffectIcon(EFFECT_ICON_DAMAGE_INCREASE)", SecondsScript(rules::kFlameBladeMinutes),
+                "VFX_IMP_FLAME_M"});
+  const bool made = MakeBlade(self, caster, blade, blade.old == 0);
+  TakeFeat(caster, rules::kFeatFlameBladeEvoke);
+  g_blades[self] = blade;
+  TellPlayer(self, PlayerText("spells2024.flame_blade_cast",
+                              {{"dice", std::to_string(blade.dice)}, {"mod", Signed(blade.modifier)}}));
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Flame Blade (a level %d slot%s) - Concentration up to 10 minutes; the blade 0x%08X%s, its "
+        "attacks a melee spell attack, %dd6 %+d Fire, one a round (the weapon it replaced 0x%08X)", self, cast.slot,
+        cast.bonus ? ", a Bonus Action" : "", blade.item, made ? " to the hand" : " NOT made", blade.dice,
+        blade.modifier, blade.old);
+  }
+}
+
+// --- Dragon's Breath: a willing creature's 15-foot Cone ---
+
+struct Breath {
+  uint32_t caster = 0;
+  int row = rules::kDragonsBreath;  // the row its mark carries
+  uint32_t type = rules::kDamageTypeFire;
+  int dice = 3;
+  int dc = 10;
+  int feat = -1;          // a player's exhale feat (-1: its AI breathes)
+  uint64_t next_try = 0;  // an NPC's next look for a breath (game ms)
+};
+std::unordered_map<uint32_t, Breath> g_breaths;  // by breather
+
+void DropBreathFeats(void* creature) {
+  for (int feat = rules::kFeatDragonsBreathExhaleFirst; feat <= rules::kFeatDragonsBreathExhaleLast; ++feat) {
+    TakeFeat(creature, feat);
+  }
+}
+
+// The creatures that aren't the breather's enemies, with where they stand from it toward $AIM ("id:along:side;") - an
+// NPC's breath waits while one is in the Cone.
+const char* const kBreathFriends = R"nss(
+object a = StringToObject("$AIM");
+vector o = GetPosition(OBJECT_SELF);
+vector d = GetPosition(a) - o;
+d.z = 0.0;
+string r = "";
+if (VectorMagnitude(d) > 0.1) {
+  d = VectorNormalize(d);
+  object t = GetFirstObjectInShape(SHAPE_SPHERE, $REACH, GetLocation(OBJECT_SELF), TRUE, OBJECT_TYPE_CREATURE);
+  while (GetIsObjectValid(t)) {
+    if (t != OBJECT_SELF && !GetIsDead(t) && !GetIsEnemy(t, OBJECT_SELF)) {
+      vector v = GetPosition(t) - o;
+      r += ObjectToString(t) + ":" + FloatToString(v.x * d.x + v.y * d.y, 0, 3) + ":" +
+           FloatToString(fabs(v.x * d.y - v.y * d.x), 0, 3) + ";";
+    }
+    t = GetNextObjectInShape(SHAPE_SPHERE, $REACH, GetLocation(OBJECT_SELF), TRUE, OBJECT_TYPE_CREATURE);
+  }
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+// An NPC's breath (Q2 A: "a henchman's by its AI"): its exhale row cast at its foe, as the feat would - its action.
+const char* const kBreathCast = R"nss(
+object a = StringToObject("$AIM");
+AssignCommand(OBJECT_SELF, ClearAllActions());
+AssignCommand(OBJECT_SELF, ActionCastSpellAtObject($ROW, a, METAMAGIC_ANY, TRUE, 0, PROJECTILE_PATH_TYPE_DEFAULT, FALSE));
+)nss";
+
+const char* const kBreathBeam = R"nss(
+object t = StringToObject("$TARGET");
+if (GetIsObjectValid(t)) ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectBeam(VFX_BEAM_LIGHTNING, OBJECT_SELF, BODY_NODE_CHEST), t, 0.8);
+)nss";
+
+// The exhale (rows 1269-1273, a Magic action - the breather's feat, or its AI's cast): each creature in the 15-foot Cone
+// toward the point aimed at, a Dexterity save against the caster's DC, the type's 3d6 (one roll), half on a success.
+void Exhale(uint32_t self, void* breather, const rules::Spell2024& spell, int row) {
+  const auto it = g_breaths.find(self);
+  if (it == g_breaths.end() || !HasSpellEffect(breather, it->second.row, -1, it->second.caster)) {
+    TellPlayer(self, PlayerText("spells2024.dragons_breath_exhale_no"));
+    DropBreathFeats(breather);
+    if (it != g_breaths.end()) g_breaths.erase(it);
+    return;
+  }
+  const Breath breath = it->second;
+  const float edge = rules::FeetToMetres(rules::kDragonsBreathConeFeet);
+  std::string code = kGather;
+  Replace(&code, "$REACH", Float(edge * 1.2f + kSlack));
+  Replace(&code, "$LOOK", "");
+  Run(code, self, spell.script);
+  const OrbLook orb = OrbLookOf(breath.type);
+  Look look;
+  if (breath.type == rules::kDamageTypePoison) look.immune = LookOf(rules::kRayOfSickness).immune;
+  const int full = RollEngineDice(breath.dice, spell.die);
+  std::string log;
+  int inside = 0;
+  for (const Entry& entry : Entries(breather)) {
+    if (!rules::InCone(entry.along, entry.side, edge, kSlack)) continue;
+    ++inside;
+    const int dealt = ReflexHalfAgainst(self, spell.script, row, entry.target, full, breath.dc);
+    if (dealt < 0) continue;
+    if (breath.type == rules::kDamageTypeLightning) {
+      std::string beam = kBreathBeam;
+      Replace(&beam, "$TARGET", entry.target);
+      Run(beam, self, "Dragon's Breath's lightning");
+    }
+    const bool landed = Damage(self, spell, entry.target, dealt, breath.type, orb.vis, look);
+    log += "; 0x" + entry.target + " " + std::to_string(dealt) + (dealt == full ? "" : " (saved)") +
+           (landed ? "" : " - immune");
+  }
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Dragon's Breath exhaled (0x%08X's spell, row %d): %s %s = %d, Dexterity save DC %d for half "
+        "- %d in the 15-foot Cone%s", self, breath.caster, row, TypeName(breath.type),
+        Dice(breath.dice, spell.die).c_str(), full, breath.dc, inside, log.c_str());
+  }
+}
+
+void DragonsBreath(uint32_t self, void* caster, const rules::Spell2024& spell) {
+  const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);
+  if (rules::IsDragonsBreathExhaleRow(row)) {
+    Exhale(self, caster, spell, row);
+    return;
+  }
+  const CastInfo cast = CastInfoOf(self, caster, spell.level, spell.name);
+  if (!cast.ok) return;
+  const uint32_t type = rules::DragonsBreathType(cast.order_spell >= 0 ? cast.order_spell : row);
+  const int dc = SpellSaveDcForClassSlot(caster, cast.bonus ? cast.class_slot : -1);
+  const int dice = rules::SpellDiceAt(spell, cast.slot);
+  const OrbLook orb = OrbLookOf(type);
+  for (const Entry& one : OneTarget(self, spell, "0", 0, Look())) {
+    const uint32_t id = ParseId(one.target);
+    void* target = CreatureById(id);
+    if (!target) continue;
+    if (target != caster && engine::IsEnemy(caster, id)) {  // a cast that had no order (the order's refused before)
+      TellPlayer(self, PlayerText("spells2024.refused", {{"name", std::string(spell.name)},
+                                                         {"why", PlayerText("spells2024.refuse_willing")}}));
+      continue;
+    }
+    Mark(self, spell, one.target, row,
+         MarkLook{kTagBreath, "EffectIcon(EFFECT_ICON_DAMAGE_INCREASE)", SecondsScript(rules::kDragonsBreathMinutes),
+                  orb.vis});
+    Breath breath;
+    breath.caster = self;
+    breath.row = row;
+    breath.type = type;
+    breath.dice = dice;
+    breath.dc = dc;
+    DropBreathFeats(target);
+    const std::string type_name = TypeName(type);
+    if (IsPlayerCreature(target)) {
+      breath.feat = rules::DragonsBreathExhaleFeat(type);
+      GrantFeat(target, breath.feat);
+      TellPlayer(id, PlayerText("spells2024.dragons_breath_you", {{"type", type_name}}));
+    } else {
+      breath.next_try = GameMs() + 500;
+    }
+    if (target != caster) {
+      TellPlayer(self, PlayerText("spells2024.dragons_breath_given", {{"name", NameOfId(self, id)}, {"type", type_name}}));
+    }
+    if (g_breaths.size() > 256) g_breaths.clear();
+    g_breaths[id] = breath;
+    if (LogSlot()) {
+      const std::string how = breath.feat >= 0 ? "its quickbar's feat " + std::to_string(breath.feat) : "its AI";
+      Log("spells2024: 0x%08X Dragon's Breath (a level %d slot%s, %s, DC %d) on 0x%08X - it can exhale %s (%s) while "
+          "you concentrate, up to 1 minute", self, cast.slot, cast.bonus ? ", a Bonus Action" : "", type_name.c_str(),
+          dc, id, Dice(dice, spell.die).c_str(), how.c_str());
+    }
+  }
+}
+
+// --- Heat Metal: a red-hot weapon or armour ---
+
+struct Heat {
+  uint32_t item = 0;
+  int row = rules::kHeatMetal;  // the row its mark carries
+  int dice = 2;
+  int dc = 10;
+  int slot = 2;
+  uint32_t rounds = 0;      // its cast's turn: the caster's ended rounds then, and when
+  uint64_t at = 0;
+  uint32_t npc_rounds = 0;  // an NPC caster's round it last burned in
+  bool armour = false;
+};
+std::unordered_map<uint32_t, Heat> g_heats;          // by caster
+std::unordered_map<uint32_t, uint64_t> g_heat_held;  // keeping hold of a heated object: until (game ms)
+
+rules::HeatedObject HeatedObjectOf(void* creature) {
+  return rules::HeatMetalObject(engine::BaseItemRowInSlot(creature, ee::kSlotRightHand),
+                                engine::BaseItemRowInSlot(creature, ee::kSlotLeftHand), ChestArmorClassOf(creature));
+}
+
+void* HeatedItemOf(void* creature, rules::HeatedObject what) {
+  switch (what) {
+    case rules::HeatedObject::kRightHand: return engine::ItemInSlot(creature, ee::kSlotRightHand);
+    case rules::HeatedObject::kLeftHand: return engine::ItemInSlot(creature, ee::kSlotLeftHand);
+    case rules::HeatedObject::kArmour: return engine::ItemInSlot(creature, ee::kSlotChest);
+    default: return nullptr;
+  }
+}
+
+bool HeatMetalOrder(void* /*creature*/, uint32_t id, const SpellOrder& order) {
+  if (static_cast<int>(order.spell) != rules::kHeatMetal) return false;
+  void* target = CreatureById(order.target);
+  if (!target || HeatedObjectOf(target) != rules::HeatedObject::kNone) return false;
+  return Refuse(id, SpellNameOf(rules::kHeatMetal), PlayerText("spells2024.refuse_no_metal"), order.target);
+}
+
+// Who holds or wears the heated object now ("id:slot:metres;" - slot 1 the main hand, 2 the off hand, 3 worn; none:
+// "" - in a pack, on the ground, gone), and how far from the caster (another area: 9999).
+const char* const kHeatHolder = R"nss(
+object i = StringToObject("$ITEM"); string r = "";
+if (GetIsObjectValid(i)) {
+  object p = GetItemPossessor(i);
+  int s = 0;
+  if (GetIsObjectValid(p)) {
+    if (GetItemInSlot(INVENTORY_SLOT_RIGHTHAND, p) == i) s = 1;
+    else if (GetItemInSlot(INVENTORY_SLOT_LEFTHAND, p) == i) s = 2;
+    else if (GetItemInSlot(INVENTORY_SLOT_CHEST, p) == i) s = 3;
+  }
+  if (s > 0) {
+    float m = 9999.0;
+    if (GetArea(p) == GetArea(OBJECT_SELF)) m = GetDistanceBetween(OBJECT_SELF, p);
+    r = ObjectToString(p) + ":" + IntToString(s) + ":" + FloatToString(m, 0, 3) + ";";
+  }
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+struct Holder {
+  uint32_t id = 0;
+  rules::HeatedObject what = rules::HeatedObject::kNone;
+  float metres = 0.0f;
+};
+
+Holder HeatHolder(uint32_t self, const Heat& heat) {
+  Holder holder;
+  void* caster = CreatureById(self);
+  if (!caster) return holder;
+  std::string code = kHeatHolder;
+  Replace(&code, "$ITEM", Hex(heat.item));
+  Run(code, self, "Heat Metal's object");
+  const std::vector<Entry> found = Entries(caster);
+  if (found.empty()) return holder;
+  holder.id = ParseId(found[0].target);
+  holder.what = found[0].value == 1   ? rules::HeatedObject::kRightHand
+                : found[0].value == 2 ? rules::HeatedObject::kLeftHand
+                                      : rules::HeatedObject::kArmour;
+  holder.metres = found[0].side;
+  return holder;
+}
+
+bool HeatCastThisTurn(uint32_t self, const Heat& heat) {
+  return rules::SameTurn(heat.rounds, CombatRoundsEnded(self),
+                         static_cast<long long>(GameMs()) - static_cast<long long>(heat.at));
+}
+
+// The weapon's glow (its item property, tagged) or the armour's (a red aura on its wearer: the spell's effect, so
+// Concentration's end takes it off).
+const char* const kHeatGlow = R"nss(
+object i = StringToObject("$ITEM"); object t = StringToObject("$TARGET");
+if ($ARMOUR) ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectVisualEffect(VFX_DUR_AURA_RED), $ROW), "$TAG"), t, $SECONDS);
+else if (GetIsObjectValid(i)) AddItemProperty(DURATION_TYPE_TEMPORARY, TagItemProperty(ItemPropertyVisualEffect(ITEM_VISUAL_FIRE), "$TAG"), i, $SECONDS);
+)nss";
+
+const char* const kHeatCool = R"nss(
+object i = StringToObject("$ITEM");
+if (GetIsObjectValid(i)) {
+  itemproperty p = GetFirstItemProperty(i);
+  while (GetIsItemPropertyValid(p)) {
+    if (GetItemPropertyTag(p) == "$TAG") RemoveItemProperty(i, p);
+    p = GetNextItemProperty(i);
+  }
+}
+)nss";
+
+// A failed save: the weapon goes into its holder's inventory (Q4 A); an NPC's AI is woken to fight on (it may take it
+// up again - and be burned again).
+const char* const kHeatDrop = R"nss(
+object t = StringToObject("$TARGET"); object i = StringToObject("$ITEM"); object c = OBJECT_SELF;
+if (!GetIsObjectValid(t) || !GetIsObjectValid(i)) return;
+AssignCommand(t, ClearAllActions());
+AssignCommand(t, ActionUnequipItem(i));
+if (!GetIsPC(t)) AssignCommand(t, ActionDoCommand(SignalEvent(t, EventSpellCastAt(c, $ROW, TRUE))));
+)nss";
+
+void HeatCool(uint32_t self, const Heat& heat) {
+  std::string code = kHeatCool;
+  Replace(&code, "$ITEM", Hex(heat.item));
+  Replace(&code, "$TAG", kTagHeatGlow);
+  Run(code, self, "Heat Metal's end");
+}
+
+// Its damage on the one holding or wearing it - 2d8 Fire (1d8 more a slot level above 2) - then, when it took the
+// damage, the Constitution save: a failure drops a weapon; one that keeps hold of it (a success, or armour) has
+// Disadvantage on attack rolls and ability checks until the start of your next turn (a round).
+void HeatBurn(uint32_t self, const rules::Spell2024& spell, const Heat& heat, const Holder& holder, const char* how) {
+  const std::string target = Hex(holder.id);
+  const int amount = RollEngineDice(heat.dice, spell.die);
+  const bool landed = Damage(self, spell, target, amount, rules::kDamageTypeFire, "VFX_IMP_FLAME_S", Look());
+  const int dealt = landed ? amount : 0;
+  int save = -1;
+  if (dealt > 0) save = SaveAgainst(self, spell.script, rules::Ability::kConstitution, target, heat.dc);
+  const rules::HeatOutcome outcome = rules::HeatMetalOutcome(holder.what, dealt, save == 0);
+  const std::string name = NameOfId(self, holder.id);
+  const std::string object = holder.what == rules::HeatedObject::kArmour ? PlayerText("spells2024.heat_metal_armour")
+                                                                        : NameOfId(self, heat.item);
+  std::string line;
+  std::string log;
+  if (outcome == rules::HeatOutcome::kDrops) {
+    std::string code = kHeatDrop;
+    Replace(&code, "$TARGET", target);
+    Replace(&code, "$ITEM", Hex(heat.item));
+    Replace(&code, "$ROW", std::to_string(rules::kHeatMetal));
+    Run(code, self, spell.script);
+    line = PlayerText("spells2024.heat_metal_dropped", {{"name", name}, {"object", object}});
+    log = "Constitution save failed - drops it into its inventory";
+  } else if (outcome == rules::HeatOutcome::kDisadvantage) {
+    if (g_heat_held.size() > 256) g_heat_held.clear();
+    g_heat_held[holder.id] = GameMs() + kRoundMs;
+    line = PlayerText("spells2024.heat_metal_holds", {{"name", name}, {"object", object}});
+    log = holder.what == rules::HeatedObject::kArmour
+              ? "armour can't be dropped - Disadvantage on its attack rolls and ability checks until your next turn"
+              : "Constitution save succeeded - it keeps hold: Disadvantage on its attack rolls and ability checks until "
+                "your next turn";
+  } else {
+    log = "no damage taken - no save";
+  }
+  if (!line.empty()) {
+    TellPlayer(self, line);
+    if (holder.id != self) TellPlayer(holder.id, line);
+  }
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Heat Metal burns 0x%08X (%s; DC %d): %s = %d Fire%s; %s", self, holder.id, how, heat.dc,
+        Dice(heat.dice, spell.die).c_str(), amount, landed ? "" : " - immune", log.c_str());
+  }
+}
+
+// Heat Metal: Again (row 1275, feat 1577): on a later turn, a Bonus Action - its damage again, no slot.
+rules::HeatAgain HeatAgainNow(uint32_t self, const Heat& heat, Holder* holder) {
+  *holder = HeatHolder(self, heat);
+  return rules::HeatMetalAgainNow(HeatCastThisTurn(self, heat), holder->id != 0, holder->metres, kSlack);
+}
+
+std::string HeatAgainRefusal(rules::HeatAgain now) {
+  switch (now) {
+    case rules::HeatAgain::kCastThisTurn: return PlayerText("spells2024.heat_metal_again_this_turn");
+    case rules::HeatAgain::kNotHeld: return PlayerText("spells2024.heat_metal_again_not_held");
+    case rules::HeatAgain::kOutOfRange: return PlayerText("spells2024.heat_metal_again_far");
+    default: return std::string();
+  }
+}
+
+void HeatMetalAgain(uint32_t self, void* caster, const rules::Spell2024& spell) {
+  const auto it = g_heats.find(self);
+  if (it == g_heats.end() || !HasSpellEffect(caster, it->second.row, -1, self)) {
+    TellPlayer(self, PlayerText("spells2024.heat_metal_again_no"));
+    return;
+  }
+  Holder holder;
+  const rules::HeatAgain now = HeatAgainNow(self, it->second, &holder);
+  if (now != rules::HeatAgain::kOk) {
+    TellPlayer(self, HeatAgainRefusal(now));
+    return;
+  }
+  HeatBurn(self, spell, it->second, holder, "Heat Metal: Again, a Bonus Action");
+}
+
+void HeatMetal(uint32_t self, void* caster, const rules::Spell2024& spell) {
+  const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);
+  if (row == rules::kHeatMetalAgain) {
+    HeatMetalAgain(self, caster, spell);
+    return;
+  }
+  const int slot = SlotLevelOf(caster, spell);
+  const int dc = SpellSaveDcForClassSlot(caster, -1);
+  for (const Entry& one : OneTarget(self, spell, "0", 1, Look())) {
+    const uint32_t id = ParseId(one.target);
+    void* target = CreatureById(id);
+    const rules::HeatedObject what = target ? HeatedObjectOf(target) : rules::HeatedObject::kNone;
+    void* item = target ? HeatedItemOf(target, what) : nullptr;
+    if (!item) {  // a cast with no order (an item's, a script's): the order's refused before
+      TellPlayer(self, PlayerText("spells2024.refused", {{"name", std::string(spell.name)},
+                                                         {"why", PlayerText("spells2024.refuse_no_metal")}}));
+      if (LogSlot()) Log("spells2024: 0x%08X Heat Metal at 0x%08X - no metal weapon or armour to heat", self, id);
+      continue;
+    }
+    const auto before = g_heats.find(self);
+    if (before != g_heats.end()) HeatCool(self, before->second);
+    Heat heat;
+    heat.item = Field<uint32_t>(item, ee::kObjectId);
+    heat.row = row;
+    heat.dice = rules::SpellDiceAt(spell, slot);
+    heat.dc = dc;
+    heat.slot = slot;
+    heat.rounds = CombatRoundsEnded(self);
+    heat.npc_rounds = heat.rounds;
+    heat.at = GameMs();
+    heat.armour = what == rules::HeatedObject::kArmour;
+    Mark(self, spell, Hex(self), row,
+         MarkLook{kTagHeat, "EffectIcon(EFFECT_ICON_DAMAGE_INCREASE)", SecondsScript(rules::kHeatMetalMinutes),
+                  "VFX_IMP_FLAME_S"});
+    std::string glow = kHeatGlow;
+    Replace(&glow, "$ITEM", Hex(heat.item));
+    Replace(&glow, "$TARGET", one.target);
+    Replace(&glow, "$ARMOUR", heat.armour ? "TRUE" : "FALSE");
+    Replace(&glow, "$ROW", std::to_string(row));
+    Replace(&glow, "$TAG", kTagHeatGlow);
+    Replace(&glow, "$SECONDS", SecondsScript(rules::kHeatMetalMinutes));
+    Run(glow, self, spell.script);
+    GrantFeat(caster, rules::kFeatHeatMetalAgain);
+    if (g_heats.size() > 256) g_heats.clear();
+    g_heats[self] = heat;
+    if (LogSlot()) {
+      Log("spells2024: 0x%08X Heat Metal (a level %d slot, Constitution DC %d) heats 0x%08X's %s 0x%08X - "
+          "Concentration up to 1 minute; Heat Metal: Again (feat %d) granted", self, slot, dc, id,
+          heat.armour ? "armour" : what == rules::HeatedObject::kLeftHand ? "off-hand weapon" : "weapon", heat.item,
+          rules::kFeatHeatMetalAgain);
+    }
+    HeatBurn(self, spell, heat, Holder{id, what, 0.0f}, "the cast");
+    TellPlayer(self, PlayerText("spells2024.heat_metal_again_hint"));
+  }
+}
+
+// --- The feats' guard: refused before the Bonus Action (or the action) is spent ---
+
+bool Level2FeatGuard(void* creature, uint32_t id, int feat) {
+  if (feat == rules::kFeatSpiritualWeaponStrike) {
+    const auto it = g_spirit_weapons.find(id);
+    if (it == g_spirit_weapons.end() || !HasSpellEffect(creature, it->second.row, -1, id)) {
+      TellPlayer(id, PlayerText("spells2024.spiritual_weapon_strike_no"));
+      TakeFeat(creature, feat);
+      return false;
+    }
+    const uint32_t picked = CurrentFeatUseTarget();
+    void* target = picked != ee::kObjectInvalid ? CreatureById(picked) : nullptr;
+    if (!target || target == creature || engine::IsDeadOrDying(target)) {
+      TellPlayer(id, PlayerText("spells2024.spiritual_weapon_strike_pick"));
+      return false;
+    }
+    if (!SpiritReaches(it->second, target)) {
+      TellPlayer(id, PlayerText("spells2024.spiritual_weapon_strike_far"));
+      if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon: Strike refused - 0x%08X is %.2f m from the force (25 "
+                         "feet at most)", id, picked, SpiritMetres(it->second, target));
+      return false;
+    }
+    return true;
+  }
+  if (feat == rules::kFeatFlameBladeEvoke) {
+    const auto it = g_blades.find(id);
+    if (it == g_blades.end() || !HasSpellEffect(creature, it->second.row, -1, id)) {
+      TellPlayer(id, PlayerText("spells2024.flame_blade_evoke_no"));
+      TakeFeat(creature, feat);
+      return false;
+    }
+    if (it->second.item) {
+      TellPlayer(id, PlayerText("spells2024.flame_blade_evoke_held"));
+      return false;
+    }
+    return true;
+  }
+  if (feat == rules::kFeatHeatMetalAgain) {
+    const auto it = g_heats.find(id);
+    if (it == g_heats.end() || !HasSpellEffect(creature, it->second.row, -1, id)) {
+      TellPlayer(id, PlayerText("spells2024.heat_metal_again_no"));
+      TakeFeat(creature, feat);
+      return false;
+    }
+    Holder holder;
+    const rules::HeatAgain now = HeatAgainNow(id, it->second, &holder);
+    if (now != rules::HeatAgain::kOk) {
+      TellPlayer(id, HeatAgainRefusal(now));
+      if (LogSlot()) {
+        Log("spells2024: 0x%08X Heat Metal: Again refused - %s", id,
+            now == rules::HeatAgain::kCastThisTurn ? "cast this turn"
+            : now == rules::HeatAgain::kNotHeld    ? "no one holds or wears it"
+                                                   : "out of range");
+      }
+      return false;
+    }
+    return true;
+  }
+  if (rules::IsDragonsBreathExhaleFeat(feat)) {
+    const auto it = g_breaths.find(id);
+    if (it == g_breaths.end() || !HasSpellEffect(creature, it->second.row, -1, it->second.caster)) {
+      TellPlayer(id, PlayerText("spells2024.dragons_breath_exhale_no"));
+      DropBreathFeats(creature);
+      return false;
+    }
+  }
+  return true;
+}
+
+// --- Each creature update: the spells' ends, a let-go blade, an NPC's strikes, breaths and burns ---
+
+void SpiritUpdate(void* creature, uint32_t id) {
+  const auto it = g_spirit_weapons.find(id);
+  if (it == g_spirit_weapons.end()) return;
+  SpiritWeapon& weapon = it->second;
+  if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, weapon.row, -1, id)) {
+    TakeFeat(creature, rules::kFeatSpiritualWeaponStrike);
+    g_spirit_weapons.erase(it);
+    if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon ends", id);
+    return;
+  }
+  if (IsPlayerCreature(creature) || !Field<int32_t>(creature, ee::kCreatureInCombat)) return;
+  const uint32_t rounds = CombatRoundsEnded(id);
+  if (rounds == weapon.rounds) return;
+  weapon.rounds = rounds;  // an NPC's round: its Bonus Action strikes the creature it fights, if the force reaches
+  const uint32_t foe = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
+  void* target = foe != ee::kObjectInvalid ? CreatureById(foe) : nullptr;
+  const rules::Spell2024* spell = rules::Spell2024Of(rules::kSpiritualWeapon);
+  if (!spell || !target || engine::IsDeadOrDying(target) || !engine::IsEnemy(creature, foe) ||
+      !SpiritReaches(weapon, target)) {
+    return;
+  }
+  SpiritStrike(id, creature, *spell, weapon, foe, "its round's Bonus Action");
+}
+
+void BladeUpdate(void* creature, uint32_t id) {
+  const auto it = g_blades.find(id);
+  if (it == g_blades.end()) {
+    if (g_blades_swept.size() < 4096 && g_blades_swept.insert(id).second && IsPlayerCreature(creature)) {
+      std::string code = kBladeSweep;
+      Replace(&code, "$TAG", kTagFlameBlade);
+      Run(code, id, "Flame Blade's sweep");
+    }
+    return;
+  }
+  Blade& blade = it->second;
+  if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, blade.row, -1, id)) {
+    const Blade done = blade;
+    g_blades.erase(it);
+    if (done.item) BladeGone(id, done, true);
+    ClearFlameBlade(id);
+    TakeFeat(creature, rules::kFeatFlameBladeEvoke);
+    TellPlayer(id, PlayerText("spells2024.flame_blade_ends"));
+    if (LogSlot()) Log("spells2024: 0x%08X Flame Blade ends - the blade 0x%08X gone, 0x%08X back in the hand", id,
+                       done.item, done.old);
+    return;
+  }
+  if (!blade.item) return;
+  void* right = engine::ItemInSlot(creature, ee::kSlotRightHand);
+  if (right && Field<uint32_t>(right, ee::kObjectId) == blade.item) {
+    if (!blade.held && LogSlot()) Log("spells2024: 0x%08X Flame Blade's blade 0x%08X in the hand", id, blade.item);
+    blade.held = true;
+    return;
+  }
+  if (!blade.held && GameMs() < blade.made + kBladeEquipMs) return;  // its equip on its way
+  // "If you let go of the blade, it disappears, but you can evoke it again as a Bonus Action."
+  const uint32_t item = blade.item;
+  const bool was_held = blade.held;
+  BladeGone(id, blade, false);
+  blade.item = 0;
+  SetFlameBlade(id, 0, blade.dice, blade.modifier);
+  GrantFeat(creature, rules::kFeatFlameBladeEvoke);
+  TellPlayer(id, PlayerText("spells2024.flame_blade_let_go"));
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Flame Blade's blade 0x%08X %s - it disappears; Flame Blade: Evoke (feat %d) granted", id,
+        item, was_held ? "let go" : "never reached the hand", rules::kFeatFlameBladeEvoke);
+  }
+}
+
+void BreathUpdate(void* creature, uint32_t id, uint64_t now) {
+  const auto it = g_breaths.find(id);
+  if (it == g_breaths.end()) return;
+  Breath& breath = it->second;
+  if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, breath.row, -1, breath.caster)) {
+    DropBreathFeats(creature);
+    g_breaths.erase(it);
+    if (LogSlot()) Log("spells2024: 0x%08X Dragon's Breath ends", id);
+    return;
+  }
+  if (breath.feat >= 0 || now < breath.next_try || !Field<int32_t>(creature, ee::kCreatureInCombat)) return;
+  breath.next_try = now + 1000;
+  // Q2 A: "a henchman's by its AI" - the creature it fights, within the Cone's 15 feet, no friend in the Cone.
+  const uint32_t foe = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
+  void* target = foe != ee::kObjectInvalid ? CreatureById(foe) : nullptr;
+  const float edge = rules::FeetToMetres(rules::kDragonsBreathConeFeet);
+  if (!target || engine::IsDeadOrDying(target) || !engine::IsEnemy(creature, foe) ||
+      engine::EdgeDistance(creature, target) > edge) {
+    return;
+  }
+  std::string code = kBreathFriends;
+  Replace(&code, "$AIM", Hex(foe));
+  Replace(&code, "$REACH", Float(edge * 1.2f + kSlack));
+  Run(code, id, "Dragon's Breath's aim");
+  for (const Entry& friendly : Entries(creature)) {
+    if (rules::InCone(friendly.along, friendly.side, edge, kSlack)) {
+      if (LogSlot()) Log("spells2024: 0x%08X Dragon's Breath held - 0x%s, not an enemy, in the Cone", id,
+                         friendly.target.c_str());
+      return;
+    }
+  }
+  std::string cast = kBreathCast;
+  Replace(&cast, "$AIM", Hex(foe));
+  Replace(&cast, "$ROW", std::to_string(rules::DragonsBreathExhaleRow(breath.type)));
+  Run(cast, id, "Dragon's Breath's AI");
+  breath.next_try = now + kRoundMs;
+  if (LogSlot()) Log("spells2024: 0x%08X Dragon's Breath - its AI exhales at 0x%08X (its action)", id, foe);
+}
+
+void HeatUpdate(void* creature, uint32_t id, uint64_t now) {
+  if (!g_heat_held.empty()) {
+    const auto held = g_heat_held.find(id);
+    if (held != g_heat_held.end() && now >= held->second) g_heat_held.erase(held);
+  }
+  const auto it = g_heats.find(id);
+  if (it == g_heats.end()) return;
+  Heat& heat = it->second;
+  if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, heat.row, -1, id)) {
+    HeatCool(id, heat);
+    TakeFeat(creature, rules::kFeatHeatMetalAgain);
+    g_heats.erase(it);
+    if (LogSlot()) Log("spells2024: 0x%08X Heat Metal ends - the object cools", id);
+    return;
+  }
+  if (IsPlayerCreature(creature) || !Field<int32_t>(creature, ee::kCreatureInCombat)) return;
+  const uint32_t rounds = CombatRoundsEnded(id);
+  if (rounds == heat.npc_rounds) return;
+  heat.npc_rounds = rounds;  // an NPC's round: its Bonus Action burns again, while an enemy holds the object near
+  Holder holder;
+  const rules::Spell2024* spell = rules::Spell2024Of(rules::kHeatMetal);
+  if (!spell || HeatAgainNow(id, heat, &holder) != rules::HeatAgain::kOk || !engine::IsEnemy(creature, holder.id)) {
+    return;
+  }
+  HeatBurn(id, *spell, heat, holder, "its round's Bonus Action");
+}
+
+void Level2bUpdate(void* creature) {
+  if (!creature || !Faithful()) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const uint64_t now = GameMs();
+  if (!g_spirit_weapons.empty()) SpiritUpdate(creature, id);
+  BladeUpdate(creature, id);
+  if (!g_breaths.empty()) BreathUpdate(creature, id, now);
+  if (!g_heats.empty() || !g_heat_held.empty()) HeatUpdate(creature, id, now);
+}
+
+void Level2bGameStarted() {
+  g_spirit_weapons.clear();
+  g_blades.clear();
+  g_blades_swept.clear();
+  ClearFlameBlades();
+  g_breaths.clear();
+  g_heats.clear();
+  g_heat_held.clear();
+}
+
 void Cast(uint32_t self, int row) {
   const rules::Spell2024* spell = rules::Spell2024Of(row);
   void* caster = CreatureById(self);
   if (!spell || !caster) return;
+  switch (row) {  // #39 level 2 build 1b: their slots the order's (a Bonus Action) or the cast's; their own actions
+    case rules::kSpiritualWeapon: SpiritualWeapon(self, caster, *spell); return;
+    case rules::kFlameBlade: FlameBlade(self, caster, *spell); return;
+    case rules::kDragonsBreath: DragonsBreath(self, caster, *spell); return;
+    case rules::kHeatMetal: HeatMetal(self, caster, *spell); return;
+  }
   if (row == rules::kHealingWord) {
     HealingWord(self, caster, *spell);  // its slot: the order's (a Bonus Action) or the cast's
     return;
@@ -5172,6 +6228,10 @@ ScriptHandler HandlerOf(int row) {
     case rules::kShiningSmite: return &SpellScript<rules::kShiningSmite>;
     case rules::kPrayerOfHealing: return &SpellScript<rules::kPrayerOfHealing>;
     case rules::kScorchingRay: return &SpellScript<rules::kScorchingRay>;  // #171
+    case rules::kSpiritualWeapon: return &SpellScript<rules::kSpiritualWeapon>;  // level 2 build 1b
+    case rules::kFlameBlade: return &SpellScript<rules::kFlameBlade>;
+    case rules::kDragonsBreath: return &SpellScript<rules::kDragonsBreath>;
+    case rules::kHeatMetal: return &SpellScript<rules::kHeatMetal>;
   }
   return nullptr;
 }
@@ -5408,6 +6468,22 @@ MasteryRollSources GuidingBoltRollSources(void* target) {
   return sources;
 }
 
+// rules_advantage.cpp, rules_conditions.cpp (#39 level 2 build 1b): Heat Metal - one keeping hold of its red-hot object
+// has Disadvantage on attack rolls and ability checks until the start of the caster's next turn.
+bool HeatMetalCheckDisadvantage(void* creature) {
+  if (g_heat_held.empty() || !creature || !Faithful()) return false;
+  const auto it = g_heat_held.find(Field<uint32_t>(creature, ee::kObjectId));
+  return it != g_heat_held.end() && GameMs() < it->second;
+}
+
+MasteryRollSources HeatMetalRollSources(void* attacker) {
+  MasteryRollSources sources;
+  if (!HeatMetalCheckDisadvantage(attacker)) return sources;
+  sources.disadvantage = 1;
+  sources.note = "Heat Metal: Disadvantage";
+  return sources;
+}
+
 void InstallSpells2024() {
   if (!Faithful()) {
     Log("spells2024: NWN's levelled spells (key spellcasting)");
@@ -5459,7 +6535,8 @@ void InstallSpells2024() {
                        AddGameStartListener(&IllusionsGameStarted) &&  // build 4b
                        InstallFindFamiliar() && InstallFloatingDisk();  // builds 4c, 4d
   const bool level2 = AddCreatureUpdateListener(&Level2Update) && AddRestListener(&PrayerRest) &&  // level 2 1a
-                      AddGameStartListener(&Level2GameStarted);
+                      AddGameStartListener(&Level2GameStarted) &&
+                      AddCreatureUpdateListener(&Level2bUpdate) && AddGameStartListener(&Level2bGameStarted);  // 1b
   if (reactions) {  // #162 G
     AddHudPool(&SmiteHudPool);
     AddHudClick("smite", &SmitePanelClicked);
@@ -5467,8 +6544,9 @@ void InstallSpells2024() {
   Log("spells2024: SRD 5.2's levelled spells - level 1's builds 1a-4d and level 2's build 1a, %zu spells: damage and "
       "healing, Chromatic Orb, Heroism, the buffs, the conditions on creatures, the areas, Shield and the smites, "
       "detection and utility, Disguise Self and Silent Image, Find Familiar, Floating Disk; Acid Arrow, Shatter, Mind "
-      "Spike, Shining Smite, Prayer of Healing; Rituals out of combat; %zu Bonus Action spells; one spell with a slot a "
-      "turn (#39 Part 2)%s",
+      "Spike, Shining Smite, Prayer of Healing, Scorching Ray; level 2's build 1b: Spiritual Weapon, Flame Blade, "
+      "Dragon's Breath, Heat Metal; Rituals out of combat; %zu Bonus Action spells; one spell with a slot a turn (#39 "
+      "Part 2)%s",
       rules::Spells2024().size(), rules::BonusActionSpells().size(),
       scripts && update && guard && buffs && conditions && areas && reactions && utility && level2
           ? ""

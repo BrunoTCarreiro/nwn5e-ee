@@ -645,3 +645,28 @@
 16000890 generated
 16000891 srd:Scorching Ray
 16000892 srd:Scorching Ray
+16000893 srd:Spiritual Weapon
+16000894 srd:Spiritual Weapon+note
+16000895 generated
+16000896 generated
+16000897 srd:Flame Blade
+16000898 srd:Flame Blade+note
+16000899 generated
+16000900 generated
+16000901 srd:Dragon's Breath
+16000902 srd:Dragon's Breath+note
+16000903 generated
+16000904 generated
+16000905 generated
+16000906 generated
+16000907 generated
+16000908 generated
+16000909 generated
+16000910 generated
+16000911 generated
+16000912 generated
+16000913 generated
+16000914 srd:Heat Metal
+16000915 srd:Heat Metal+note
+16000916 generated
+16000917 generated

@@ -77,6 +77,8 @@
 #include "cast_action.h"
 #include "player_text.h"
 
+bool HeatMetalCheckDisadvantage(void* creature);  // rules_spells2024.cpp (#39 level 2 build 1b)
+
 namespace {
 
 using HandlerFn = int (*)(void* handler, void* object, void* effect, int loading);
@@ -487,6 +489,7 @@ std::string CheckDisadvantage(void* creature) {
   if (ReadConditions(creature).poisoned) return "poisoned";
   const uint32_t source = FearSource(creature);
   if (source != 0 && engine::Sees(creature, source)) return "frightened";
+  if (HeatMetalCheckDisadvantage(creature)) return "Heat Metal";  // #39 level 2 build 1b: a red-hot object kept hold of
   return std::string();
 }
 

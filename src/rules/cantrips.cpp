@@ -96,6 +96,14 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                     {kChromaticOrbPoison, kDamageTypePoison, "Poison"},
                     {kChromaticOrbThunder, kDamageTypeThunder, "Thunder"}}};
   all.push_back(orb);
+  // #39 level 2 build 1b: Dragon's Breath's five types (SRD 5.2.1's order), each opening its slot levels.
+  ChoiceCantrip breath{kDragonsBreath, "n5_s_dragbreath", ChoiceKind::kDamageType,
+                       {{kDragonsBreathAcid, kDamageTypeAcid, "Acid"},
+                        {kDragonsBreathCold, kDamageTypeCold, "Cold"},
+                        {kDragonsBreathFire, kDamageTypeFire, "Fire"},
+                        {kDragonsBreathLightning, kDamageTypeLightning, "Lightning"},
+                        {kDragonsBreathPoison, kDamageTypePoison, "Poison"}}};
+  all.push_back(breath);
   // #39 2a build 2b: Command's words (Approach left out - the owner's brief, 2026-11-12), each opening its slot levels.
   ChoiceCantrip command{kCommand, "n5_s_command", ChoiceKind::kMode,
                        {{kCommandDrop, 0, "Drop"}, {kCommandFlee, 1, "Flee"}, {kCommandGrovel, 2, "Grovel"},

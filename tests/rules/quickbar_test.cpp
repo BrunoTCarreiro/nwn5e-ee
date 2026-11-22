@@ -217,6 +217,28 @@ TEST(QuickbarHighBits) {
   CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), 0, QuickbarActions2024(wizard), &wizard_placed).size()), 2);
   CHECK_EQ(wizard_placed == ((uint64_t{1} << 43) | (uint64_t{1} << 44)), true);
   CHECK_EQ(std::find(asked.begin(), asked.end(), kFeatFamiliarRecall) != asked.end(), true);
+  // #39 level 2 build 1b: Spiritual Weapon: Strike, Flame Blade: Evoke, Heat Metal: Again (bits 45-47) and Dragon's
+  // Breath's five exhales (48-52), asked about.
+  QuickbarFacts level2;
+  level2.feats = {kFeatSpiritualWeaponStrike, kFeatFlameBladeEvoke, kFeatHeatMetalAgain};
+  uint64_t level2_placed = 0;
+  CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), 0, QuickbarActions2024(level2), &level2_placed).size()), 3);
+  CHECK_EQ(level2_placed == ((uint64_t{1} << 45) | (uint64_t{1} << 46) | (uint64_t{1} << 47)), true);
+  CHECK_EQ(Values(QuickbarActions2024(level2)) ==
+               std::vector<int>({kFeatSpiritualWeaponStrike, kFeatFlameBladeEvoke, kFeatHeatMetalAgain}),
+           true);
+  for (int feat = kFeatDragonsBreathExhaleFirst; feat <= kFeatDragonsBreathExhaleLast; ++feat) {
+    QuickbarFacts breather;
+    breather.feats = {feat};
+    uint64_t breather_placed = 0;
+    CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), 0, QuickbarActions2024(breather), &breather_placed).size()), 1);
+    CHECK_EQ(breather_placed == (uint64_t{1} << (48 + feat - kFeatDragonsBreathExhaleFirst)), true);
+    CHECK_EQ(Values(QuickbarActions2024(breather)) == std::vector<int>{feat}, true);
+    CHECK_EQ(std::find(asked.begin(), asked.end(), feat) != asked.end(), true);
+  }
+  for (int feat : {kFeatSpiritualWeaponStrike, kFeatFlameBladeEvoke, kFeatHeatMetalAgain}) {
+    CHECK_EQ(std::find(asked.begin(), asked.end(), feat) != asked.end(), true);
+  }
 }
 
 // New actions go in the first empty slots, keys 1-9 first, and are recorded;

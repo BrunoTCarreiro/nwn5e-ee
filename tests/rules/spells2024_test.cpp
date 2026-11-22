@@ -12,7 +12,7 @@ using namespace rules;
 
 // #39 Part 2a build 1a: SRD 5.2.1's level 1 damage and healing spells (pp. 114-177).
 TEST(Spells2024Table) {
-  CHECK_EQ(static_cast<int>(Spells2024().size()), 61);  // level 2 build 1a: five more; #171: Scorching Ray
+  CHECK_EQ(static_cast<int>(Spells2024().size()), 65);  // level 2 build 1a: five more; #171: Scorching Ray; 1b: four
   for (size_t i = 1; i < Spells2024().size(); ++i) CHECK_EQ(Spells2024()[i - 1].row < Spells2024()[i].row, true);
   CHECK_EQ(Spell2024Of(1) == nullptr, true);
   const Spell2024* burning = Spell2024Of(kBurningHands);
@@ -69,7 +69,9 @@ TEST(Spells2024Table) {
   CHECK_EQ(knife->upcast_dice, 0);
   for (const Spell2024& spell : Spells2024()) {
     const bool level2 = spell.row == kAcidArrow || spell.row == kShatter || spell.row == kMindSpike ||
-                        spell.row == kShiningSmite || spell.row == kPrayerOfHealing || spell.row == kScorchingRay;
+                        spell.row == kShiningSmite || spell.row == kPrayerOfHealing || spell.row == kScorchingRay ||
+                        spell.row == kSpiritualWeapon || spell.row == kFlameBlade || spell.row == kDragonsBreath ||
+                        spell.row == kHeatMetal;  // level 2 build 1b
     CHECK_EQ(spell.level, level2 ? 2 : 1);
     CHECK_EQ(std::string(spell.script).rfind("n5_s_", 0) == 0, true);
   }
@@ -193,7 +195,7 @@ TEST(Spells2024Build1b) {
 
 // Build 2a: the buffs' numbers and the Bonus Action spells' table.
 TEST(Spells2024Build2a) {
-  CHECK_EQ(BonusActionSpells().size(), 6u);
+  CHECK_EQ(BonusActionSpells().size(), 9u);  // #39 level 2 build 1b: Spiritual Weapon, Flame Blade, Dragon's Breath
   for (const BonusActionSpell& spell : BonusActionSpells()) {
     CHECK_EQ(BonusActionSpellOf(spell.spell) == &spell, true);
     CHECK_EQ(BonusActionSpellOf(spell.bonus_row) == &spell, true);

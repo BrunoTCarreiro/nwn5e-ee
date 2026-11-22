@@ -739,6 +739,29 @@ spells2024.prayer_of_healing_none | generated | nwn5e: Prayer of Healing - no on
 spells2024.mind_spike_you_know | generated | nwn5e: Mind Spike - you know where {name} is while you concentrate: it can't hide from you, and being invisible does it no good against you.
 spells2024.shining_smite_lights_you | generated | nwn5e: Shining Smite - you shed light, and your invisibility is suppressed while it lasts.
 spells2024.shining_smite_ends_your_invisibility | generated | nwn5e: Shining Smite ends - your invisibility is back.
+# #39 Part 2, level 2, build 1b: Spiritual Weapon, Flame Blade, Dragon's Breath, Heat Metal.
+spells2024.spiritual_weapon_cast | generated | nwn5e: Spiritual Weapon - a spectral weapon strikes for you ({dice} {mod} Force on a hit). While you concentrate, Spiritual Weapon: Strike (a Bonus Action: your quickbar, or beside the spell in the radial) moves it up to 20 feet and strikes again.
+spells2024.spiritual_weapon_strike_no | generated | nwn5e: Spiritual Weapon: Strike - no Spiritual Weapon of yours lasts.
+spells2024.spiritual_weapon_strike_pick | generated | nwn5e: Spiritual Weapon: Strike - pick a creature for it to strike.
+spells2024.spiritual_weapon_strike_far | generated | nwn5e: Spiritual Weapon: Strike - that creature is too far from your spiritual weapon (it moves up to 20 feet, then strikes within 5 feet).
+spells2024.flame_blade_item | srd:Flame Blade | Flame Blade
+spells2024.flame_blade_cast | generated | nwn5e: Flame Blade - a fiery blade in your hand. While you hold it, each round is its one attack, a melee spell attack: {dice}d6 {mod} Fire on a hit.
+spells2024.flame_blade_let_go | generated | nwn5e: Flame Blade - you let go of the blade, and it disappears. Flame Blade: Evoke (a Bonus Action) brings it back while you concentrate.
+spells2024.flame_blade_ends | generated | nwn5e: Flame Blade ends - the blade is gone.
+spells2024.flame_blade_evoke_no | generated | nwn5e: Flame Blade: Evoke - no Flame Blade of yours lasts.
+spells2024.flame_blade_evoke_held | generated | nwn5e: Flame Blade: Evoke - the blade is in your hand already.
+spells2024.dragons_breath_you | generated | nwn5e: Dragon's Breath - you can exhale a 15-foot Cone of {type} while the spell lasts: Dragon's Breath: Exhale on your quickbar (a Magic action).
+spells2024.dragons_breath_given | generated | nwn5e: Dragon's Breath - {name} can exhale a 15-foot Cone of {type} while you concentrate.
+spells2024.dragons_breath_exhale_no | generated | nwn5e: Dragon's Breath: Exhale - the spell has ended.
+spells2024.refuse_no_metal | generated | a creature holding a metal weapon or wearing Medium or Heavy metal armour.
+spells2024.heat_metal_armour | generated | armour
+spells2024.heat_metal_dropped | generated | nwn5e: Heat Metal - {name} drops the red-hot {object}.
+spells2024.heat_metal_holds | generated | nwn5e: Heat Metal - {name} keeps the red-hot {object}: Disadvantage on attack rolls and ability checks until the start of your next turn.
+spells2024.heat_metal_again_hint | generated | nwn5e: Heat Metal - on your later turns, Heat Metal: Again (a Bonus Action on your quickbar) burns it again while you concentrate.
+spells2024.heat_metal_again_no | generated | nwn5e: Heat Metal: Again - no Heat Metal of yours lasts.
+spells2024.heat_metal_again_this_turn | generated | nwn5e: Heat Metal: Again - not on the turn you cast it (on your later turns).
+spells2024.heat_metal_again_not_held | generated | nwn5e: Heat Metal: Again - no one holds or wears the heated object now.
+spells2024.heat_metal_again_far | generated | nwn5e: Heat Metal: Again - the heated object is out of range (60 feet).
 
 # --- The target window: Scorching Ray's rays, Magic Missile's darts (#171) ---------------------------------------------
 target_window.title_rays | generated | {spell}: {count} rays

@@ -2187,6 +2187,55 @@ monster AC by CR.
         seat, 0 otherwise (the constructor's too). A henchman getting up now gets the engine's own pick
         (RecomputeAmbientAnimationState: the posture, then its "stand" animation); 0 if that export is missing.
         DH-1c passed. *Accepted (owner, 2026-11-21: "DH-1c fixed").*
+  - *Built (build 1b; owner, 2026-11-22: "start it"):* Spiritual Weapon, Flame Blade, Dragon's Breath, Heat Metal, SRD
+    5.2.1 (new rows 1256-1275, feats 1567-1577: data/rows/spells.if_spells2024.l2b1b.txt, feat.if_spells2024.l2b1b.txt;
+    faithful only - none is NWN's, so NWN mode keeps NWN's spells as they are).
+    - **Spiritual Weapon** (1256; Cleric; a Bonus Action spell, Healing Word's way - feat 1567 casts 1257; Concentration
+      up to 1 minute): cast at a creature within 60 feet, the force strikes it at once - a melee spell attack with the
+      class's 2024 bonus, 1d8 + the spellcasting modifier Force (1d8 more a slot level above 2, twice the dice on a
+      Critical Hit). While it lasts, Spiritual Weapon: Strike (feat 1568, row 1258; a Bonus Action, no slot) is on the
+      quickbar and beside the spell in the radial (rules::SpellActionLeafOf, Hunter's Mark: Move's menu generalised):
+      the force moves up to 20 feet and strikes a creature within 5 feet of it - one at most 25 feet from the creature
+      it last struck (rules::SpiritualWeaponReaches), else refused before the Bonus Action is spent. The look: the
+      bench's for row 1256 when one is made (PlaySpellLook); until then a placeholder - NWN's MIRV bolt from where the
+      force was, VFX_IMP_DIVINE_STRIKE_HOLY on a hit (for the look pass). An NPC caster's force strikes the creature it
+      fights once a round by itself.
+    - **Flame Blade** (1259; Druid, Sorcerer - rules::SorcererOnlySpell keeps NWN's shared Wiz_Sorc column off the
+      Wizard; a Bonus Action spell, feat 1569 casts 1260; Concentration up to 10 minutes; Q1 A): the blade is the game's
+      scimitar made Flame Blade - cursed and undroppable, on fire, NWN's 10 m light (Bright 10 feet + Dim 10, rounded
+      up as Produce Flame's) - equipped in the main hand (the weapon there goes to the pack and comes back when the
+      spell ends). While it's held, the creature's round is its one attack (the Magic action: no Extra Attack or off-hand
+      attack; an Action Surge's still comes - True Strike's round cut), a melee spell attack: PB + the spellcasting
+      modifier (rules_attack.cpp: no weapon proficiency, Strength or Dexterity), 3d6 + the modifier, all Fire (1d6 more
+      a slot level above 2; GetDamageRoll's dice filter, GetDamageBonus, ResolveDamage - rules_weapon_cantrips.cpp).
+      Let go of it (another weapon, or none in the hand) and it disappears; Flame Blade: Evoke (feat 1570, row 1261; a
+      Bonus Action, no slot; the quickbar and the radial) brings it back while the spell lasts.
+    - **Dragon's Breath** (1262; Sorcerer, Wizard; its five types 1263-1267, the radial's menu as Chromatic Orb's; a
+      Bonus Action spell - feat 1571 casts 1268 for any type, the order's row naming it; Touch: within 5 feet;
+      Concentration up to 1 minute; Q2 A): a willing creature (an enemy refused, nothing spent) can exhale a 15-foot
+      Cone while it lasts - each creature in it a Dexterity save against the caster's DC, 3d6 of the type (one roll),
+      half on a success, 1d6 more a slot level above 2. A player character's exhale is Dragon's Breath: Exhale on the
+      quickbar (feats 1572-1576, rows 1269-1273, a type each: a Magic action, aimed at a creature or a spot; NWN's
+      monster cones' cast visuals, Lightning's beams). A henchman's (any NPC's) by its AI: once a round, at the enemy it
+      fights within 15 feet, when no one not its enemy is in the Cone - it casts its exhale row (its action).
+    - **Heat Metal** (1274; Bard, Druid; an Action, 60 feet; Concentration up to 1 minute; Q4 A): a creature's metal
+      weapon (the main hand's, then the off hand's - rules::MetalWeaponBaseItem: no wood, bows, slings, darts or
+      shields), else its Medium or Heavy metal armour (tiers 4-8); with neither, refused before the cast, nothing spent.
+      It glows (the weapon ITEM_VISUAL_FIRE, armour a red aura) and the one holding or wearing it takes 2d8 Fire (1d8
+      more a slot level above 2), then a Constitution save: a failure drops the weapon into its inventory; one that
+      keeps hold (a success, or armour, which can't be dropped: no save rolled) has Disadvantage on attack rolls
+      (rules_advantage.cpp) and ability checks (CheckDisadvantage) until the start of your next turn (a round). On your
+      later turns Heat Metal: Again (feat 1577, row 1275; a Bonus Action, no slot; the quickbar and the radial) deals it
+      again to whoever holds or wears it within 60 feet - refused, nothing spent, on the cast's turn, with no one in
+      contact (a dropped weapon is in a pack) or out of range. An NPC caster's burns again once a round by itself.
+    - rules: SpiritualWeaponReaches, DragonsBreathType / ExhaleRow / ExhaleFeat, MetalWeaponBaseItem, MetalArmourTier,
+      HeatMetalObject, HeatMetalOutcome, HeatMetalAgainNow, SorcererOnlySpell, SpellActionLeafOf,
+      IsBonusActionSpellOrder (a menu's row a Bonus Action order). The quickbar's bits 45-52. Tests Level2Build1bTable,
+      Level2Build1bRules (and the quickbar's, Concentration's, the table's counts); 37 of 37 mutations caught; test.bat
+      710 ok.
+    - Text: the four names and descriptions SRD 5.2.1 verbatim, each with a generated note (the blade item's name the
+      spell's); the actions' names and descriptions and 21 catalogue lines generated, for review (docs/TEXT-REVIEW.md).
+    - Profiles: weaponcleric, bladedruid, breathsorcerer.
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).

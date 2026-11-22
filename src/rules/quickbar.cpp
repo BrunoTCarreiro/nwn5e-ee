@@ -72,6 +72,12 @@ enum Bit {
   kBitSilentImageMove = 42,  // #39 2a build 4b (0.99.47): while your Silent Image lasts
   kBitFamiliarDismiss = 43,  // #39 2a build 4c: while your familiar is here
   kBitFamiliarRecall = 44,   // #39 2a build 4c: while it's away
+  // #39 level 2 build 1b: while the spell lasts (Flame Blade: Evoke while its blade is let go); Dragon's Breath's
+  // exhale, a feat per type, while the breather has it.
+  kBitSpiritualWeaponStrike = 45,
+  kBitFlameBladeEvoke = 46,
+  kBitHeatMetalAgain = 47,
+  kBitDragonsBreathExhaleFirst = 48,  // 48-52: Acid, Cold, Fire, Lightning, Poison
 };
 
 bool IsSecondWind(int value) {
@@ -92,7 +98,11 @@ const std::vector<int>& QuickbarActionFeats2024() {
                                           kFeatCunningDash,    kFeatCunningDisengage, kFeatCunningHide,
                                           kFeatSteadyAim,      kFeatPatientDefenseFree, kFeatStepOfTheWindFree,
                                           kFeatPrepareSpells,  kFeatHuntersMarkMove, kFeatEscape,
-                                          kFeatSilentImageMove, kFeatFamiliarDismiss, kFeatFamiliarRecall};
+                                          kFeatSilentImageMove, kFeatFamiliarDismiss, kFeatFamiliarRecall,
+                                          kFeatSpiritualWeaponStrike, kFeatFlameBladeEvoke, kFeatHeatMetalAgain,
+                                          kFeatDragonsBreathExhaleFirst, kFeatDragonsBreathExhaleFirst + 1,
+                                          kFeatDragonsBreathExhaleFirst + 2, kFeatDragonsBreathExhaleFirst + 3,
+                                          kFeatDragonsBreathExhaleLast};
   return kFeats;
 }
 
@@ -196,6 +206,21 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
     actions.push_back({kBitFamiliarDismiss, kFeatFamiliarDismiss, "Find Familiar: Dismiss"});
   }
   if (has(kFeatFamiliarRecall)) actions.push_back({kBitFamiliarRecall, kFeatFamiliarRecall, "Find Familiar: Recall"});
+  // #39 level 2 build 1b (owner, 2026-11-18: Spiritual Weapon "quickbar and radial", Dragon's Breath "a player's breath a
+  // quickbar action", Heat Metal "the repeat a quickbar action"): each spell's own action while it lasts.
+  if (has(kFeatSpiritualWeaponStrike)) {
+    actions.push_back({kBitSpiritualWeaponStrike, kFeatSpiritualWeaponStrike, "Spiritual Weapon: Strike"});
+  }
+  if (has(kFeatFlameBladeEvoke)) actions.push_back({kBitFlameBladeEvoke, kFeatFlameBladeEvoke, "Flame Blade: Evoke"});
+  if (has(kFeatHeatMetalAgain)) actions.push_back({kBitHeatMetalAgain, kFeatHeatMetalAgain, "Heat Metal: Again"});
+  static const char* const kExhales[] = {"Dragon's Breath: Exhale (Acid)", "Dragon's Breath: Exhale (Cold)",
+                                         "Dragon's Breath: Exhale (Fire)", "Dragon's Breath: Exhale (Lightning)",
+                                         "Dragon's Breath: Exhale (Poison)"};
+  for (int i = 0; i <= kFeatDragonsBreathExhaleLast - kFeatDragonsBreathExhaleFirst; ++i) {
+    if (has(kFeatDragonsBreathExhaleFirst + i)) {
+      actions.push_back({kBitDragonsBreathExhaleFirst + i, kFeatDragonsBreathExhaleFirst + i, kExhales[i]});
+    }
+  }
   return actions;
 }
 

@@ -150,6 +150,18 @@ const std::vector<int> kSpells = {
     1214,  // nwn5e_Silent_Image_Large - Silent Image
     1252,  // nwn5e_Mind_Spike - Mind Spike (#39 level 2 build 1a)
     1253,  // nwn5e_Shining_Smite - Shining Smite (its Concentration begins on the hit, as Ensnaring Strike's)
+    1256,  // nwn5e_Spiritual_Weapon - Spiritual Weapon (#39 level 2 build 1b; not its Strike, 1258)
+    1257,  // nwn5e_Spiritual_Weapon_Bonus_Action - Spiritual Weapon (its Bonus Action's row)
+    1259,  // nwn5e_Flame_Blade - Flame Blade (not its Evoke, 1261)
+    1260,  // nwn5e_Flame_Blade_Bonus_Action - Flame Blade (its Bonus Action's row)
+    1262,  // nwn5e_Dragons_Breath - Dragon's Breath (not its exhales, 1269-1273: the breather's)
+    1263,  // nwn5e_Dragons_Breath_Acid - Dragon's Breath (its types)
+    1264,  // nwn5e_Dragons_Breath_Cold - Dragon's Breath
+    1265,  // nwn5e_Dragons_Breath_Fire - Dragon's Breath
+    1266,  // nwn5e_Dragons_Breath_Lightning - Dragon's Breath
+    1267,  // nwn5e_Dragons_Breath_Poison - Dragon's Breath
+    1268,  // nwn5e_Dragons_Breath_Bonus_Action - Dragon's Breath (its Bonus Action's row)
+    1274,  // nwn5e_Heat_Metal - Heat Metal (not its Again, 1275)
 };
 
 }  // namespace

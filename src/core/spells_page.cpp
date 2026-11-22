@@ -208,10 +208,15 @@ void* RulesObject() {
 }
 
 // #39 build 2: Sorcerous Burst is the Sorcerer's only - NWN's one Wiz_Sorc column would give it the Wizard too.
+// #39 level 2 build 1b: Flame Blade too (rules::SorcererOnlyRows).
 bool IsSorcererOnly(const void* spell) {
   void* rules_object = RulesObject();
   void* spells = rules_object ? Field<void*>(rules_object, ee::kRulesSpells) : nullptr;
-  return spells && g_get_spell && spell == g_get_spell(spells, rules::kSorcerousBurst);
+  if (!spells || !g_get_spell) return false;
+  for (int row : rules::SorcererOnlyRows()) {
+    if (spell == g_get_spell(spells, row)) return true;
+  }
+  return false;
 }
 
 // #39 build 4a: the Wizard's alone (rules::WizardOnlyRows) - not the Sorcerer's, though NWN's one Wiz_Sorc column

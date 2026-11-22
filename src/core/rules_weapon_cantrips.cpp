@@ -47,6 +47,7 @@
 #include "spell_impact.h"
 #include "player_text.h"
 #include "rules/cantrips.h"
+#include "rules/nwn_conversion.h"
 #include "rules/weapons.h"
 
 int FinesseDamageBonus(void* stats, int off_hand);  // rules_finesse.cpp: 2024 Finesse's Dexterity for Strength
@@ -278,6 +279,34 @@ void ShillelaghUpdate(void* creature) {
   }
 }
 
+// --- Flame Blade (#39 level 2 build 1b) -----------------------------------------------------------------------------
+
+struct BladeAttack {
+  uint32_t item = 0;  // the blade (0: let go)
+  int dice = 3;
+  int modifier = 0;
+};
+std::unordered_map<uint32_t, BladeAttack> g_flame_blades;  // by caster
+
+// The blade in `creature`'s main hand (null: none, or another item there).
+const BladeAttack* HeldFlameBlade(void* creature) {
+  if (g_flame_blades.empty() || !creature) return nullptr;
+  const auto it = g_flame_blades.find(IdOf(creature));
+  if (it == g_flame_blades.end() || !it->second.item) return nullptr;
+  void* right = engine::ItemInSlot(creature, ee::kSlotRightHand);
+  return right && IdOf(right) == it->second.item ? &it->second : nullptr;
+}
+
+// The blade when `creature`'s current attack is a melee attack with it (null: none).
+const BladeAttack* FlameBladeAttack(void* creature) {
+  if (g_flame_blades.empty() || !creature) return nullptr;
+  const auto it = g_flame_blades.find(IdOf(creature));
+  if (it == g_flame_blades.end() || !it->second.item) return nullptr;
+  const uint8_t* attack = nullptr;
+  void* weapon = AttackWeapon(creature, &attack);
+  return weapon && !AttackRanged(attack) && IdOf(weapon) == it->second.item ? &it->second : nullptr;
+}
+
 // --- True Strike ------------------------------------------------------------------------------------------------
 
 struct Strike {
@@ -408,6 +437,15 @@ void WeaponCantripHit(void* attacker, void* /*target*/) {
   if (!data || !rules::MasteryAttackHit(data[ee::kAttackResult])) return;
   auto* entries = reinterpret_cast<int16_t*>(data + ee::kAttackDamageEntries);
   const uint32_t id = IdOf(attacker);
+  if (const BladeAttack* blade = FlameBladeAttack(attacker)) {  // #39 level 2 build 1b: its damage is Fire
+    const int moved = rules::MoveWeaponDamage(entries, ee::kAttackDamageEntryCount, rules::kDamageTypeFire);
+    if (LogSlot()) {
+      Log("spells2024: 0x%08X Flame Blade hits%s - %dd6 + %d, %d of it Fire", id,
+          data[ee::kAttackResult] == ee::kAttackResultCritical ? " (a Critical Hit: the dice twice)" : "", blade->dice,
+          blade->modifier, moved);
+    }
+    return;
+  }
   if (Strike* s = StrikeAttack(attacker)) {
     const Strike strike = *s;
     g_strikes.erase(id);
@@ -465,6 +503,9 @@ int WeaponCantripDamageBonus(void* stats, int off_hand, float strength_multiplie
   void* creature = CreatureOf(stats);
   if (!creature) return 0;
   const int base_item = engine::BaseItemRowInSlot(creature, ee::kSlotRightHand);
+  if (const BladeAttack* blade = FlameBladeAttack(creature)) {  // #39 level 2 build 1b: + the modifier, no Str / Dex
+    return blade->modifier - NormalDamageTerm(stats, base_item, false, strength_multiplier);
+  }
   if (Strike* s = StrikeAttack(creature)) {
     const int normal = NormalDamageTerm(stats, base_item, s->ranged, strength_multiplier);
     return rules::WeaponCantripAbility(true, normal, s->casting) - normal;
@@ -478,6 +519,15 @@ int WeaponCantripDamageBonus(void* stats, int off_hand, float strength_multiplie
 bool WeaponCantripDice(void* stats, int off_hand, int* count, int* sides) {
   if (!Faithful() || !stats || off_hand || !count || !sides) return false;
   void* creature = CreatureOf(stats);
+  if (const BladeAttack* blade = FlameBladeAttack(creature)) {  // #39 level 2 build 1b: its 3d6 (+1d6 a level)
+    if (g_once.First(LogOnce::Key(IdOf(creature), blade->dice, 400 + *count * 100 + *sides))) {
+      Log("spells2024: 0x%08X Flame Blade's damage: %dd6 in place of %dd%d (logged once)", IdOf(creature), blade->dice,
+          *count, *sides);
+    }
+    *count = blade->dice;
+    *sides = 6;
+    return true;
+  }
   if (!creature || ShillelaghAttack(creature) < 0) return false;
   const rules::WeaponDie die = rules::BetterDice({*count, *sides}, rules::ShillelaghDie(CharacterLevel(stats)));
   if (g_once.First(LogOnce::Key(IdOf(creature), die.count * 100 + die.sides, 300 + *count * 100 + *sides))) {
@@ -490,7 +540,24 @@ bool WeaponCantripDice(void* stats, int off_hand, int* count, int* sides) {
 }
 
 bool TrueStrikeRoundStart(void* round) {
-  if (!Faithful() || g_strikes.empty() || !round) return false;
+  if (!Faithful() || !round) return false;
+  // #39 level 2 build 1b: a round with Flame Blade's blade in hand - its one attack, the Magic action.
+  if (!g_flame_blades.empty()) {
+    void* owner = Field<void*>(round, ee::kRoundOwner);
+    if (HeldFlameBlade(owner)) {
+      SetField<int32_t>(round, ee::kRoundMainHandAttacks, 1);
+      for (size_t at = ee::kRoundOffHandAttacks; at <= kRoundLastAttackCount; at += sizeof(int32_t)) {
+        SetField<int32_t>(round, at, 0);
+      }
+      const uint32_t id = IdOf(owner);
+      if (g_once.First(LogOnce::Key(id, 500, CombatRoundsEnded(id) < 3 ? CombatRoundsEnded(id) : 3))) {
+        Log("spells2024: 0x%08X Flame Blade's round (%u): one attack, a melee spell attack (the Magic action)", id,
+            CombatRoundsEnded(id));
+      }
+      return true;
+    }
+  }
+  if (g_strikes.empty()) return false;
   void* creature = Field<void*>(round, ee::kRoundOwner);
   Strike* s = StrikeOf(creature);
   if (!s) return false;
@@ -521,6 +588,33 @@ bool TrueStrikeRoundStart(void* round) {
     SetField<int32_t>(round, at, 0);
   }
   if (!recount && LogSlot()) Log("cantrips: 0x%08X True Strike's round (%u): one attack at 0x%08X", id, now, s->target);
+  return true;
+}
+
+void SetFlameBlade(uint32_t caster, uint32_t blade, int dice, int modifier) {
+  BladeAttack& entry = g_flame_blades[caster];
+  entry.item = blade;
+  entry.dice = dice;
+  entry.modifier = modifier;
+}
+
+void ClearFlameBlade(uint32_t caster) { g_flame_blades.erase(caster); }
+
+void ClearFlameBlades() { g_flame_blades.clear(); }
+
+bool FlameBladeAttackBonus(void* stats, int* bonus) {
+  if (!Faithful() || !stats || !bonus || g_flame_blades.empty()) return false;
+  void* creature = CreatureOf(stats);
+  const BladeAttack* blade = FlameBladeAttack(creature);
+  if (!blade) return false;
+  const CreatureFacts facts = ReadCreatureFacts(stats);
+  const int pb = rules::ProficiencyBonusForCreature(CountsAsCharacter(stats, facts), facts.level,
+                                                    facts.challenge_rating);
+  *bonus = pb + blade->modifier;
+  if (g_once.First(LogOnce::Key(IdOf(creature), *bonus, 600))) {
+    Log("spells2024: 0x%08X Flame Blade's attack: a melee spell attack, %+d (PB %d + the spellcasting modifier %+d; "
+        "logged once)", IdOf(creature), *bonus, pb, blade->modifier);
+  }
   return true;
 }
 

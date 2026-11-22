@@ -702,12 +702,16 @@ bool ControlledHoldsFeat(int feat) {
   return stats && engine::HasFeat(stats, feat);
 }
 
+// #39 level 2 build 1b: the same for each spell's own action while it lasts (rules::SpellActionLeafOf) - Spiritual
+// Weapon: Strike, Flame Blade: Evoke, Heat Metal: Again beside their spells.
 bool HuntersMarkMoveShown(int64_t param) {
-  return rules::DecodeRadialCast(param).spell == static_cast<uint32_t>(rules::kHuntersMark) && SpellMenuFeatLeaf() &&
-         ControlledHoldsFeat(rules::kFeatHuntersMarkMove);
+  const rules::SpellActionLeaf* leaf = rules::SpellActionLeafOf(static_cast<int>(rules::DecodeRadialCast(param).spell));
+  return leaf && SpellMenuFeatLeaf() && ControlledHoldsFeat(leaf->feat);
 }
 
 void* HuntersMarkMenu(void* handler, int64_t param) {
+  const rules::SpellActionLeaf* leaf = rules::SpellActionLeafOf(static_cast<int>(rules::DecodeRadialCast(param).spell));
+  if (!leaf) return nullptr;
   void* client_stats = nullptr;
   rules::RadialCast cast;
   int own = -1;
@@ -717,7 +721,7 @@ void* HuntersMarkMenu(void* handler, int64_t param) {
   void* rules_object = RulesObject();
   void* spells = rules_object ? Field<void*>(rules_object, ee::kRulesSpells) : nullptr;
   char icon[17] = {};
-  if (void* spell = spells && g_get_spell ? g_get_spell(spells, rules::kHuntersMark) : nullptr) {
+  if (void* spell = spells && g_get_spell ? g_get_spell(spells, leaf->spell) : nullptr) {
     memcpy(icon, static_cast<const uint8_t*>(spell) + ee::kSpellIconResRef, 16);
   }
   if (!levels.empty()) {
@@ -728,12 +732,11 @@ void* HuntersMarkMenu(void* handler, int64_t param) {
     if (!menu) return nullptr;
     g_radial_ctor(menu);
     SetField<uint8_t>(menu, ee::kRadialMenuOwnedFlag, 1);
-    g_set_entry_text(menu, 0, icon, "Hunter's Mark", handler, g_cast_callback, param);
+    g_set_entry_text(menu, 0, icon, leaf->spell_name, handler, g_cast_callback, param);
     next = 1;
   }
   if (menu && next < ee::kRadialMenuEntries) {
-    g_set_entry_text(menu, next, icon, "Hunter's Mark: Move", handler, SpellMenuFeatLeaf(),
-                     static_cast<int64_t>(rules::kFeatHuntersMarkMove));
+    g_set_entry_text(menu, next, icon, leaf->label, handler, SpellMenuFeatLeaf(), static_cast<int64_t>(leaf->feat));
   }
   return menu;
 }

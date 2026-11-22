@@ -1,0 +1,16 @@
+# A !test profile ([debug] test_commands=1): type "!test breathsorcerer" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #39 Part 2, level 2, build 1b: a Sorcerer 5, Charisma 16 - Dragon's Breath and Flame Blade prepared (both the
+# Sorcerer's; Flame Blade is not the Wizard's), level 3 slots to upcast them.
+name = Level 2 build 1b (issue 39): human Sorcerer 5, Charisma 16 - Dragon's Breath, Flame Blade
+species = human
+swap_class = sorcerer
+class = sorcerer
+level = 5
+abilities = 8 14 14 10 10 16
+items = nw_wdbqs001 equip
+spells = Fire Bolt, Light, Prestidigitation, Shocking Grasp
+spells = Dragon's Breath, Flame Blade, Shatter, Shield, Mage Armor
+note = !spawn nw_orca an orc with a greataxe (spawn two or three, close together, for the Cone); !spawn nw_orcb ally a henchman to breathe for you

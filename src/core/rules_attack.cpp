@@ -64,6 +64,10 @@ bool CurrentAttackIsRanged(void* stats) {
 }
 
 int GetAttackModifierVersus(void* stats, void* target) {
+  // #39 level 2 build 1b: Flame Blade's attack is a melee spell attack - the Proficiency Bonus and the spellcasting
+  // modifier (no weapon proficiency, Strength or Dexterity), Bless's or Bane's die beside it.
+  int flame_blade = 0;
+  if (FlameBladeAttackBonus(stats, &flame_blade)) return flame_blade + BlessAttackBonus(stats);
   // Archery; Sundering Blow; #39 build 3b: Shillelagh's and True Strike's spellcasting ability.
   const int style =
       FightingStyleAttackBonus(stats) + SunderingAttackBonus(stats, target) + WeaponCantripAttackBonus(stats) +

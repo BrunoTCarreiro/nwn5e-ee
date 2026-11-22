@@ -54,6 +54,9 @@ MasteryRollSources GuidingBoltRollSources(void* target);
 MasteryRollSources ProtectionRollSources(void* attacker, void* target);
 // rules_spells2024.cpp (#39 2a build 2c): Faerie Fire - Advantage against an outlined creature the attacker sees.
 MasteryRollSources FaerieFireRollSources(void* target, bool cant_see);
+// rules_spells2024.cpp (#39 level 2 build 1b): Heat Metal - Disadvantage on the attack rolls of one keeping hold of its
+// red-hot object.
+MasteryRollSources HeatMetalRollSources(void* attacker);
 // rules_spells2024.cpp (#39 level 2 build 1a): Mind Spike - the observer cast it on the target, and it holds.
 bool MindSpikeKnows(void* observer, void* target);
 // rules_rogue.cpp (R11): a Rogue 18+ not Incapacitated - no attack roll against it has Advantage.
@@ -185,6 +188,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   const MasteryRollSources guided = GuidingBoltRollSources(target);                    // #39 2a
   const MasteryRollSources warded = ProtectionRollSources(roll.attacker, target);      // #39 2a build 2a
   const MasteryRollSources outlined = FaerieFireRollSources(target, terms.cant_see_target);  // #39 2a build 2c
+  const MasteryRollSources heated = HeatMetalRollSources(roll.attacker);  // #39 level 2 build 1b
   t_pending.conditions = conditions.note.empty() ? "" : "conditions: " + conditions.note;
   if (!mastery.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "mastery: " : "; mastery: ") + mastery.note;
@@ -209,6 +213,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   if (!guided.note.empty()) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + guided.note;
   if (!warded.note.empty()) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + warded.note;
   if (!outlined.note.empty()) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + outlined.note;
+  if (!heated.note.empty()) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + heated.note;
   std::string heavy_note;
   const int heavy = HeavyWeaponDisadvantage(roll.attacker, terms.ranged, &heavy_note);
   if (heavy) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + heavy_note;
@@ -219,7 +224,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
       conditions.advantage + mastery.advantage + studied.advantage + reckless.advantage + monk.advantage +
           steady.advantage + hidden.advantage + guided.advantage + outlined.advantage,
       conditions.disadvantage + mastery.disadvantage + heavy + grappled.disadvantage + monk.disadvantage +
-          mocked.disadvantage + warded.disadvantage,
+          mocked.disadvantage + warded.disadvantage + heated.disadvantage,
       elusive);
   {
     std::string brutal;
@@ -312,10 +317,11 @@ int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* not
     const MasteryRollSources guided = GuidingBoltRollSources(target);  // #39 2a
     const MasteryRollSources warded = ProtectionRollSources(caster, target);  // #39 2a build 2a
     const MasteryRollSources outlined = FaerieFireRollSources(target, terms.cant_see_target);  // #39 2a build 2c
+    const MasteryRollSources heated = HeatMetalRollSources(caster);  // #39 level 2 build 1b
     const bool elusive = ElusiveTarget(target);
     mode = rules::SituationalRollMode(terms, rules::RangedCloseCombat(ranged, point_blank_shot, threats),
                                       conditions.advantage + guided.advantage + outlined.advantage,
-                                      conditions.disadvantage + warded.disadvantage, elusive);
+                                      conditions.disadvantage + warded.disadvantage + heated.disadvantage, elusive);
     if (note) {
       *note = ModeName(mode);
       if (rules::NwnSituationalTotal(terms) != 0) *note += std::string(" (") + TermNames(terms) + ")";
@@ -324,6 +330,7 @@ int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* not
       if (!guided.note.empty()) *note += "; " + guided.note;
       if (!warded.note.empty()) *note += "; " + warded.note;
       if (!outlined.note.empty()) *note += "; " + outlined.note;
+      if (!heated.note.empty()) *note += "; " + heated.note;
       if (elusive) *note += "; Elusive: no Advantage";
     }
   }
