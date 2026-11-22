@@ -111,6 +111,26 @@ quoted here, as in PLAN.md.
   composer_check, check_beats / effect / parts / area / area_tiles / textures, common and the spell bench's checks pass.
   Needs an install (the DLL built from main) before Play in game writes them; the game's own effects show theirs on
   the stage once that build writes the bench's game library again (a start with vfx_bench, or `!vfxexport`).
+  *Confirmed (owner, 2026-11-22: "confirmed keys pahse 3 choices"):* Key on an emitter also records its colour and size;
+  a colour or size change on a group of copies moves their keys; game effects that key their own colour or size animate
+  in the preview.
+- **A chunk model's own emitters** (#172, DE-1's smoke; the owner, 2026-11-22: "Adding a new node that explodes rock
+  chunks works but the node also sends up smoke in-game when it should only use the meshes"). Found: a chunk emitter
+  draws no sprite (RenderNothing; its texture - fxpa_cloud02 too, which the game doesn't have - does nothing), but each
+  chunk is a whole instance of its model, and fx_rockchunksml's and fx_rockchunkmed's own emitter (smoke04 / smoke05: a
+  Fountain of fxpa_Smoke01, 20 a second, life 0.5 s) trails every rock in game; the bench's library kept only a chunk
+  model's meshes. *Decided (owner, 2026-11-22): "A for the preview, keep the smoking rocks"* (A: the preview runs a
+  chunk model's own emitters on each chunk, not B rocks without a trail; the stone debris keeps the game's rocks).
+  *Built (nwn5e-tools 0ae0401):* the dev layer's chunk export keeps a chunk model's emitters, the nodes they hang under
+  and their textures (library format 21 - with the game's own colour and size keys - so the installed game exports
+  again); the stage runs them on each live chunk (sim.js stepChunkFx): at the chunk, turned with its Spin, their
+  particles let go in the world by their inherit flags (the rocks' smoke: a trail), on at rest, gone with the chunk, at
+  most 2000 in all. Read in nwmain: ChunkyParticle's ctor 0x1400602b0 makes the model from chunkName and adds it to the
+  scene, initialize 0x1400663d0 plays its "impact", the dtor 0x140060cf0 deletes it (its emitters and particles go with
+  the chunk); RenderNothing turns the whole model. Taken as it looks, not read: a resting chunk's emitters go on (the
+  model stays in the scene). check_effect's chunk fx 12 ok (14 of 14 breaks caught), browser_check 154 ok (a fixture
+  chunk with an emitter), composer_check, check.js, check_parts / beats / area / area_tiles / textures, common and the
+  spell bench's checks pass.
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 
