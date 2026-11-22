@@ -20,6 +20,7 @@ bool g_hooked = false;
 bool g_hook_failed = false;
 
 thread_local uint32_t t_target = ee::kObjectInvalid;  // 0.99.22: the use's target (CurrentFeatUseTarget)
+thread_local const float* t_location = nullptr;       // #39 level 2 build 1b (C): its Vector (CurrentFeatUseLocation)
 
 int UseFeatGuarded(void* creature, uint16_t feat, uint16_t subfeat, uint32_t target, uint32_t area, void* location) {
   if (creature) {
@@ -45,9 +46,12 @@ int UseFeatGuarded(void* creature, uint16_t feat, uint16_t subfeat, uint32_t tar
 
 int UseFeat(void* creature, uint16_t feat, uint16_t subfeat, uint32_t target, uint32_t area, void* location) {
   const uint32_t outer = t_target;
+  const float* outer_location = t_location;
   t_target = target;
+  t_location = static_cast<const float*>(location);
   const int result = UseFeatGuarded(creature, feat, subfeat, target, area, location);
   t_target = outer;
+  t_location = outer_location;
   return result;
 }
 
@@ -75,6 +79,14 @@ bool AddFeatUseListener(FeatUseListener listener) {
 }
 
 uint32_t CurrentFeatUseTarget() { return t_target; }
+
+bool CurrentFeatUseLocation(float* x, float* y, float* z) {
+  if (!t_location) return false;
+  *x = t_location[0];
+  *y = t_location[1];
+  *z = t_location[2];
+  return true;
+}
 
 bool AddFeatUseHandler(FeatUseHandler handler) {
   if (!Hook()) return false;

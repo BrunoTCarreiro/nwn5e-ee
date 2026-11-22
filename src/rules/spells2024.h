@@ -612,6 +612,22 @@ constexpr int kHeatMetalMinutes = 1;
 // Spiritual Weapon's later strike: the force moves up to 20 feet and strikes a creature within 5 feet of it - a
 // creature at most 25 feet (7.62 m, plus `slack`: its own half-width) from where the force was.
 bool SpiritualWeaponReaches(float metres_from_force, float slack);
+// Option C (owner, 2026-11-22: "if you can build it faithfuly, then yes, C"): the force a visible, inert floating
+// weapon that stays where it is. A Strike, measured from where the force is now (`metres` in the plane; `slack` the
+// target's half-width): at a creature within 25 feet - the force moves to within 5 feet of it and strikes; at a spot
+// within 20 feet - it only moves there; farther - refused, nothing spent.
+enum class ForceOrder { kStrike, kMove, kTooFar };
+ForceOrder SpiritualWeaponOrder(bool at_creature, float metres, float slack);
+// Where the force stops to strike a creature: `stand_off` metres short of it on the line from the force (4 feet,
+// inside the 5 feet's reach) - where it is when it's that close already. Returns the metres it moves.
+constexpr int kSpiritualWeaponStandOffFeet = 4;
+float SpiritualWeaponStrikePoint(float force_x, float force_y, float target_x, float target_y, float stand_off,
+                                 float* x, float* y);
+// How long its move takes - its run, 4 m a second (nothing to move: no time).
+constexpr float kSpiritualWeaponMetresPerSecond = 4.0f;
+float SpiritualWeaponMoveSeconds(float metres);
+// The cast: at a creature (not yourself) the force appears beside it and strikes at once; at a spot it appears there.
+bool SpiritualWeaponStrikesAtOnce(bool at_creature, bool at_caster);
 // Dragon's Breath: a row's type - a type's row, its exhale row or (none chosen: the master, its Bonus Action's row, an
 // item's) Fire; 0 for a row that isn't Dragon's Breath's.
 bool IsDragonsBreathRow(int row);  // the spell, a type, its Bonus Action's row (not an exhale)

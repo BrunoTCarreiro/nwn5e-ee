@@ -2264,6 +2264,39 @@ monster AC by CR.
         ("spellbook 7 of 14"), not the class list. Its class list shows on the level-up's Spells page: the listwizard
         profile (a Wizard 3 with the XP for 4), row S2-33b.
       - Tests Level2Build1bBlade; 7 of 7 mutations caught.
+    - *Decided (owner, 2026-11-22):* Spiritual Weapon, option C. The owner on S2-17: "I thought there would be a weapon
+      that would work as a henchman? why did we decide otherwise?"; then "for spiritual weapon, is it "stuck" to one
+      enemy or can it attack any enemy in range?"; then "if you can build it faithfuly, then yes, C". C: a visible
+      force that stays for the whole spell, not a creature in play, cast at a creature or a spot, its Strike moving
+      it.
+    - *Built (Spiritual Weapon's C):*
+      - **The force:** NWN's own Shelgarn's Persistent Blade (`x2_s_faerie001`: an invisible body, appearance 298,
+        holding its blade) - the game's one floating-weapon look, since no visual effect draws a weapon. It stays
+        where it is for the spell and fades when it ends (VFX_IMP_UNSUMMON).
+      - **Inert, Minor Illusion's creature images' way (#152) and more:** no event scripts (no AI), the commoners'
+        faction and plot, ethereal (no creature perceives it, so nothing fights or follows it), cutscene-ghost (it
+        blocks no one), no click, highlight or name bubble (SetObjectUiDiscoveryMask none), and not commandable but
+        for its own moves. nwn5e's spell gathers (the Cones, Ice Knife's burst, Shatter, the squares, a henchman's
+        breath check) leave it out by its tag.
+      - **Why a creature, not a location visual:** a creature runs from spot to spot (a visible move) and keeps its
+        look; a location visual would have to blink out and back at each move, and the game has no weapon one.
+      - **The cast** (rows 1256-1258 take a creature or a spot, TargetType 0x06):
+        - At a creature, the force appears 4 feet from it on your side and strikes at once.
+        - At a spot within 60 feet, it appears there with no attack. A player character's spot cast is carried out by
+          the order guard (rules_spells2024.cpp SpiritualWeaponAtSpot): the Bonus Action and the slot spent,
+          Concentration begun.
+      - **Spiritual Weapon: Strike**, measured from where the force is now (rules::SpiritualWeaponOrder):
+        - At a creature within 25 feet, it runs to 4 feet from it (rules::SpiritualWeaponStrikePoint, about 4 m a
+          second) and swings: a quick turn and back (EE's visual transform), the Divine Strike's holy flash on a hit,
+          a parry's sparks on a miss - the placeholder strike look until a look pass (a bench look for row 1256 plays
+          from the force when one exists). The damage lands with the swing.
+        - At a spot within 20 feet, it only moves there.
+        - Farther is refused before the Bonus Action is spent (feat_use.h's CurrentFeatUseLocation gives the guard the
+          spot).
+      - **An NPC caster's** force still strikes the creature it fights once a round, moving there.
+      - **The end:** the spell ending (Concentration, its minute) fades the force. A force lost, or left in another
+        area, ends the spell. A save's leftover forces go at the player's first update of the game, once.
+      - Tests Level2SpiritualWeaponForce; 13 of 13 mutations caught.
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).

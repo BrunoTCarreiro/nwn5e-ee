@@ -740,10 +740,15 @@ spells2024.mind_spike_you_know | generated | nwn5e: Mind Spike - you know where 
 spells2024.shining_smite_lights_you | generated | nwn5e: Shining Smite - you shed light, and your invisibility is suppressed while it lasts.
 spells2024.shining_smite_ends_your_invisibility | generated | nwn5e: Shining Smite ends - your invisibility is back.
 # #39 Part 2, level 2, build 1b: Spiritual Weapon, Flame Blade, Dragon's Breath, Heat Metal.
-spells2024.spiritual_weapon_cast | generated | nwn5e: Spiritual Weapon - a spectral weapon strikes for you ({dice} {mod} Force on a hit). While you concentrate, Spiritual Weapon: Strike (a Bonus Action: your quickbar, or beside the spell in the radial) moves it up to 20 feet and strikes again.
+spells2024.spiritual_weapon_cast | generated | nwn5e: Spiritual Weapon - a spectral weapon floats beside your target and strikes ({dice} {mod} Force on a hit). While you concentrate, Spiritual Weapon: Strike (a Bonus Action: your quickbar, or beside the spell in the radial) sends it up to 20 feet to strike a creature within 5 feet of it, or to a spot.
 spells2024.spiritual_weapon_strike_no | generated | nwn5e: Spiritual Weapon: Strike - no Spiritual Weapon of yours lasts.
-spells2024.spiritual_weapon_strike_pick | generated | nwn5e: Spiritual Weapon: Strike - pick a creature for it to strike.
+spells2024.spiritual_weapon_strike_pick | generated | nwn5e: Spiritual Weapon: Strike - pick a creature for it to strike, or a spot to move it to.
 spells2024.spiritual_weapon_strike_far | generated | nwn5e: Spiritual Weapon: Strike - that creature is too far from your spiritual weapon (it moves up to 20 feet, then strikes within 5 feet).
+spells2024.spiritual_weapon_spot | generated | nwn5e: Spiritual Weapon - a spectral weapon floats where you aimed. While you concentrate, Spiritual Weapon: Strike (a Bonus Action) sends it up to 20 feet to strike a creature within 5 feet of it, or to a spot.
+spells2024.spiritual_weapon_move_far | generated | nwn5e: Spiritual Weapon: Strike - that spot is too far from your spiritual weapon (it moves up to 20 feet).
+spells2024.spiritual_weapon_moves | generated | nwn5e: Spiritual Weapon - your spiritual weapon moves.
+spells2024.spiritual_weapon_lost | generated | nwn5e: Spiritual Weapon ends - its spectral weapon was left behind.
+spells2024.spiritual_weapon_force | srd:Spiritual Weapon | Spiritual Weapon
 spells2024.flame_blade_item | srd:Flame Blade | Flame Blade
 spells2024.flame_blade_cast | generated | nwn5e: Flame Blade - a fiery blade in your hand. While you hold it, each round is its one attack, a melee spell attack: {dice}d6 {mod} Fire on a hit.
 spells2024.flame_blade_let_go | generated | nwn5e: Flame Blade - you let go of the blade, and it disappears. Flame Blade: Evoke (a Bonus Action) brings it back while you concentrate.

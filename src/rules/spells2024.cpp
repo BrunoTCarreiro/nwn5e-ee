@@ -742,6 +742,33 @@ bool SpiritualWeaponReaches(float metres_from_force, float slack) {
   return metres_from_force <= FeetToMetres(kSpiritualWeaponMoveFeet + kSpiritualWeaponReachFeet) + slack;
 }
 
+ForceOrder SpiritualWeaponOrder(bool at_creature, float metres, float slack) {
+  if (at_creature) return SpiritualWeaponReaches(metres, slack) ? ForceOrder::kStrike : ForceOrder::kTooFar;
+  return metres <= FeetToMetres(kSpiritualWeaponMoveFeet) + slack ? ForceOrder::kMove : ForceOrder::kTooFar;
+}
+
+float SpiritualWeaponStrikePoint(float force_x, float force_y, float target_x, float target_y, float stand_off,
+                                 float* x, float* y) {
+  const float dx = target_x - force_x;
+  const float dy = target_y - force_y;
+  const float distance = std::sqrt(dx * dx + dy * dy);
+  if (distance <= stand_off) {
+    *x = force_x;
+    *y = force_y;
+    return 0.0f;
+  }
+  const float along = (distance - stand_off) / distance;
+  *x = force_x + dx * along;
+  *y = force_y + dy * along;
+  return distance - stand_off;
+}
+
+float SpiritualWeaponMoveSeconds(float metres) {
+  return metres > 0.0f ? metres / kSpiritualWeaponMetresPerSecond : 0.0f;
+}
+
+bool SpiritualWeaponStrikesAtOnce(bool at_creature, bool at_caster) { return at_creature && !at_caster; }
+
 bool IsDragonsBreathRow(int row) {
   return row == kDragonsBreath || row == kDragonsBreathBonus || (row >= kDragonsBreathAcid && row <= kDragonsBreathPoison);
 }

@@ -373,7 +373,7 @@ $LOOK
 string r = "";
 object t = GetFirstObjectInShape(SHAPE_SPHERE, $REACH, here, TRUE, OBJECT_TYPE_CREATURE);
 while (GetIsObjectValid(t)) {
-  if (t != OBJECT_SELF && !GetIsDead(t)) {
+  if (t != OBJECT_SELF && !GetIsDead(t) && GetTag(t) != "n5s_spiritforce") {  // not a Spiritual Weapon's force
     vector v = GetPosition(t) - o;
     r += ObjectToString(t) + ":" + FloatToString(v.x * d.x + v.y * d.y, 0, 3) + ":" +
          FloatToString(fabs(v.x * d.y - v.y * d.x), 0, 3) + ";";
@@ -392,7 +392,7 @@ ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_FROST_L)
 string r = "";
 object t = GetFirstObjectInShape(SHAPE_SPHERE, $RADIUS, l, TRUE, OBJECT_TYPE_CREATURE);
 while (GetIsObjectValid(t)) {
-  if (!GetIsDead(t)) r += ObjectToString(t) + ":0;";
+  if (!GetIsDead(t) && GetTag(t) != "n5s_spiritforce") r += ObjectToString(t) + ":0;";
   t = GetNextObjectInShape(SHAPE_SPHERE, $RADIUS, l, TRUE, OBJECT_TYPE_CREATURE);
 }
 SetLocalString(OBJECT_SELF, "n5s_hits", r);
@@ -1084,6 +1084,7 @@ bool SilentImageLasts(uint32_t id);                                             
 bool LongCastOrder(void* creature, uint32_t id, const SpellOrder& order);        // build 4c, below
 bool HeatMetalOrder(void* creature, uint32_t id, const SpellOrder& order);  // level 2 build 1b, below
 bool Level2FeatGuard(void* creature, uint32_t id, int feat);                // level 2 build 1b, below
+bool SpiritualWeaponAtSpot(void* creature, uint32_t id, const SpellOrder& order);  // level 2 build 1b (C), below
 
 // Refused before the cast, nothing spent (true): a willing creature's spell at an enemy, Mage Armor on one wearing
 // armour, an enemy's spell at a creature its Sanctuary keeps it from. A Bonus Action spell's order becomes its feat's
@@ -1139,6 +1140,8 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
     }
     return false;
   }
+  // Level 2 build 1b, option C: Spiritual Weapon at an empty spot - carried out here (no creature for the feat).
+  if (bonus->spell == rules::kSpiritualWeapon && !target) return SpiritualWeaponAtSpot(creature, id, order);
   if (!g_use_feat) return false;  // cast as NWN casts it, an action
   void* stats = StatsOf(creature);
   const uint32_t at = bonus->feet > 0 ? order.target : id;  // a Self spell: on you
@@ -2558,7 +2561,7 @@ if (GetIsObjectValid(c)) l = GetLocation(c);
 string r = "";
 object t = GetFirstObjectInShape(SHAPE_CUBE, $HALF, l, FALSE, OBJECT_TYPE_CREATURE);
 while (GetIsObjectValid(t)) {
-  if (($SELF || t != OBJECT_SELF) && !GetIsDead(t)) r += ObjectToString(t) + ":0;";
+  if (($SELF || t != OBJECT_SELF) && !GetIsDead(t) && GetTag(t) != "n5s_spiritforce") r += ObjectToString(t) + ":0;";
   t = GetNextObjectInShape(SHAPE_CUBE, $HALF, l, FALSE, OBJECT_TYPE_CREATURE);
 }
 SetLocalString(OBJECT_SELF, "n5s_hits", r);
@@ -4820,7 +4823,7 @@ int types = OBJECT_TYPE_CREATURE | OBJECT_TYPE_DOOR | OBJECT_TYPE_PLACEABLE;
 object t = GetFirstObjectInShape(SHAPE_SPHERE, $RADIUS, l, TRUE, types);
 while (GetIsObjectValid(t)) {
   if (GetObjectType(t) == OBJECT_TYPE_CREATURE) {
-    if (!GetIsDead(t)) r += ObjectToString(t) + ":" + IntToString(GetRacialType(t)) + ";";
+    if (!GetIsDead(t) && GetTag(t) != "n5s_spiritforce") r += ObjectToString(t) + ":" + IntToString(GetRacialType(t)) + ";";
   } else if (!GetPlotFlag(t)) {
     r += ObjectToString(t) + ":-1;";
     seen += ObjectToString(t) + ";";
@@ -5164,17 +5167,109 @@ int ReflexHalfAgainst(uint32_t self, const char* what, int row, const std::strin
 }
 
 // --- Spiritual Weapon: a Bonus Action's strike, now and on later turns ---
+// Option C (owner, 2026-11-22: "if you can build it faithfuly, then yes, C"): the force is a visible floating weapon
+// that stays where it is for the whole spell - NWN's own Shelgarn's Persistent Blade (x2_s_faerie001: an invisible
+// body holding its blade, appearance 298), made inert as Minor Illusion's creature images are (#152) and more: no
+// event scripts, the commoners' faction, plot, ethereal (no creature perceives it, so no AI fights or follows it),
+// cutscene-ghost (it blocks no one), no click, highlight or name bubble (SetObjectUiDiscoveryMask none), not
+// commandable but by its own moves. nwn5e's gathers leave it out by its tag. A creature, not a location visual: the
+// game has no floating-weapon visual effect, and a creature moves (its run, a visible move) and keeps its look in
+// view where a re-placed visual would blink.
+constexpr const char* kSpiritForceResRef = "x2_s_faerie001";
+constexpr const char* kTagSpiritForce = "n5s_spiritforce";
 
 struct SpiritWeapon {
   int row = rules::kSpiritualWeapon;  // the row its mark carries (the one cast: Concentration's)
   int class_slot = -1;                // the class it was cast from (-1: an item's, a script's)
   int slot = 2;
   int modifier = 0;
-  float x = 0.0f, y = 0.0f;  // where the force is: beside the creature it last struck (at the cast: by the caster)
-  uint32_t last = 0;         // that creature (its next flight starts there)
-  uint32_t rounds = 0;       // an NPC caster's round it last struck in
+  float x = 0.0f, y = 0.0f, z = 0.0f;  // where the force is now (where its last move ends)
+  uint32_t force = 0;                  // its object
+  uint32_t rounds = 0;                 // an NPC caster's round it last struck in
 };
 std::unordered_map<uint32_t, SpiritWeapon> g_spirit_weapons;  // by caster
+
+// The force: made at the point, inert (above). "id:0;".
+const char* const kForceMake = R"nss(
+object f = CreateObject(OBJECT_TYPE_CREATURE, "$RESREF", Location(GetArea(OBJECT_SELF), Vector($X, $Y, $Z), $FACING),
+                        FALSE, "$TAG");
+string r = "";
+if (GetIsObjectValid(f)) {
+  int i;
+  for (i = EVENT_SCRIPT_CREATURE_ON_HEARTBEAT; i <= EVENT_SCRIPT_CREATURE_ON_BLOCKED_BY_DOOR; i++) SetEventScript(f, i, "");
+  AssignCommand(f, ClearAllActions(TRUE));
+  ChangeToStandardFaction(f, STANDARD_FACTION_COMMONER);
+  SetPlotFlag(f, TRUE);
+  SetName(f, "$NAME");
+  SetObjectUiDiscoveryMask(f, OBJECT_UI_DISCOVERY_NONE);
+  ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(EffectEthereal()), f);
+  ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(EffectCutsceneGhost()), f);
+  ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_GOOD_HELP), f);
+  SetCommandable(FALSE, f);
+  r = ObjectToString(f) + ":0;";
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+// Its move: a run to the point (it passes through creatures), then put exactly there; not commandable again after.
+const char* const kForceMove = R"nss(
+object f = StringToObject("$FORCE");
+if (!GetIsObjectValid(f)) return;
+location l = Location(GetArea(f), Vector($X, $Y, $Z), $FACING);
+SetCommandable(TRUE, f);
+AssignCommand(f, ClearAllActions(TRUE));
+AssignCommand(f, ActionMoveToLocation(l, TRUE));
+AssignCommand(f, ActionJumpToLocation(l));
+AssignCommand(f, ActionDoCommand(SetCommandable(FALSE, f)));
+)nss";
+
+// Its swing once there (n5_s_spiritswing, run as the force $TRAVEL s from now): it turns to the creature and sweeps
+// its blade through it (a quick turn and back - EE's visual transform), the Divine Strike's holy flash on a hit, a
+// parry's sparks on a miss. The placeholder strike look, until a look pass makes one.
+const char* const kForceStrike = R"nss(
+object f = StringToObject("$FORCE"); object t = StringToObject("$TARGET");
+if (!GetIsObjectValid(f) || !GetIsObjectValid(t)) return;
+SetLocalObject(f, "n5s_swing_t", t);
+SetLocalInt(f, "n5s_swing_hit", $HIT);
+DelayCommand($TRAVEL, ExecuteScript("n5_s_spiritswing", f));
+)nss";
+
+const char* const kForceSwing = R"nss(
+object t = GetLocalObject(OBJECT_SELF, "n5s_swing_t");
+if (!GetIsObjectValid(t)) return;
+SetFacingPoint(GetPosition(t));
+SetObjectVisualTransform(OBJECT_SELF, OBJECT_VISUAL_TRANSFORM_ROTATE_Z, -75.0, OBJECT_VISUAL_TRANSFORM_LERP_EASE_OUT,
+                         0.18, TRUE, OBJECT_VISUAL_TRANSFORM_DATA_SCOPE_BASE, OBJECT_VISUAL_TRANSFORM_BEHAVIOR_BOUNCE, 1);
+if (GetLocalInt(OBJECT_SELF, "n5s_swing_hit")) {
+  DelayCommand(0.15, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_DIVINE_STRIKE_HOLY), t));
+} else {
+  DelayCommand(0.15, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_COM_SPARKS_PARRY), t));
+}
+)nss";
+constexpr float kForceSwingSeconds = 0.15f;  // its blade through the creature
+
+// The spell's end: it fades away.
+const char* const kForceGone = R"nss(
+object f = StringToObject("$FORCE");
+if (GetIsObjectValid(f) && GetTag(f) == "$TAG") {
+  ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_UNSUMMON), GetLocation(f));
+  SetPlotFlag(f, FALSE);
+  DestroyObject(f, 0.2);
+}
+)nss";
+
+// A save made while a force was out holds the creature, unbound: every force of the module goes at the player's first
+// update of the game (the blade's sweep's).
+const char* const kForceSweep = R"nss(
+int n = 0;
+object f = GetObjectByTag("$TAG", n);
+while (GetIsObjectValid(f)) {
+  SetPlotFlag(f, FALSE);
+  DestroyObject(f);
+  n++;
+  f = GetObjectByTag("$TAG", n);
+}
+)nss";
 
 const char* const kSpiritAttack = R"nss(
 object t = StringToObject("$TARGET"); string r = "";
@@ -5185,32 +5280,97 @@ if (GetIsObjectValid(t) && !GetIsDead(t)) {
 SetLocalString(OBJECT_SELF, "n5s_hits", r);
 )nss";
 
-// The look until one is made for row 1256 (the look pass): the game's MIRV bolt flies from where the force was (run as
-// that creature, or as the caster) to the target, and on a hit the Divine Strike's holy flash lands with it.
-const char* const kSpiritFlight = R"nss(
-object t = StringToObject("$TARGET");
-if (!GetIsObjectValid(t)) return;
-ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MIRV), t);
-if ($HIT) DelayCommand($TRAVEL, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_DIVINE_STRIKE_HOLY), t));
+// The point a cast or a Strike was aimed at (its spell's location), as "x y z" in n5s_xyz.
+const char* const kSpotOfSpell = R"nss(
+vector v = GetPositionFromLocation(GetSpellTargetLocation());
+SetLocalString(OBJECT_SELF, "n5s_xyz", FloatToString(v.x, 0, 3) + " " + FloatToString(v.y, 0, 3) + " " +
+               FloatToString(v.z, 0, 3));
 )nss";
 
-float SpiritMetres(const SpiritWeapon& weapon, void* creature) {
-  const float dx = Field<float>(creature, ee::kObjectPositionX) - weapon.x;
-  const float dy = Field<float>(creature, ee::kObjectPositionY) - weapon.y;
+bool SpotOfSpell(uint32_t self, void* caster, float* x, float* y, float* z) {
+  Run(kSpotOfSpell, self, "Spiritual Weapon's point");
+  return sscanf_s(engine::GetLocalString(caster, "n5s_xyz").c_str(), "%f %f %f", x, y, z) == 3;
+}
+
+float SpiritMetresTo(const SpiritWeapon& weapon, float x, float y) {
+  const float dx = x - weapon.x;
+  const float dy = y - weapon.y;
   return std::sqrt(dx * dx + dy * dy);
 }
 
-bool SpiritReaches(const SpiritWeapon& weapon, void* creature) {
-  return rules::SpiritualWeaponReaches(SpiritMetres(weapon, creature), kSlack);
+float SpiritMetres(const SpiritWeapon& weapon, void* creature) {
+  return SpiritMetresTo(weapon, Field<float>(creature, ee::kObjectPositionX), Field<float>(creature, ee::kObjectPositionY));
 }
 
-// One strike of the force at `target`: a melee spell attack with its class's bonus; on a hit 1d8 (1d8 more a slot
-// level above 2; twice the dice on a Critical Hit) + the spellcasting ability modifier, Force. The look (or its
-// placeholder) flies there first; the force then stands beside the target.
+bool SpiritReaches(const SpiritWeapon& weapon, void* creature) {
+  return rules::SpiritualWeaponOrder(true, SpiritMetres(weapon, creature), kSlack) == rules::ForceOrder::kStrike;
+}
+
+// The facing from (x, y) toward (to_x, to_y), in NWN's degrees (anticlockwise from east).
+float FacingToward(float x, float y, float to_x, float to_y) {
+  const float dx = to_x - x;
+  const float dy = to_y - y;
+  if (dx * dx + dy * dy < 0.0001f) return 0.0f;
+  float degrees = std::atan2(dy, dx) * 57.29578f;
+  if (degrees < 0.0f) degrees += 360.0f;
+  return degrees;
+}
+
+bool MakeForce(uint32_t self, void* caster, SpiritWeapon& weapon, float x, float y, float z, float facing) {
+  std::string code = kForceMake;
+  Replace(&code, "$RESREF", kSpiritForceResRef);
+  Replace(&code, "$TAG", kTagSpiritForce);
+  Replace(&code, "$NAME", PlayerText("spells2024.spiritual_weapon_force"));
+  Replace(&code, "$X", Float(x));
+  Replace(&code, "$Y", Float(y));
+  Replace(&code, "$Z", Float(z));
+  Replace(&code, "$FACING", Float(facing));
+  Run(code, self, "Spiritual Weapon's force");
+  const std::vector<Entry> made = Entries(caster);
+  weapon.force = made.empty() ? 0 : ParseId(made[0].target);
+  weapon.x = x;
+  weapon.y = y;
+  weapon.z = z;
+  return weapon.force != 0;
+}
+
+void MoveForce(uint32_t self, SpiritWeapon& weapon, float x, float y, float z, float facing) {
+  std::string code = kForceMove;
+  Replace(&code, "$FORCE", ObjectHex(weapon.force));
+  Replace(&code, "$X", Float(x));
+  Replace(&code, "$Y", Float(y));
+  Replace(&code, "$Z", Float(z));
+  Replace(&code, "$FACING", Float(facing));
+  Run(code, self, "Spiritual Weapon's move");
+  weapon.x = x;
+  weapon.y = y;
+  weapon.z = z;
+}
+
+void ForceGone(uint32_t self, uint32_t force) {
+  if (!force) return;
+  std::string code = kForceGone;
+  Replace(&code, "$FORCE", ObjectHex(force));
+  Replace(&code, "$TAG", kTagSpiritForce);
+  Run(code, self, "Spiritual Weapon's end");
+}
+
+// One strike of the force at `target`: it moves to within 5 feet of it (from where it is: no farther than 20 feet, the
+// caller's check), then a melee spell attack with its class's bonus; on a hit 1d8 (1d8 more a slot level above 2;
+// twice the dice on a Critical Hit) + the spellcasting ability modifier, Force - landing with the swing.
 void SpiritStrike(uint32_t self, void* caster, const rules::Spell2024& spell, SpiritWeapon& weapon, uint32_t target,
                   const char* how) {
   void* creature = CreatureById(target);
   if (!creature) return;
+  const float tx = Field<float>(creature, ee::kObjectPositionX);
+  const float ty = Field<float>(creature, ee::kObjectPositionY);
+  const float tz = Field<float>(creature, ee::kObjectPositionZ);
+  const float from_force = SpiritMetresTo(weapon, tx, ty);
+  float x = weapon.x, y = weapon.y;
+  const float moved = rules::SpiritualWeaponStrikePoint(weapon.x, weapon.y, tx, ty,
+                                                        rules::FeetToMetres(rules::kSpiritualWeaponStandOffFeet), &x, &y);
+  const float travel = rules::SpiritualWeaponMoveSeconds(moved);
+  if (moved > 0.0f) MoveForce(self, weapon, x, y, tz, FacingToward(x, y, tx, ty));
   std::string code = kSpiritAttack;
   Replace(&code, "$TARGET", Hex(target));
   Replace(&code, "$ROW", std::to_string(rules::kSpiritualWeapon));
@@ -5221,18 +5381,21 @@ void SpiritStrike(uint32_t self, void* caster, const rules::Spell2024& spell, Sp
   const std::vector<Entry> hits = Entries(caster);
   if (hits.empty()) return;  // gone, or down already
   const int result = hits[0].value;
-  const float from_force = SpiritMetres(weapon, creature);  // 0.99.117's S2-19: the reach measured, for the log
-  void* from_creature = weapon.last ? CreatureById(weapon.last) : nullptr;
-  float lands = result > 0 ? PlaySpellLook(self, target, rules::kSpiritualWeapon)
-                           : PlaySpellLookMiss(self, target, rules::kSpiritualWeapon);
+  // A look made for row 1256 one day plays from the force (the bench's leap); until then the force's own swing.
+  float lands = 0.0f;
+  if (weapon.force) {
+    lands = result > 0 ? PlaySpellLookLeap(weapon.force, target, rules::kSpiritualWeapon, travel)
+                       : PlaySpellLookLeapMiss(weapon.force, target, rules::kSpiritualWeapon, travel);
+  }
   const bool look = lands > 0.0f;
   if (!look) {
-    lands = TravelSeconds(MetresBetween(from_creature ? from_creature : caster, creature));
-    std::string flight = kSpiritFlight;
-    Replace(&flight, "$TARGET", Hex(target));
-    Replace(&flight, "$HIT", result > 0 ? "TRUE" : "FALSE");
-    Replace(&flight, "$TRAVEL", Float(lands));
-    Run(flight, from_creature ? weapon.last : self, "Spiritual Weapon's flight");
+    std::string strike = kForceStrike;
+    Replace(&strike, "$FORCE", ObjectHex(weapon.force));
+    Replace(&strike, "$TARGET", Hex(target));
+    Replace(&strike, "$HIT", result > 0 ? "TRUE" : "FALSE");
+    Replace(&strike, "$TRAVEL", Float(travel));
+    Run(strike, self, "Spiritual Weapon's swing");
+    lands = travel + kForceSwingSeconds;
   }
   std::string log = result == 2 ? "a Critical Hit" : result == 1 ? "a hit" : "a miss";
   if (result > 0) {
@@ -5245,23 +5408,25 @@ void SpiritStrike(uint32_t self, void* caster, const rules::Spell2024& spell, Sp
     log += ": " + Dice(dice, spell.die) + " = " + std::to_string(roll) + " " + Signed(weapon.modifier) + " = " +
            std::to_string(amount) + " Force" + (landed ? "" : " - immune");
   }
-  weapon.x = Field<float>(creature, ee::kObjectPositionX);
-  weapon.y = Field<float>(creature, ee::kObjectPositionY);
-  weapon.last = target;
   if (LogSlot()) {
-    char reach[96];
-    if (weapon.last) {
-      snprintf(reach, sizeof reach, "the force %.2f m from it (7.62 m at most), its flight from %s", from_force,
-               from_creature ? "the creature it last struck" : "you (that creature gone)");
-    } else {
-      snprintf(reach, sizeof reach, "the force cast beside it");
-    }
-    Log("spells2024: 0x%08X Spiritual Weapon (a level %d slot) strikes 0x%08X (%s; %s; %s, lands in %s s): %s", self,
-        weapon.slot, target, how, reach, look ? "its look" : "the placeholder look", Float(lands).c_str(), log.c_str());
+    Log("spells2024: 0x%08X Spiritual Weapon (a level %d slot) strikes 0x%08X (%s; the force 0x%08X %.2f m from it, "
+        "7.62 m at most - it moves %.2f m in %s s; %s, lands in %s s): %s", self, weapon.slot, target, how,
+        weapon.force, from_force, moved, Float(travel).c_str(), look ? "its look" : "the placeholder swing",
+        Float(lands).c_str(), log.c_str());
   }
 }
 
-// Spiritual Weapon: Strike (row 1258, feat 1568): the force moves up to 20 feet and strikes again - no slot.
+// Spiritual Weapon: Strike at a spot: the force only moves there (no farther than 20 feet).
+void SpiritMoveTo(uint32_t self, SpiritWeapon& weapon, float x, float y, float z) {
+  const float metres = SpiritMetresTo(weapon, x, y);
+  MoveForce(self, weapon, x, y, z, FacingToward(weapon.x, weapon.y, x, y));
+  TellPlayer(self, PlayerText("spells2024.spiritual_weapon_moves"));
+  if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon: Strike at a spot - the force 0x%08X moves %.2f m (6.10 m at "
+                     "most)", self, weapon.force, metres);
+}
+
+// Spiritual Weapon: Strike (row 1258, feat 1568): at a creature, the force moves up to 20 feet and strikes; at a spot,
+// it moves there - no slot.
 void SpiritualWeaponStrike(uint32_t self, void* caster, const rules::Spell2024& spell) {
   const auto it = g_spirit_weapons.find(self);
   if (it == g_spirit_weapons.end() || !HasSpellEffect(caster, it->second.row, -1, self)) {
@@ -5271,17 +5436,66 @@ void SpiritualWeaponStrike(uint32_t self, void* caster, const rules::Spell2024& 
   const std::vector<Entry> one = OneTarget(self, spell, "0", -1, Look());
   const uint32_t target = one.empty() ? 0 : ParseId(one[0].target);
   void* creature = target ? CreatureById(target) : nullptr;
-  if (!creature || creature == caster) {
+  if (creature == caster) creature = nullptr;
+  if (creature) {
+    if (!SpiritReaches(it->second, creature)) {
+      TellPlayer(self, PlayerText("spells2024.spiritual_weapon_strike_far"));
+      if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon: Strike at 0x%08X - %.2f m from the force, too far", self,
+                         target, SpiritMetres(it->second, creature));
+      return;
+    }
+    SpiritStrike(self, caster, spell, it->second, target, "a Bonus Action");
+    return;
+  }
+  float x = 0.0f, y = 0.0f, z = 0.0f;
+  if (!SpotOfSpell(self, caster, &x, &y, &z)) {
     TellPlayer(self, PlayerText("spells2024.spiritual_weapon_strike_pick"));
     return;
   }
-  if (!SpiritReaches(it->second, creature)) {
-    TellPlayer(self, PlayerText("spells2024.spiritual_weapon_strike_far"));
-    if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon: Strike at 0x%08X - %.2f m from the force, too far", self,
-                       target, SpiritMetres(it->second, creature));
+  if (rules::SpiritualWeaponOrder(false, SpiritMetresTo(it->second, x, y), kSlack) != rules::ForceOrder::kMove) {
+    TellPlayer(self, PlayerText("spells2024.spiritual_weapon_move_far"));
     return;
   }
-  SpiritStrike(self, caster, spell, it->second, target, "a Bonus Action");
+  SpiritMoveTo(self, it->second, x, y, z);
+}
+
+// The force made for a cast: beside the creature (on your side of it) and its strike at once, or at the spot.
+void SpiritCast(uint32_t self, void* caster, const rules::Spell2024& spell, SpiritWeapon& weapon, uint32_t target,
+                float x, float y, float z, const char* how) {
+  void* creature = target ? CreatureById(target) : nullptr;
+  const bool strikes = rules::SpiritualWeaponStrikesAtOnce(creature != nullptr, creature == caster);
+  const float cx = Field<float>(caster, ee::kObjectPositionX);
+  const float cy = Field<float>(caster, ee::kObjectPositionY);
+  float fx = x, fy = y, fz = z;
+  if (strikes) {
+    const float tx = Field<float>(creature, ee::kObjectPositionX);
+    const float ty = Field<float>(creature, ee::kObjectPositionY);
+    fz = Field<float>(creature, ee::kObjectPositionZ);
+    rules::SpiritualWeaponStrikePoint(cx, cy, tx, ty, rules::FeetToMetres(rules::kSpiritualWeaponStandOffFeet), &fx,
+                                      &fy);
+  } else if (creature) {  // cast at yourself: the force beside you
+    fx = Field<float>(creature, ee::kObjectPositionX);
+    fy = Field<float>(creature, ee::kObjectPositionY);
+    fz = Field<float>(creature, ee::kObjectPositionZ);
+  }
+  const bool made = MakeForce(self, caster, weapon, fx, fy, fz, FacingToward(cx, cy, fx, fy));
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Spiritual Weapon (a level %d slot%s, class slot %d, modifier %+d) - Concentration up to 1 "
+        "minute; the force 0x%08X%s at %.1f, %.1f (%s); Spiritual Weapon: Strike (feat %d) granted", self, weapon.slot,
+        how, weapon.class_slot, weapon.modifier, weapon.force, made ? "" : " NOT made", fx, fy,
+        strikes ? "beside the creature, its strike at once" : "at the spot, no attack", rules::kFeatSpiritualWeaponStrike);
+  }
+  if (strikes) SpiritStrike(self, caster, spell, weapon, target, "at once");
+}
+
+// A new Spiritual Weapon of the caster's: the last one's force fades (its Concentration is already over).
+SpiritWeapon& NewSpiritWeapon(uint32_t self) {
+  const auto before = g_spirit_weapons.find(self);
+  if (before != g_spirit_weapons.end()) {
+    ForceGone(self, before->second.force);
+    g_spirit_weapons.erase(before);
+  }
+  return g_spirit_weapons[self];
 }
 
 void SpiritualWeapon(uint32_t self, void* caster, const rules::Spell2024& spell) {
@@ -5294,31 +5508,68 @@ void SpiritualWeapon(uint32_t self, void* caster, const rules::Spell2024& spell)
   const bool from_item = Field<int32_t>(caster, ee::kCreatureCastingFromItem) != 0;
   const CastInfo cast = CastInfoOf(self, caster, spell.level, spell.name);
   if (!cast.ok) return;
-  SpiritWeapon weapon;
+  const std::vector<Entry> one = OneTarget(self, spell, "0", -1, Look());
+  const uint32_t target = one.empty() ? 0 : ParseId(one[0].target);
+  float x = Field<float>(caster, ee::kObjectPositionX), y = Field<float>(caster, ee::kObjectPositionY),
+        z = Field<float>(caster, ee::kObjectPositionZ);
+  if (!target || !CreatureById(target)) SpotOfSpell(self, caster, &x, &y, &z);
+  SpiritWeapon& weapon = NewSpiritWeapon(self);
   weapon.row = row;
   weapon.class_slot = CastClassSlot(cast, casting_slot, from_item);
   weapon.slot = cast.slot;
   weapon.modifier = CastModifier(caster, weapon.class_slot);
-  weapon.x = Field<float>(caster, ee::kObjectPositionX);
-  weapon.y = Field<float>(caster, ee::kObjectPositionY);
   weapon.rounds = CombatRoundsEnded(self);
-  const std::vector<Entry> one = OneTarget(self, spell, "0", -1, Look());
   Mark(self, spell, Hex(self), row,
        MarkLook{kTagSpiritWeapon, "EffectIcon(EFFECT_ICON_DAMAGE_INCREASE)", SecondsScript(rules::kSpiritualWeaponMinutes),
                 "VFX_IMP_HEAD_HOLY"});
   GrantFeat(caster, rules::kFeatSpiritualWeaponStrike);
-  SpiritWeapon& kept = g_spirit_weapons[self] = weapon;
   TellPlayer(self, PlayerText("spells2024.spiritual_weapon_cast",
                               {{"dice", Dice(rules::SpellDiceAt(spell, cast.slot), spell.die)},
                                {"mod", Signed(weapon.modifier)}}));
-  if (LogSlot()) {
-    Log("spells2024: 0x%08X Spiritual Weapon (a level %d slot%s, class slot %d, modifier %+d) - Concentration up to 1 "
-        "minute; Spiritual Weapon: Strike (feat %d) granted", self, cast.slot, cast.bonus ? ", a Bonus Action" : "",
-        weapon.class_slot, weapon.modifier, rules::kFeatSpiritualWeaponStrike);
+  SpiritCast(self, caster, spell, weapon, target, x, y, z, cast.bonus ? ", a Bonus Action" : "");
+}
+
+// A player character's Spiritual Weapon at an empty spot (option C): a Bonus Action spell's order with no creature,
+// carried out here - the order refused as Healing Word's would be for its reasons, else the Bonus Action and the
+// slot spent, its Concentration begun, the force made at the spot with no attack.
+bool SpiritualWeaponAtSpot(void* creature, uint32_t id, const SpellOrder& order) {
+  const rules::Spell2024* spell = rules::Spell2024Of(rules::kSpiritualWeapon);
+  if (!spell) return false;
+  const std::string name = spell->name;
+  const float dx = order.x - Field<float>(creature, ee::kObjectPositionX);
+  const float dy = order.y - Field<float>(creature, ee::kObjectPositionY);
+  std::string refused;
+  if (SpentThisTurn(id, nullptr)) {
+    refused = PlayerText("spells2024.refuse_slot_this_turn");
+  } else if (BonusActionStatus(creature) != 0) {
+    refused = PlayerText("spells2024.refuse_bonus_spent");
+  } else if (std::sqrt(dx * dx + dy * dy) > rules::FeetToMetres(rules::kSpiritualWeaponFeet) + kSlack) {
+    refused = PlayerText("spells2024.refuse_out_of_range", {{"feet", std::to_string(rules::kSpiritualWeaponFeet)}});
+  } else if (OrderSlotsLeft(creature, order.spell, order.class_slot, order.domain_level, order.metamagic) <= 0) {
+    refused = PlayerText("spells2024.refuse_no_slot");
   }
-  const uint32_t target = one.empty() ? 0 : ParseId(one[0].target);
-  void* creature = target ? CreatureById(target) : nullptr;
-  if (creature && creature != caster) SpiritStrike(self, caster, spell, kept, target, "at once");
+  if (!refused.empty()) return Refuse(id, name, refused, ee::kObjectInvalid);
+  if (!SpendBonusAction(creature, spell->name)) return Refuse(id, name, PlayerText("spells2024.refuse_bonus_spent"),
+                                                              ee::kObjectInvalid);
+  t_bonus_spend = true;
+  const bool spent = SpendOrderSlot(creature, order.spell, order.class_slot, order.domain_level, order.metamagic);
+  t_bonus_spend = false;
+  if (!spent) return Refuse(id, name, PlayerText("spells2024.refuse_no_slot"), ee::kObjectInvalid);
+  BeginConcentration(creature, rules::kSpiritualWeaponBonus);
+  const int chosen = rules::ChosenSlotLevel(spell->level, order.domain_level);
+  SpiritWeapon& weapon = NewSpiritWeapon(id);
+  weapon.row = rules::kSpiritualWeaponBonus;
+  weapon.class_slot = order.class_slot;
+  weapon.slot = chosen >= spell->level ? chosen : spell->level;
+  weapon.modifier = CastModifier(creature, order.class_slot);
+  weapon.rounds = CombatRoundsEnded(id);
+  Mark(id, *spell, Hex(id), weapon.row,
+       MarkLook{kTagSpiritWeapon, "EffectIcon(EFFECT_ICON_DAMAGE_INCREASE)", SecondsScript(rules::kSpiritualWeaponMinutes),
+                "VFX_IMP_HEAD_HOLY"});
+  GrantFeat(creature, rules::kFeatSpiritualWeaponStrike);
+  TellPlayer(id, PlayerText("spells2024.spiritual_weapon_spot"));
+  SpiritCast(id, creature, *spell, weapon, 0, order.x, order.y, order.z, ", a Bonus Action, at a spot");
+  return true;
 }
 
 // --- Flame Blade: an equipped blade, its attacks the spell's ---
@@ -5334,6 +5585,7 @@ struct Blade {
 };
 std::unordered_map<uint32_t, Blade> g_blades;  // by caster
 std::unordered_set<uint32_t> g_blades_swept;   // creatures whose saved, unbound blades were looked for this game
+bool g_forces_swept = false;                   // option C: a save's Spiritual Weapon forces looked for this game
 
 // The blade: the game's scimitar, made Flame Blade - undroppable, cursed (not sold or given), on fire, a light (Bright
 // 10 feet and Dim 10 more: NWN's 10 m light, rounded up as Produce Flame's is) - and equipped in the main hand, the
@@ -5507,7 +5759,7 @@ if (VectorMagnitude(d) > 0.1) {
   d = VectorNormalize(d);
   object t = GetFirstObjectInShape(SHAPE_SPHERE, $REACH, GetLocation(OBJECT_SELF), TRUE, OBJECT_TYPE_CREATURE);
   while (GetIsObjectValid(t)) {
-    if (t != OBJECT_SELF && !GetIsDead(t) && !GetIsEnemy(t, OBJECT_SELF)) {
+    if (t != OBJECT_SELF && !GetIsDead(t) && !GetIsEnemy(t, OBJECT_SELF) && GetTag(t) != "n5s_spiritforce") {
       vector v = GetPosition(t) - o;
       r += ObjectToString(t) + ":" + FloatToString(v.x * d.x + v.y * d.y, 0, 3) + ":" +
            FloatToString(fabs(v.x * d.y - v.y * d.x), 0, 3) + ";";
@@ -5892,17 +6144,29 @@ bool Level2FeatGuard(void* creature, uint32_t id, int feat) {
     }
     const uint32_t picked = CurrentFeatUseTarget();
     void* target = picked != ee::kObjectInvalid ? CreatureById(picked) : nullptr;
-    if (!target || target == creature || engine::IsDeadOrDying(target)) {
-      TellPlayer(id, PlayerText("spells2024.spiritual_weapon_strike_pick"));
-      return false;
+    if (target && target != creature && !engine::IsDeadOrDying(target)) {
+      if (!SpiritReaches(it->second, target)) {
+        TellPlayer(id, PlayerText("spells2024.spiritual_weapon_strike_far"));
+        if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon: Strike refused - 0x%08X is %.2f m from the force (25 "
+                           "feet = 7.62 m at most)", id, picked, SpiritMetres(it->second, target));
+        return false;
+      }
+      return true;
     }
-    if (!SpiritReaches(it->second, target)) {
-      TellPlayer(id, PlayerText("spells2024.spiritual_weapon_strike_far"));
-      if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon: Strike refused - 0x%08X is %.2f m from the force (25 "
-                         "feet at most)", id, picked, SpiritMetres(it->second, target));
-      return false;
+    // Option C: at a spot - the force only moves there, 20 feet at most from where it is.
+    float x = 0.0f, y = 0.0f, z = 0.0f;
+    if (picked == ee::kObjectInvalid && CurrentFeatUseLocation(&x, &y, &z)) {
+      const float metres = SpiritMetresTo(it->second, x, y);
+      if (rules::SpiritualWeaponOrder(false, metres, kSlack) != rules::ForceOrder::kMove) {
+        TellPlayer(id, PlayerText("spells2024.spiritual_weapon_move_far"));
+        if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon: Strike at a spot refused - %.2f m from the force (20 "
+                           "feet = 6.10 m at most)", id, metres);
+        return false;
+      }
+      return true;
     }
-    return true;
+    TellPlayer(id, PlayerText("spells2024.spiritual_weapon_strike_pick"));
+    return false;
   }
   if (feat == rules::kFeatFlameBladeEvoke) {
     const auto it = g_blades.find(id);
@@ -5956,10 +6220,26 @@ void SpiritUpdate(void* creature, uint32_t id) {
   if (it == g_spirit_weapons.end()) return;
   SpiritWeapon& weapon = it->second;
   if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, weapon.row, -1, id)) {
+    ForceGone(id, weapon.force);  // option C: it fades away
     TakeFeat(creature, rules::kFeatSpiritualWeaponStrike);
     g_spirit_weapons.erase(it);
-    if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon ends", id);
+    if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon ends - its force fades", id);
     return;
+  }
+  // Its force gone, or left in another area (an area change): the spell ends - its mark off, so Concentration ends.
+  if (weapon.force) {
+    void* force = CreatureById(weapon.force);
+    if (!force || engine::AreaOf(force) != engine::AreaOf(creature)) {
+      ForceGone(id, weapon.force);
+      std::string code = kUnmark;
+      Replace(&code, "$TAG", kTagSpiritWeapon);
+      Run(code, id, "Spiritual Weapon's end");
+      TellPlayer(id, PlayerText("spells2024.spiritual_weapon_lost"));
+      TakeFeat(creature, rules::kFeatSpiritualWeaponStrike);
+      g_spirit_weapons.erase(it);
+      if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon ends - its force %s", id, force ? "left in another area" : "gone");
+      return;
+    }
   }
   if (IsPlayerCreature(creature) || !Field<int32_t>(creature, ee::kCreatureInCombat)) return;
   const uint32_t rounds = CombatRoundsEnded(id);
@@ -5982,6 +6262,12 @@ void BladeUpdate(void* creature, uint32_t id) {
       std::string code = kBladeSweep;
       Replace(&code, "$TAG", kTagFlameBlade);
       Run(code, id, "Flame Blade's sweep");
+      if (!g_forces_swept) {  // option C: a save's Spiritual Weapon forces, once a game
+        g_forces_swept = true;
+        std::string forces = kForceSweep;
+        Replace(&forces, "$TAG", kTagSpiritForce);
+        Run(forces, id, "Spiritual Weapon's sweep");
+      }
     }
     return;
   }
@@ -6109,10 +6395,14 @@ void Level2bUpdate(void* creature) {
   if (!g_heats.empty() || !g_heat_held.empty()) HeatUpdate(creature, id, now);
 }
 
+// n5_s_spiritswing (option C): the force's swing, run as the force (kForceStrike's DelayCommand).
+void SpiritSwingScript(uint32_t self) { Run(kForceSwing, self, "Spiritual Weapon's swing"); }
+
 void Level2bGameStarted() {
   g_spirit_weapons.clear();
   g_blades.clear();
   g_blades_swept.clear();
+  g_forces_swept = false;
   ClearFlameBlades();
   g_breaths.clear();
   g_heats.clear();
@@ -6575,7 +6865,8 @@ void InstallSpells2024() {
                        InstallFindFamiliar() && InstallFloatingDisk();  // builds 4c, 4d
   const bool level2 = AddCreatureUpdateListener(&Level2Update) && AddRestListener(&PrayerRest) &&  // level 2 1a
                       AddGameStartListener(&Level2GameStarted) &&
-                      AddCreatureUpdateListener(&Level2bUpdate) && AddGameStartListener(&Level2bGameStarted);  // 1b
+                      AddCreatureUpdateListener(&Level2bUpdate) && AddGameStartListener(&Level2bGameStarted) &&  // 1b
+                      AddScriptHandler("n5_s_spiritswing", &SpiritSwingScript);  // 1b's option C
   if (reactions) {  // #162 G
     AddHudPool(&SmiteHudPool);
     AddHudClick("smite", &SmitePanelClicked);

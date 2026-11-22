@@ -307,6 +307,39 @@ TEST(Level2Build1bRules) {
   CHECK_EQ(SpellActionLeafOf(kDragonsBreath) == nullptr && SpellActionLeafOf(kBless) == nullptr, true);
 }
 
+// Option C (owner, 2026-11-22: "if you can build it faithfuly, then yes, C"): Spiritual Weapon's force - a Strike's
+// reach and move from where it is, where it stops to strike, its move's time, the cast's first strike.
+TEST(Level2SpiritualWeaponForce) {
+  // At a creature: 25 feet (7.62 m) from the force, plus the creature's slack.
+  CHECK_EQ(SpiritualWeaponOrder(true, 7.6f, 0.0f) == ForceOrder::kStrike, true);
+  CHECK_EQ(SpiritualWeaponOrder(true, 7.7f, 0.0f) == ForceOrder::kTooFar, true);
+  CHECK_EQ(SpiritualWeaponOrder(true, 8.0f, 0.5f) == ForceOrder::kStrike, true);
+  // At a spot: it only moves, 20 feet (6.10 m) at most.
+  CHECK_EQ(SpiritualWeaponOrder(false, 0.0f, 0.0f) == ForceOrder::kMove, true);
+  CHECK_EQ(SpiritualWeaponOrder(false, 6.0f, 0.0f) == ForceOrder::kMove, true);
+  CHECK_EQ(SpiritualWeaponOrder(false, 6.2f, 0.0f) == ForceOrder::kTooFar, true);
+  CHECK_EQ(SpiritualWeaponOrder(false, 6.5f, 0.5f) == ForceOrder::kMove, true);
+  CHECK_EQ(SpiritualWeaponOrder(false, 6.7f, 0.5f) == ForceOrder::kTooFar, true);
+  CHECK_EQ(SpiritualWeaponOrder(false, 7.0f, 0.5f) == ForceOrder::kTooFar, true);  // a creature's reach, not a spot's
+  // Where it stops: 4 feet short of the creature on the line from it; no move when it's that close.
+  float x = -1.0f, y = -1.0f;
+  CHECK_EQ(SpiritualWeaponStrikePoint(0.0f, 0.0f, 10.0f, 0.0f, 1.2f, &x, &y) > 8.79f, true);
+  CHECK_EQ(x > 8.79f && x < 8.81f && y == 0.0f, true);
+  CHECK_EQ(SpiritualWeaponStrikePoint(0.0f, 0.0f, 3.0f, 4.0f, 1.0f, &x, &y), 4.0f);
+  CHECK_EQ(x > 2.39f && x < 2.41f && y > 3.19f && y < 3.21f, true);
+  CHECK_EQ(SpiritualWeaponStrikePoint(2.0f, 2.0f, 3.0f, 2.0f, 1.2f, &x, &y), 0.0f);
+  CHECK_EQ(x == 2.0f && y == 2.0f, true);
+  CHECK_EQ(kSpiritualWeaponStandOffFeet < kSpiritualWeaponReachFeet, true);
+  // Its move's time: 4 m a second.
+  CHECK_EQ(SpiritualWeaponMoveSeconds(8.0f), 2.0f);
+  CHECK_EQ(SpiritualWeaponMoveSeconds(0.0f), 0.0f);
+  CHECK_EQ(SpiritualWeaponMoveSeconds(-1.0f), 0.0f);
+  // The cast: at a creature, its strike at once; at a spot or at yourself, none.
+  CHECK_EQ(SpiritualWeaponStrikesAtOnce(true, false), true);
+  CHECK_EQ(SpiritualWeaponStrikesAtOnce(true, true), false);
+  CHECK_EQ(SpiritualWeaponStrikesAtOnce(false, false), false);
+}
+
 // 0.99.117's fix (owner, 2026-11-22, S2-24: "the quarterstaff doesn't come back, the PC keeps attacking unarmed"):
 // Flame Blade's blade in the hand, on its way, or let go; the weapon it replaced back at the end.
 TEST(Level2Build1bBlade) {

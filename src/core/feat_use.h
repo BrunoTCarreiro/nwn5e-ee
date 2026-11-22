@@ -17,6 +17,9 @@ using FeatUseHandler = int (*)(void* creature, int feat, int subfeat, uint32_t t
 // 0.99.22: the target of the UseFeat being guarded or handled (OBJECT_INVALID outside one) - a guard that queues
 // the use keeps it (bonus_actions.cpp), one that arms it reads it (Hunter's Mark: Move).
 uint32_t CurrentFeatUseTarget();
+// #39 level 2 build 1b (Spiritual Weapon's C): the point of the UseFeat being guarded or handled - a use at a spot
+// (Vector x, y, z); false outside one or with no point given.
+bool CurrentFeatUseLocation(float* x, float* y, float* z);
 
 // Hook UseFeat on first use; false (and logged) if it can't.
 bool AddFeatUseGuard(FeatUseGuard guard);
