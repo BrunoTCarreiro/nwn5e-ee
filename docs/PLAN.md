@@ -2640,6 +2640,8 @@ the movement extras (#55); then the staple actions (#56, a decision first).
     RadialSpellsEntries, RadialSpellsEntryShows, RadialSpellsEntriesPlaced (were RadialMagic...). Tests
     RadialLabelsRenamed (557, 1158), RadialLabelTextsInTheCatalogue (Spells, Assign Spells, source owner),
     RadialRingSlots (Spells in faithful) - 9 of 9 mutations caught.
+  - The cleanup, Spells and Prepare Spells: the RC and MG rows passed. *Accepted (owner, 2026-11-22: "I think the
+    radial menu is good for now").* #182 closed; #126 stays open for layout A, after #125's actions.
 *Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
 0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
 Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).
