@@ -2187,7 +2187,7 @@ monster AC by CR.
         seat, 0 otherwise (the constructor's too). A henchman getting up now gets the engine's own pick
         (RecomputeAmbientAnimationState: the posture, then its "stand" animation); 0 if that export is missing.
         DH-1c passed. *Accepted (owner, 2026-11-21: "DH-1c fixed").*
-      - *DE-1 found (the owner, 2026-11-22: "DE-1 shows with fountain. moving the emitters under a node higher up doesn't
+      - *DE-1 found, fixed in 0.99.120 (the owner, 2026-11-22: "DE-1 shows with fountain. moving the emitters under a node higher up doesn't
         change anything. Sometiems if I press play in game many times it might go through, but I haven't understood why.
         Adding a new node that explodes rock chunks works but the node also sends up smoke in-game when it should only
         use the meshes"):* the ten debris effects' bursts threw nothing in game, and n5_db_light's sparks neither (its
