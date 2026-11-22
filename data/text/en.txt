@@ -779,6 +779,11 @@ target_window.cancelled | generated | nwn5e: {spell} cancelled - nothing spent.
 target_window.darts_creatures | generated | nwn5e: Magic Missile's darts strike creatures only - nothing spent.
 spells2024.scorching_ray_lights | generated | nwn5e: Scorching Ray lights the {name}.
 
+# --- The light gem (#9 a; src/core/light_gem_panel.cpp, rules/light_gem.h): the light where the hiding character stands ---
+light_gem.bright | srd:Bright Light | Bright Light
+light_gem.dim | srd:Dim Light | Dim Light
+light_gem.dark | srd:Darkness | Darkness
+
 # --- The radial menu (#126): NWN's labels the faithful radial renames (rules/radial_cleanup.h) -----------------------
 radial.stop_attacking | generated | Stop Attacking
 radial.search | srd:Search | Search

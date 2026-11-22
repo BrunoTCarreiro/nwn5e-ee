@@ -124,6 +124,10 @@ struct Config {
   // characters?" - "go with A"): a hiding character is outlined in EE's own
   // highlight glow (stealth_ghost.cpp).
   bool stealth_outline = true;
+  // #9 a (owner, 2026-11-15: "Sure, let's trial a light gem"): while the player character is in stealth mode, a small
+  // card over the HUD clock shows the light it stands in - Bright Light, Dim Light or Darkness - from the stealth
+  // watch's estimate (with stealth_light; light_gem_panel.cpp). A trial.
+  bool light_gem = true;
   // Henchmen and stealth (owner, 2026-10-25: "If they're following the PC they
   // should also enter stealth mode. If they have been asked to stand their
   // ground they should not"): while the player character hides its henchmen do

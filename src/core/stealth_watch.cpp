@@ -53,6 +53,9 @@
 //   while a player character hides: cheaper (no turning or script runs for creatures nobody watches) and fair -
 //   the looks only matter to a hider's cones, and calm hostiles see a hider only in them. Each look logged (who,
 //   the turn, the next look's time; 300 lines at most), and why one doesn't look when that changes (60 at most).
+// - The light gem (#9 a; owner, 2026-11-15: "Sure, let's trial a light gem"): with light_gem, the player character's
+//   light is worked out twice a second while it hides - the light alone half way between passes - for the gem on
+//   the HUD (light_gem_panel.cpp), which shows it; the light rule gets the fresher value too.
 // - Heard, not seen (0.27.0; owner: "for the hearing detection, do option 2"):
 //   2024 rules (perception=faithful) - finding a hider by hearing is finding it,
 //   so a hostile that hears it but doesn't see it investigates: it walks to where
@@ -146,6 +149,7 @@
 #include "effects.h"
 #include "engine.h"
 #include "hooks.h"
+#include "light_gem_panel.h"
 #include "log.h"
 #include "rules/cone_slices.h"
 #include "rules/idle_look.h"
@@ -186,6 +190,7 @@ struct Watch {
   bool on = false;  // markers or rings may be up in the area
   void* area = nullptr;
   uint64_t next = 0;
+  uint64_t half = 0;  // #9 a: the light alone, half way to the next pass
   int passes = 0;   // passes since it started hiding
 };
 std::unordered_map<uint32_t, Watch> g_watches;  // by player character
@@ -934,8 +939,18 @@ void Update(void* creature) {
   Watch& watch = g_watches[id];
   const uint64_t now = GetTickCount64();
   const bool hiding = Field<uint8_t>(creature, ee::kCreatureStealthMode) == 1;
+  // #9 a: for the light gem, the light twice a second - alone, half way between passes.
+  if (hiding && watch.on && now < watch.next && now >= watch.half && g_config.light_gem && g_config.stealth_light &&
+      g_config.perception == rules::RuleVariant::kFaithful) {
+    watch.half = watch.next;
+    Run("object pc = OBJECT_SELF; location at = GetLocation(pc);" + LightPart(CarriedLightRadius(creature), false), id,
+        "light");
+    if (StealthGhostOn()) SetStealthOpacity(id, OpacityFor(creature));
+    return;
+  }
   if (now < watch.next && hiding == watch.on) return;  // a change: at once (see kCheckMs)
   watch.next = now + kCheckMs;
+  watch.half = now + kCheckMs / 2;
   void* area = engine::AreaOf(creature);
   if (!area) return;
   if (hiding) {
@@ -1032,6 +1047,7 @@ void InstallStealthWatch() {
           rules::DrawnConeDegrees(g_config.vision_cone),
           rules::kConeSliceLengthCount, rules::kConeSliceRow, rules::kConeSliceRowLast, g_config.stealth_rings);
     }
+    InstallLightGem();  // #9 a: its own launch line
     // #9 d's launch line.
     if (!g_config.idle_look) {
       Log("stealth watch: idle looks off (idle_look=0) - calm enemies keep facing one way");

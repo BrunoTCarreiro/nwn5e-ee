@@ -5699,6 +5699,16 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   16), `idle_look_min_degrees` / `_max_degrees` (40 / 120), `idle_look_hold` (3); made sane (rules/idle_look.h,
   tested): seconds 2-600, degrees 5-180, hold 1-30, the shortest wait at least the hold + 1 s. Each look logged
   (300 lines at most), why one doesn't look when that changes (60).
+  *Built (#9 part 3):* the light gem (a), a trial. While the player character is in stealth mode, a small card on
+  the HUD shows the light it stands in - "Bright Light", "Dim Light" or "Darkness" (the SRD 5.2.1's terms;
+  data/text/en.txt light_gem.*, source srd) beside a gem in the light's colour (a warm white with a glow, a muted
+  grey-gold, a deep blue-black with a pale ring) - from the estimate the light rule uses (nwn5e_light_level, G
+  above). The watch now works the light out twice a second while hiding (the light alone half way between passes),
+  and the gem reads it twice a second; hidden out of stealth mode and until the light is worked out. Placed right
+  above the HUD clock, over the compass (bottom right): its card's right edge on the clock card's, 4 GUI units over
+  it, so it follows the clock (`!clock right / bottom`) and covers none of the game's own HUD (the quickbar, chat,
+  Talk line and the resource panel are bottom centre / left; the party bar top right). A client NUI window as the
+  clock's (light_gem_panel.cpp; rules/light_gem.h, tested). `light_gem` (on; needs stealth_light).
 - **Light where you hide** (0.32.0; owner: "do the sensible distances, I'll add
   light queries down the line"). The !light readings (Training Halls, night,
   interior): moon ambient 58 (dim), braziers / torch brackets found lit by

@@ -86,6 +86,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.stealth_light = ReadBool(ini, L"stealth_light", g_config.stealth_light);
   g_config.stealth_ghost = ReadBool(ini, L"stealth_ghost", g_config.stealth_ghost);
   g_config.stealth_outline = ReadBool(ini, L"stealth_outline", g_config.stealth_outline);
+  g_config.light_gem = ReadBool(ini, L"light_gem", g_config.light_gem);
   g_config.henchmen_follow_stealth = ReadBool(ini, L"henchmen_follow_stealth", g_config.henchmen_follow_stealth);
   g_config.light_sources = ReadBool(ini, L"light_sources", g_config.light_sources);
   g_config.map_light = GetPrivateProfileIntW(L"rules", L"map_light", g_config.map_light, ini);
