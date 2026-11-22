@@ -4590,3 +4590,79 @@ TEST(VfxReadsTheGamesColourAndSizeKeys) {
            true);
   CHECK_EQ(Milli(hand.emitters[0].size_start), 200);  // its geometry's, as before
 }
+
+// --- DE-1 (#172; the owner, 2026-11-22: "DE-1 shows with fountain ... Sometiems if I press play in game many times it might
+// go through"): the debris effects' bursts threw nothing in game. An Explosion bursts int(birthrate) particles when its
+// detonate rises, and with int(birthrate) 0 the detonate is spent on none (ExplosionEmitter::Update 0x1400647c0: the count
+// read first, 0 -> straight to the end, detonate cleared); every float controller is blended in from the field's value
+// over the animation's transtime (MdlNode::InternalControl 0x140051c50: field = (1 - w) field + w key), an effect's impact
+// from its geometry - so a burst with birthrate 0 there and its count keyed on in the impact had only w x its count when the
+// impact's detonate at 0 came (at 60 fps 0.67 of 10: none; a slow first frame a few). The game's own 356 bursts all carry
+// their count in the geometry. Now a burst the impact's detonate at 0 sets off carries its count there too; a late one keeps
+// 0 (the detonate at 0 mustn't set it off) and so does every other keyed emitter (a Fountain loses nothing to the blend). ---
+
+namespace {
+
+std::string GeometryOf(const std::string& model, const std::string& emitter) {
+  return Section(Section(model, "beginmodelgeom n5t", "endmodelgeom n5t"), "node emitter n5t_" + emitter, "endnode");
+}
+
+}  // namespace
+
+TEST(VfxBurstAtTheStartCarriesItsCountInItsGeometry) {
+  VfxEffect effect;
+  effect.duration = false;
+  effect.seconds = 2.0f;
+  VfxEmitter bang;
+  bang.name = "bang";
+  bang.update = "Explosion";
+  bang.birthrate = 30.0f;
+  effect.emitters.push_back(bang);
+  std::string model = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(Contains(GeometryOf(model, "0_bang"), "  birthrate 30\n"), true);
+  CHECK_EQ(Contains(Section(model, "newanim impact n5t", "doneanim impact n5t"), "  birthratekey 3\n    0 30\n    2 30\n    2.01 0\n"), true);
+  // With a late burst: the first still carries its count (its keys round the detonate at 0 start at it), the late one 0.
+  VfxEmitter echo = bang;
+  echo.name = "echo";
+  echo.birthrate = 12.0f;
+  echo.start_seconds = 0.5f;
+  effect.emitters.push_back(echo);
+  model = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(Contains(GeometryOf(model, "0_bang"), "  birthrate 30\n"), true);
+  CHECK_EQ(Contains(GeometryOf(model, "1_echo"), "  birthrate 0\n"), true);
+  // A keyed Fountain: 0, as before.
+  VfxEmitter spray = bang;
+  spray.name = "spray";
+  spray.update = "Fountain";
+  effect.emitters = {spray};
+  CHECK_EQ(Contains(GeometryOf(WriteVfxModel(effect, "n5t"), "0_spray"), "  birthrate 0\n"), true);
+  // A lasting effect: a burst on for a while (its On for) carries its count; one starting late 0; one always on as ever.
+  VfxEffect lasting = effect;
+  lasting.duration = true;
+  VfxEmitter puff = bang;
+  puff.name = "puff";
+  puff.emit_seconds = 0.5f;
+  VfxEmitter late = bang;
+  late.name = "late";
+  late.start_seconds = 0.3f;
+  late.birthrate = 7.0f;
+  VfxEmitter always = bang;
+  always.name = "always";
+  always.birthrate = 5.0f;
+  lasting.emitters = {puff, late, always};
+  model = WriteVfxModel(lasting, "n5t");
+  CHECK_EQ(Contains(GeometryOf(model, "0_puff"), "  birthrate 30\n"), true);
+  CHECK_EQ(Contains(GeometryOf(model, "1_late"), "  birthrate 0\n"), true);
+  CHECK_EQ(Contains(GeometryOf(model, "2_always"), "  birthrate 5\n"), true);
+  // A game effect's burst with its own birthrate keys: its own geometry's, as read.
+  VfxEmitter own = bang;
+  own.name = "own";
+  own.birthrate = 4.0f;
+  VfxKeys k;
+  k.anim = "impact";
+  k.birthrate = {0, 0, 0.4f, 9};
+  own.keys = {k};
+  effect.emitters = {own};
+  model = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(Contains(GeometryOf(model, "0_own"), "  birthrate 4\n"), true);
+}

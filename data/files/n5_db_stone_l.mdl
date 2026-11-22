@@ -46,7 +46,7 @@ node emitter n5_db_stone_l_0_dust
   sizeEnd_y 0
   frameStart 0
   frameEnd 24
-  birthrate 0
+  birthrate 10
   lifeExp 2.5
   mass 0.09
   spread 2.967
@@ -106,7 +106,7 @@ node emitter n5_db_stone_l_1_s01
   sizeEnd_y 0
   frameStart 0
   frameEnd 24
-  birthrate 0
+  birthrate 3
   lifeExp 0.75
   mass 3
   spread 1.222
@@ -167,7 +167,7 @@ node emitter n5_db_stone_l_2_gravel
   sizeEnd_y 0
   frameStart 0
   frameEnd 0
-  birthrate 0
+  birthrate 4
   lifeExp 4
   mass 2
   spread 4.189
@@ -228,7 +228,7 @@ node emitter n5_db_stone_l_3_dust_up
   sizeEnd_y 0
   frameStart 0
   frameEnd 24
-  birthrate 0
+  birthrate 10
   lifeExp 2.5
   mass 0.09
   spread 2.967
@@ -288,7 +288,7 @@ node emitter n5_db_stone_l_4_s02_up
   sizeEnd_y 0
   frameStart 0
   frameEnd 24
-  birthrate 0
+  birthrate 3
   lifeExp 0.75
   mass 3
   spread 1.222
@@ -349,7 +349,7 @@ node emitter n5_db_stone_l_5_rocks_up
   sizeEnd_y 0
   frameStart 0
   frameEnd 0
-  birthrate 0
+  birthrate 2
   lifeExp 4
   mass 2
   spread 4.189

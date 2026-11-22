@@ -46,7 +46,7 @@ node emitter n5_db_light_0_burst
   sizeEnd_y 0
   frameStart 0
   frameEnd 0
-  birthrate 0
+  birthrate 20
   lifeExp 0.25
   mass 0
   spread 6.283

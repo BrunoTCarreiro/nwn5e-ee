@@ -2187,6 +2187,23 @@ monster AC by CR.
         seat, 0 otherwise (the constructor's too). A henchman getting up now gets the engine's own pick
         (RecomputeAmbientAnimationState: the posture, then its "stand" animation); 0 if that export is missing.
         DH-1c passed. *Accepted (owner, 2026-11-21: "DH-1c fixed").*
+      - *DE-1 found (the owner, 2026-11-22: "DE-1 shows with fountain. moving the emitters under a node higher up doesn't
+        change anything. Sometiems if I press play in game many times it might go through, but I haven't understood why.
+        Adding a new node that explodes rock chunks works but the node also sends up smoke in-game when it should only
+        use the meshes"):* the ten debris effects' bursts threw nothing in game, and n5_db_light's sparks neither (its
+        smoke and embers are Fountains). ExplosionEmitter::Update (nwmain 0x1400647c0) reads int(birthrate) first and, at
+        0, skips to its end - the detonate cleared, nothing thrown; MdlNode::InternalControl (0x140051c50) applies every
+        float controller as field = (1 - w) field + w key, so an effect's impact blends each one in from the geometry
+        over its transtime (0.25 - MBK-1 saw the same of a place). nwn5e's writer gave a keyed burst birthrate 0 in the
+        geometry and its count in the impact's keys, so at the impact's detonate at 0 its rate was w x its count - at 60
+        fps 0.67 of 10, none; a slow first frame (a freshly written model loading) a few; the owner's rock burst of 40,
+        two or so. The game's own 356 bursts all keep their count in the geometry. *Fixed (unreleased):* a burst that
+        the impact's detonate at 0 sets off keeps its count there (vfx_model.cpp WriteVfxModel); a late one keeps 0 (the
+        detonate at 0 mustn't set it off), every other emitter as before; the eleven n5_db_* models rebuilt (only those
+        lines). The smoke: a chunk emitter draws no sprite (RenderNothing), but each chunk is its model, emitters and
+        all - fx_rockchunksml's and fx_rockchunkmed's smoke trail (a Fountain of fxpa_Smoke01) - which the bench's
+        library keeps only the meshes of; the stone debris throws the same rocks. Asked: the preview draws a chunk
+        model's own emitters, or rocks without a trail.
   - *Built 0.99.117 (build 1b; owner, 2026-11-22: "start it"):* Spiritual Weapon, Flame Blade, Dragon's Breath, Heat Metal, SRD
     5.2.1 (new rows 1256-1275, feats 1567-1577: data/rows/spells.if_spells2024.l2b1b.txt, feat.if_spells2024.l2b1b.txt;
     faithful only - none is NWN's, so NWN mode keeps NWN's spells as they are).

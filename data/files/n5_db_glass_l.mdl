@@ -46,7 +46,7 @@ node emitter n5_db_glass_l_0_gls
   sizeEnd_y 0
   frameStart 0
   frameEnd 24
-  birthrate 0
+  birthrate 4
   lifeExp 0.75
   mass 3
   spread 2.967
@@ -107,7 +107,7 @@ node emitter n5_db_glass_l_1_shards
   sizeEnd_y 0
   frameStart 0
   frameEnd 24
-  birthrate 0
+  birthrate 12
   lifeExp 0.75
   mass 3
   spread 2.967
@@ -168,7 +168,7 @@ node emitter n5_db_glass_l_2_glint
   sizeEnd_y 0
   frameStart 0
   frameEnd 0
-  birthrate 0
+  birthrate 10
   lifeExp 1
   mass 0.09
   spread 2.967
@@ -228,7 +228,7 @@ node emitter n5_db_glass_l_3_dust
   sizeEnd_y 0
   frameStart 0
   frameEnd 24
-  birthrate 0
+  birthrate 5
   lifeExp 2.5
   mass 0.09
   spread 2.967
@@ -288,7 +288,7 @@ node emitter n5_db_glass_l_4_gls_up
   sizeEnd_y 0
   frameStart 0
   frameEnd 24
-  birthrate 0
+  birthrate 4
   lifeExp 0.75
   mass 3
   spread 2.967
@@ -349,7 +349,7 @@ node emitter n5_db_glass_l_5_shards_up
   sizeEnd_y 0
   frameStart 0
   frameEnd 24
-  birthrate 0
+  birthrate 12
   lifeExp 0.75
   mass 3
   spread 2.967
@@ -410,7 +410,7 @@ node emitter n5_db_glass_l_6_dust_up
   sizeEnd_y 0
   frameStart 0
   frameEnd 24
-  birthrate 0
+  birthrate 5
   lifeExp 2.5
   mass 0.09
   spread 2.967

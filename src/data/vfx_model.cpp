@@ -687,7 +687,13 @@ std::string WriteVfxModel(const VfxEffect& original, const std::string& model) {
     // with its own emission (OwnEmission) keeps its rate here - its own keys say when it's on.
     const bool keyed = !OwnEmission(e) &&
                        (e.emit_seconds > 0.0f || !effect.duration || e.start_seconds > 0.0f || (late_burst && is_burst(e)));
-    for (const std::string& line : EmitterLines(e, names[k], parent_line(k), keyed, has_target(e))) {
+    // DE-1 (#172): a burst the impact's detonate at 0 sets off keeps its count in the geometry, as every one of the game's
+    // own does - the impact blends each controller in from the geometry's value over its transtime (InternalControl: field
+    // = (1 - w) field + w key), and ExplosionEmitter::Update spends a detonate on int(birthrate) particles, none while that
+    // is below 1. Keyed on from 0 (its impact's keys start at its count), the blend is then between equal values. A late
+    // one keeps 0, so the detonate at 0 doesn't set it off.
+    const bool burst_at_start = is_burst(e) && e.start_seconds <= 0.0f;
+    for (const std::string& line : EmitterLines(e, names[k], parent_line(k), keyed && !burst_at_start, has_target(e))) {
       if (!line.empty()) lines.push_back(line);
     }
   }
