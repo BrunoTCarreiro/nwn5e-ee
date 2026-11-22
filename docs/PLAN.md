@@ -5813,7 +5813,7 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   hearing the hider, the next pass started another investigation whose ClearAllActions cancelled the walk - every
   11 s (01.5, 12.5, 23.5, 34.5, 45.5: 5 investigations) until a search roll found the hider at 52.7. The idle looks
   played no part (0x381's last look 21:50:50, "doesn't look about - searching" after).
-  *Fixed (#9):* nwn5e's own investigation (nwn5e_seek with nwn5e_seek_why 1, a noise; 2, a light put out) moves
+  *Fixed 0.99.122 (#9):* nwn5e's own investigation (nwn5e_seek with nwn5e_seek_why 1, a noise; 2, a light put out) moves
   where it means to - the hook lets it through (rules::OwnInvestigationMove, tested), so it walks to the sound at
   once, turns its head, waits 6 s there and walks back, in search mode all the while. The drawing is left as it is
   (the cone while calm, the ring while searching; owner, 2026-11-22, a follow-up: "is it possible to add an
@@ -5824,7 +5824,7 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   *Decided (owner, 2026-11-22):* "is it possible to add an animation to the cone when is active search instead of
   making the cone disappear when not? if idle being lowest alert mode has a cone, any mode should have it as well",
   then "A, go with the sweeping cone" - a searching enemy keeps a cone that sweeps, and the rule follows the sweep.
-  *Built (#9, the sweeping cone):* every alert state draws a cone. Calm keeps vision_cone (90) on its facing; a
+  *Built 0.99.122 (#9, the sweeping cone):* every alert state draws a cone. Calm keeps vision_cone (90) on its facing; a
   searching one (Searching(): detect mode - an investigation's too - or in combat with alert_creatures_search) a
   `search_cone` (120) that sweeps `search_sweep_degrees` (60) to either side of its facing and back every
   `search_sweep_ms` (4000), holding `search_sweep_pause_ms` (500) at each end, linear between (rules::SweepAngle),
