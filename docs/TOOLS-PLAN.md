@@ -76,7 +76,14 @@ quoted here, as in PLAN.md.
   mid-loop: the cycle finishes, then the end); particles live on across the jump (only the animation time wraps);
   ticked during the end: the end finishes, then from 0; Seconds and Permanent set Play in game only; sim.js's
   "sections" mode (off for the Spell & Attack Bench and area copies). browser_check 147 ok, composer_check, the
-  spell bench's effects and particles checks pass.
+  spell bench's effects and particles checks pass. KY-1..5, TL-1/2 passed (owner: "KY and TL tests are good, start
+  keys phase 2"). *Phase 2 built (nwn5e-tools c802a33):* the tools (spin, orbit, wobble, Drop in, a mesh's spin and
+  breathe, a light's flicker, timing and fades) make ordinary diamonds and a re-run replaces only the tools' keys of
+  that kind in that part - the owner's keys (Key, a red field, a drag, a typed time; an edited tool key) stay, known
+  through the browser's storage (vfxbench.hand), not the draft; the key tables, "remove turn / scale keys" and Clear
+  gone - "Its time" (a key's exact time) in the selection card and a "Delete keys" row (which keys, which part). An
+  emitter's Rate / Starts after / On for: proposed A (the bar stays the timing control; birthrate out of Key).
+  browser_check 148 ok, check_beats, composer_check, the spell bench's checks pass. Tests KP-1..8.
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 
