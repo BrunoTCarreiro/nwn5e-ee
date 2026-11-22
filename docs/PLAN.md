@@ -2314,6 +2314,21 @@ monster AC by CR.
       - **The end:** the spell ending (Concentration, its minute) fades the force. A force lost, or left in another
         area, ends the spell. A save's leftover forces go at the player's first update of the game, once.
       - Tests Level2SpiritualWeaponForce; 13 of 13 mutations caught.
+      - *Fixed (owner, 2026-11-22: "S2-17c: no weapon shows up"):* the force was made and worked. The log showed it
+        "at 29.2, 28.2 (beside the creature ...)", striking, and moving 0.89 m. But it had no weapon to draw:
+        - `x2_s_faerie001`'s blueprint has an empty Equip_ItemList.
+        - Its body is appearance 298, Invisible_Human_Male (model c_invsguy).
+        - The game's spell gives the summon its blade itself, a second after the summon (x2_s0_persblde's
+          spellsCreateItemForSummoned: CreateItemOnObject("NW_WSWDG001") and ActionEquipItem).
+
+        Not the cause: SetObjectUiDiscoveryMask, which only toggles Tab highlight and mouseover discovery (EE's
+        nwscript doc), and the ethereal, ghost, plot and faction set-up, which Minor Illusion's images share and show
+        with. The fix:
+        - The force's chunk makes that dagger (`nw_wswdg001`), undroppable and plot, with a holy glow
+          (ITEM_VISUAL_HOLY), and equips it in the right hand first. Commandable goes off as an action after the equip;
+          set off at once, as it was, it would refuse the equip.
+        - The log names what was made ("appearance 298, its blade nw_wswdg001 (base item 22)"). Two seconds on it says
+          what the hand holds, whether the caster sees the force, and whether it's commandable.
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).

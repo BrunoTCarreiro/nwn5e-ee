@@ -5177,6 +5177,9 @@ int ReflexHalfAgainst(uint32_t self, const char* what, int row, const std::strin
 // view where a re-placed visual would blink.
 constexpr const char* kSpiritForceResRef = "x2_s_faerie001";
 constexpr const char* kTagSpiritForce = "n5s_spiritforce";
+constexpr const char* kSpiritBladeResRef = "nw_wswdg001";  // the persistent blade's own dagger (x2_s0_persblde)
+constexpr const char* kTagSpiritBlade = "n5s_spiritblade";
+constexpr uint64_t kForceCheckMs = 2000;
 
 struct SpiritWeapon {
   int row = rules::kSpiritualWeapon;  // the row its mark carries (the one cast: Concentration's)
@@ -5186,6 +5189,8 @@ struct SpiritWeapon {
   float x = 0.0f, y = 0.0f, z = 0.0f;  // where the force is now (where its last move ends)
   uint32_t force = 0;                  // its object
   uint32_t rounds = 0;                 // an NPC caster's round it last struck in
+  uint64_t made = 0;                   // game ms: the force made (its look checked 2 s on, once)
+  bool checked = false;
 };
 std::unordered_map<uint32_t, SpiritWeapon> g_spirit_weapons;  // by caster
 
@@ -5205,10 +5210,40 @@ if (GetIsObjectValid(f)) {
   ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(EffectEthereal()), f);
   ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(EffectCutsceneGhost()), f);
   ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_GOOD_HELP), f);
-  SetCommandable(FALSE, f);
+  // 0.99.120's S2-17c ("no weapon shows up"): the blueprint has no equipment (its Equip_ItemList is empty) and its
+  // body is appearance 298, Invisible_Human_Male - the game's spell gives the summon its dagger 1 s after (x2_s0_persblde:
+  // CreateItemOnObject("NW_WSWDG001") and ActionEquipItem). So the blade is made here and equipped first, a holy glow
+  // on it; commandable off once it's in the hand (an action after the equip: off now, the equip would be refused).
+  object w = CreateItemOnObject("$BLADE", f, 1, "$BLADETAG");
+  if (GetIsObjectValid(w)) {
+    SetIdentified(w, TRUE);
+    SetDroppableFlag(w, FALSE);
+    SetItemCursedFlag(w, TRUE);
+    SetPlotFlag(w, TRUE);
+    AddItemProperty(DURATION_TYPE_PERMANENT, ItemPropertyVisualEffect(ITEM_VISUAL_HOLY), w);
+    AssignCommand(f, ActionEquipItem(w, INVENTORY_SLOT_RIGHTHAND));
+  }
+  AssignCommand(f, ActionDoCommand(SetCommandable(FALSE, f)));
   r = ObjectToString(f) + ":0;";
+  SetLocalString(OBJECT_SELF, "n5s_force_made", "appearance " + IntToString(GetAppearanceType(f)) + ", its blade " +
+                 (GetIsObjectValid(w) ? GetResRef(w) + " (base item " + IntToString(GetBaseItemType(w)) + ")" : "NOT made") +
+                 " on its way to the hand");
 }
 SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+// A launch-safe look at the force 2 s after it was made (S2-17c's evidence): its body, what its hand holds, whether
+// you see it, whether it's commandable.
+const char* const kForceCheck = R"nss(
+object f = StringToObject("$FORCE"); string r = "gone";
+if (GetIsObjectValid(f)) {
+  object w = GetItemInSlot(INVENTORY_SLOT_RIGHTHAND, f);
+  r = "appearance " + IntToString(GetAppearanceType(f)) + ", right hand " +
+      (GetIsObjectValid(w) ? GetResRef(w) + " (base item " + IntToString(GetBaseItemType(w)) + ")" : "empty") +
+      ", seen by the caster " + IntToString(GetObjectSeen(f, OBJECT_SELF)) + ", commandable " +
+      IntToString(GetCommandable(f));
+}
+SetLocalString(OBJECT_SELF, "n5s_force_check", r);
 )nss";
 
 // Its move: a run to the point (it passes through creatures), then put exactly there; not commandable again after.
@@ -5320,6 +5355,8 @@ bool MakeForce(uint32_t self, void* caster, SpiritWeapon& weapon, float x, float
   std::string code = kForceMake;
   Replace(&code, "$RESREF", kSpiritForceResRef);
   Replace(&code, "$TAG", kTagSpiritForce);
+  Replace(&code, "$BLADE", kSpiritBladeResRef);
+  Replace(&code, "$BLADETAG", kTagSpiritBlade);
   Replace(&code, "$NAME", PlayerText("spells2024.spiritual_weapon_force"));
   Replace(&code, "$X", Float(x));
   Replace(&code, "$Y", Float(y));
@@ -5331,6 +5368,12 @@ bool MakeForce(uint32_t self, void* caster, SpiritWeapon& weapon, float x, float
   weapon.x = x;
   weapon.y = y;
   weapon.z = z;
+  weapon.made = GameMs();
+  weapon.checked = false;
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Spiritual Weapon's force 0x%08X made (%s): %s", self, weapon.force, kSpiritForceResRef,
+        weapon.force ? engine::GetLocalString(caster, "n5s_force_made").c_str() : "NOT made");
+  }
   return weapon.force != 0;
 }
 
@@ -6225,6 +6268,17 @@ void SpiritUpdate(void* creature, uint32_t id) {
     g_spirit_weapons.erase(it);
     if (LogSlot()) Log("spells2024: 0x%08X Spiritual Weapon ends - its force fades", id);
     return;
+  }
+  // S2-17c's evidence: the force's look, 2 s after it was made (its blade in the hand by then).
+  if (weapon.force && !weapon.checked && GameMs() >= weapon.made + kForceCheckMs) {
+    weapon.checked = true;
+    std::string code = kForceCheck;
+    Replace(&code, "$FORCE", ObjectHex(weapon.force));
+    Run(code, id, "Spiritual Weapon's force check");
+    if (LogSlot()) {
+      Log("spells2024: 0x%08X Spiritual Weapon's force 0x%08X 2 s on: %s", id, weapon.force,
+          engine::GetLocalString(creature, "n5s_force_check").c_str());
+    }
   }
   // Its force gone, or left in another area (an area change): the spell ends - its mark off, so Concentration ends.
   if (weapon.force) {
