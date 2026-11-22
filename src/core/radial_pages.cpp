@@ -22,15 +22,16 @@
 // - The spontaneous Cure / Inflict ring (CreateSpontaneousCastingMenuRadial, 992920, from 9927f0) has no caller in
 //   this build (no call, jump, lea or pointer reaches 9927f0), and spellcasting faithful serves classes.2da with
 //   CanCastSpontaneously 0 (#36) and refuses a character Cleric's spontaneous order (#42): nothing left to remove.
-// - Magic (owner, 2026-11-21: "do the Magic rename and Prepare Spells now"; faithful): the spell section's entry
-//   "Cast Spell" (557) is "Magic" (rules_labels.cpp), and the spell menu's constructor hook puts Prepare Spells
-//   (rules::RadialMagicEntries) in Magic's slot 6 after the game's build, when the page is yours or the quickbar's
-//   Assign Spell and the character has the feat: through the spell menu's own feat entry helper (9a4220: the menu,
-//   feat, page, slot, {its feat leaf 9a4770, 0} - icon, name and uses from feat.2da, greyed as the game greys a
-//   feat; both found in Epic Spells' page, 9a2180, the one other place they're used). The leaf uses the feat at the
-//   menu's target as the class section's entry does (radial_retarget.cpp's hook on it: a self-only feat used at
-//   once), or assigns it in the quickbar's assign mode. radial_class_feats.cpp leaves it out of the class sections
-//   once this is in place (RadialMagicEntriesPlaced).
+// - Spells (owner, 2026-11-21: "do the Magic rename and Prepare Spells now", then 2026-11-22: "instead of "magic"
+//   let's keep "spells""; faithful): the spell section's entry "Cast Spell" (557) is "Spells", the quickbar's
+//   "Assign Spell" (1158) "Assign Spells" (rules_labels.cpp), and the spell menu's constructor hook puts Prepare
+//   Spells (rules::RadialSpellsEntries) in the Spells page's slot 6 after the game's build, when the page is yours
+//   or the quickbar's Assign Spells and the character has the feat: through the spell menu's own feat entry helper
+//   (9a4220: the menu, feat, page, slot, {its feat leaf 9a4770, 0} - icon, name and uses from feat.2da, greyed as
+//   the game greys a feat; both found in Epic Spells' page, 9a2180, the one other place they're used). The leaf
+//   uses the feat at the menu's target as the class section's entry does (radial_retarget.cpp's hook on it: a
+//   self-only feat used at once), or assigns it in the quickbar's assign mode. radial_class_feats.cpp leaves it out
+//   of the class sections once this is in place (RadialSpellsEntriesPlaced).
 // - Which ring opened (0.99.111's first test, owner: "there's nothing much on the radial" - the log showed only
 //   Special Abilities pages built for a menu with no creature: the ring the ground opens, 84def0 - Cast Spell, Move
 //   To, More Actions, Special Abilities -, which never had Special Attacks): the creature menu's ring builder (98e550:
@@ -65,8 +66,8 @@ const int32_t* g_menus_made = nullptr;  // &g_nCRadialMenu_ctorCounter
 int g_rings_logged = 0;
 AddSpellFeatEntryFn g_add_spell_feat = nullptr;  // 9a4220
 uintptr_t g_spell_feat_leaf = 0;                 // 9a4770
-bool g_magic_entries = false;                    // Magic's entries placed (the class sections leave them out)
-int g_magic_logged = 0;
+bool g_spells_entries = false;  // the Spells page's entries placed (the class sections leave them out)
+int g_spells_logged = 0;
 
 constexpr const char* kAppManager = "?g_pAppManager@@3PEAVCAppManager@@EA";
 constexpr const char* kSetEntry = "?SetEntryx@CRadialMenu@@QEAAXHPEBDIPEAXP8CCallbackHandlerBase@@EAAX_J@Z2@Z";
@@ -154,31 +155,31 @@ struct FeatHandler {  // as the game's entries pass it: {the leaf, 0}
   uint32_t pad;
 };
 
-// Magic's own entries (Prepare Spells, slot 6) on a spell menu the game just built.
-void AddMagicEntries(void* menu, uint64_t from_menu) {
-  if (!g_magic_entries || !menu) return;
+// The Spells page's own entries (Prepare Spells, slot 6) on a spell menu the game just built.
+void AddSpellsEntries(void* menu, uint64_t from_menu) {
+  if (!g_spells_entries || !menu) return;
   void* player = Player();
   const bool on_you = player && Field<uint32_t>(menu, kSpellMenuTarget) == Field<uint32_t>(player, kClientObjectId);
   const bool assigning = Field<void*>(menu, kSpellMenuAssigning) != nullptr;
   size_t count = 0;
-  const rules::RadialMagicEntry* entries = rules::RadialMagicEntries(g_config.radial, &count);
+  const rules::RadialSpellsEntry* entries = rules::RadialSpellsEntries(g_config.radial, &count);
   for (size_t i = 0; entries && i < count; ++i) {
-    const rules::RadialMagicEntry& entry = entries[i];
+    const rules::RadialSpellsEntry& entry = entries[i];
     const bool has = PlayerHasFeat(player, static_cast<uint16_t>(entry.feat));
     const bool free = Field<void*>(menu, kMenuLabels + entry.slot * 8) == nullptr;
-    if (!rules::RadialMagicEntryShows(static_cast<uint32_t>(from_menu) != 0, on_you, assigning, has, free)) {
-      if (has && !free && (on_you || assigning) && g_magic_logged < 6) {
-        ++g_magic_logged;
-        Log("radial: Magic's slot %d is taken - %s not added there", entry.slot, entry.name);
+    if (!rules::RadialSpellsEntryShows(static_cast<uint32_t>(from_menu) != 0, on_you, assigning, has, free)) {
+      if (has && !free && (on_you || assigning) && g_spells_logged < 6) {
+        ++g_spells_logged;
+        Log("radial: the Spells page's slot %d is taken - %s not added there", entry.slot, entry.name);
       }
       continue;
     }
     const FeatHandler handler{g_spell_feat_leaf, 0, 0};
     g_add_spell_feat(menu, static_cast<uint32_t>(entry.feat), menu, entry.slot, &handler);
-    if (g_magic_logged < 6) {
-      ++g_magic_logged;
-      Log("radial: %s in the Magic page's slot %d (%s)", entry.name, entry.slot,
-          assigning ? "the quickbar's Assign Spell" : "your ring");
+    if (g_spells_logged < 6) {
+      ++g_spells_logged;
+      Log("radial: %s in the Spells page's slot %d (%s)", entry.name, entry.slot,
+          assigning ? "the quickbar's Assign Spells" : "your ring");
     }
   }
 }
@@ -194,7 +195,7 @@ void* SpellMenu(void* self, void* point, uint64_t target, uint64_t assigning, ui
           masked.Feats().c_str());
     }
   }
-  AddMagicEntries(menu, from_menu);
+  AddSpellsEntries(menu, from_menu);
   return menu;
 }
 
@@ -210,7 +211,7 @@ void CreatureRing(void* creature_menu, uint64_t a2) {
   const rules::RadialRing ring =
       rules::RadialRingOf(target, Field<uint32_t>(creature_menu, kMenuTargetMaster), PlayerId());
   Log("radial: %s ring opened (0x%08X) - %s", rules::RadialRingName(ring), target,
-      rules::RadialRingSlots(ring, slots).c_str());
+      rules::RadialRingSlots(ring, slots, g_config.radial).c_str());
 }
 
 void GroundRing(void* owner, const void* point) {
@@ -220,7 +221,7 @@ void GroundRing(void* owner, const void* point) {
   ++g_rings_logged;
   Log("radial: the ground's ring opened - %s (Special Attacks is on your own ring: right-click your character or "
       "its portrait)",
-      rules::RadialRingSlots(rules::RadialRing::kGround, kGroundRingSlots).c_str());
+      rules::RadialRingSlots(rules::RadialRing::kGround, kGroundRingSlots, g_config.radial).c_str());
 }
 
 // The log of the first rings opened - whose, and what they hold - in either mode.
@@ -333,7 +334,7 @@ void InstallRadialPages(void* (*player_creature)(void* client_app)) {
       reinterpret_cast<AddSpellFeatEntryFn>(feat_entry ? CallTarget(feat_entry + kSpellFeatEntryCall) : 0);
   g_spell_feat_leaf =
       feat_entry ? feat_entry + 7 + *reinterpret_cast<const int32_t*>(feat_entry + kSpellFeatLeafLea) : 0;
-  if (!HookAddress("radial Cast Spell (the spell menu; 3e Metamagic and Epic Spells left out, Magic's entries)",
+  if (!HookAddress("radial Cast Spell (the spell menu; 3e Metamagic and Epic Spells left out, Spells' entries)",
                    spell_menu, reinterpret_cast<void*>(&SpellMenu), reinterpret_cast<void**>(&g_spell_menu))) {
     return;
   }
@@ -343,9 +344,9 @@ void InstallRadialPages(void* (*player_creature)(void* client_app)) {
     Log("SKIP radial: Prepare Spells stays in the class section - the spell menu's feat entry wasn't found");
     return;
   }
-  g_magic_entries = true;
-  Log("radial: Magic (the Cast Spell entry, renamed) holds Prepare Spells in slot 6 - your ring's and the quickbar's "
-      "Assign Spell, for a character with the feat; the class sections leave it out (faithful)");
+  g_spells_entries = true;
+  Log("radial: Spells (the Cast Spell entry, renamed) holds Prepare Spells in slot 6 - your ring's and the "
+      "quickbar's Assign Spells, for a character with the feat; the class sections leave it out (faithful)");
 }
 
-bool RadialMagicEntriesPlaced() { return g_magic_entries; }
+bool RadialSpellsEntriesPlaced() { return g_spells_entries; }

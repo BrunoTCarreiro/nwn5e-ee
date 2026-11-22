@@ -2628,6 +2628,18 @@ the movement extras (#55); then the staple actions (#56, a decision first).
     leaves it out of the class sections once Magic holds it (rules::RadialMovesClassFeat, RadialMagicEntriesPlaced).
     Tests RadialLabelsRenamed, RadialLabelTextsInTheCatalogue (Magic), RadialMagicPrepareSpells,
     RadialMagicEntryShows (17 of 17 mutations caught).
+  - *Decided (owner, 2026-11-22: "instead of "magic" let's keep "spells". So the radial item would be "spells"
+    instead of "magic" and the quickbar would be "assign spells""):* the spell section is "Spells", the quickbar's
+    entry "Assign Spells".
+  - *Built (Spells; `radial` faithful):* "Cast Spell" (557) shows as "Spells" and the quickbar's "Assign Spell"
+    (1158) as "Assign Spells" (data/text/en.txt radial.spells, radial.assign_spells - the owner's words, source
+    owner; radial.magic gone). 1158's uses checked as 557's: the client sets it only as slot 1 of the quickbar's two
+    assign rings (yours 9ac4e0, a DM's 9adb20); no 2DA names it, and the other 0x486s in the code are a script
+    command number and bytes inside other instructions - renamed wherever it shows. The ring log names slot 1
+    "Spells" with the radial faithful (rules::RadialRingSlots takes the mode). The code's names follow:
+    RadialSpellsEntries, RadialSpellsEntryShows, RadialSpellsEntriesPlaced (were RadialMagic...). Tests
+    RadialLabelsRenamed (557, 1158), RadialLabelTextsInTheCatalogue (Spells, Assign Spells, source owner),
+    RadialRingSlots (Spells in faithful) - 9 of 9 mutations caught.
 *Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
 0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
 Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).

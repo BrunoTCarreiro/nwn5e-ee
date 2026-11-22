@@ -55,10 +55,11 @@ constexpr RadialLabel kLabels[] = {
     {4849, "radial.stop_searching", "Cancel Detect Mode"},
     {4850, "radial.hide", "Stealth Mode"},
     {4851, "radial.stop_hiding", "Cancel Stealth Mode"},
-    {557, "radial.magic", "Cast Spell"},
+    {557, "radial.spells", "Cast Spell"},
+    {1158, "radial.assign_spells", "Assign Spell"},
 };
 
-constexpr RadialMagicEntry kMagicEntries[] = {
+constexpr RadialSpellsEntry kSpellsEntries[] = {
     {kFeatPrepareSpells, 6, "Prepare Spells"},
 };
 
@@ -128,7 +129,7 @@ const char* RadialRingName(RadialRing ring) {
   return "?";
 }
 
-std::string RadialRingSlots(RadialRing ring, unsigned slots) {
+std::string RadialRingSlots(RadialRing ring, unsigned slots, RuleVariant radial) {
   // The game's entries in each slot (the #126 brief: the self ring 98ec00, the ground's 84def0).
   static const char* const kYours[8] = {"Character Sheet", "Cast Spell", "Attack",           "Special Attacks",
                                         "party / polymorph", "Issue Command", "Special Abilities", "Emote"};
@@ -140,26 +141,26 @@ std::string RadialRingSlots(RadialRing ring, unsigned slots) {
     if (!(slots & (1u << slot))) continue;
     if (!list.empty()) list += ", ";
     list += std::to_string(slot);
-    if (names && names[slot]) list += std::string(" ") + names[slot];
+    if (names && names[slot]) list += std::string(" ") + (slot == 1 && Faithful(radial) ? "Spells" : names[slot]);
   }
   return list.empty() ? "none" : list;
 }
 
-const RadialMagicEntry* RadialMagicEntries(RuleVariant radial, size_t* count) {
+const RadialSpellsEntry* RadialSpellsEntries(RuleVariant radial, size_t* count) {
   const bool faithful = Faithful(radial);
-  if (count) *count = faithful ? sizeof(kMagicEntries) / sizeof(kMagicEntries[0]) : 0;
-  return faithful ? kMagicEntries : nullptr;
+  if (count) *count = faithful ? sizeof(kSpellsEntries) / sizeof(kSpellsEntries[0]) : 0;
+  return faithful ? kSpellsEntries : nullptr;
 }
 
 bool RadialMovesClassFeat(RuleVariant radial, int feat) {
   if (!Faithful(radial)) return false;
-  for (const RadialMagicEntry& entry : kMagicEntries) {
+  for (const RadialSpellsEntry& entry : kSpellsEntries) {
     if (entry.feat == feat) return true;
   }
   return false;
 }
 
-bool RadialMagicEntryShows(bool built, bool on_you, bool assigning, bool has_feat, bool slot_free) {
+bool RadialSpellsEntryShows(bool built, bool on_you, bool assigning, bool has_feat, bool slot_free) {
   return built && (on_you || assigning) && has_feat && slot_free;
 }
 

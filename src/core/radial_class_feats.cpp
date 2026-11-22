@@ -23,8 +23,9 @@
 // Epic Dragon Shape - are off every menu the same way (yours too), so the
 // quickbar's "Assign Special Abilities" (the same page builder) lists them no
 // more either; a section left with one feat shows it in place, as the game does.
-// Prepare Spells moved to the Magic page (owner, 2026-11-21: "do the Magic rename and Prepare Spells now";
-// radial_pages.cpp) is off the class sections the same way, once Magic holds it (RadialMagicEntriesPlaced).
+// Prepare Spells moved to the Spells page (Cast Spell, renamed; owner, 2026-11-21: "do the Magic rename and
+// Prepare Spells now"; radial_pages.cpp) is off the class sections the same way, once the Spells page holds it
+// (RadialSpellsEntriesPlaced).
 
 #include <windows.h>
 
@@ -102,7 +103,7 @@ class SelfFeatsOff {
                                 Field<uint32_t>(player, kClientObjectId));
     const bool self_only = g_config.radial_hide_self_feats && others;
     const bool nwn_only = g_config.radial == rules::RuleVariant::kFaithful;
-    const bool moved = nwn_only && RadialMagicEntriesPlaced();  // to the Magic page
+    const bool moved = nwn_only && RadialSpellsEntriesPlaced();  // to the Spells page
     if (!self_only && !nwn_only) return;
     void* stats = Field<void*>(player, kClientCreatureStats);
     uint8_t* classes = Field<uint8_t*>(game_rules, kRulesClasses);
@@ -158,7 +159,7 @@ void* CollectClassMenus(void* menu, void* records) {
   }
   if (off.Moved() && g_moved_logged < 3) {
     ++g_moved_logged;
-    Log("radial: the class sections without Prepare Spells - it is on the Magic page (faithful, #126)");
+    Log("radial: the class sections without Prepare Spells - it is on the Spells page (faithful, #126)");
   }
   if (off.NwnOnly() && g_nwn_logged < 3) {
     ++g_nwn_logged;

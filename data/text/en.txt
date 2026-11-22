@@ -762,4 +762,5 @@ radial.search | srd:Search | Search
 radial.stop_searching | generated | Stop Searching
 radial.hide | srd:Hide | Hide
 radial.stop_hiding | generated | Stop Hiding
-radial.magic | srd:Magic | Magic
+radial.spells | owner | Spells
+radial.assign_spells | owner | Assign Spells

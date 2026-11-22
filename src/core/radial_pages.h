@@ -39,6 +39,6 @@ bool RemoveRadialFixedEntries(rules::RadialPage page, uintptr_t builder);
 // page's, found by radial_special_attacks.cpp, which calls this).
 void InstallRadialPages(void* (*player_creature)(void* client_app));
 
-// #126: Magic's own entries (Prepare Spells in slot 6) are placed - their pieces found, the spell menu hooked - so
+// #126: the Spells page's own entries (Prepare Spells in slot 6) are placed - their pieces found, the spell menu hooked - so
 // the class sections leave those feats out (radial_class_feats.cpp).
-bool RadialMagicEntriesPlaced();
+bool RadialSpellsEntriesPlaced();
