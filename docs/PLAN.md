@@ -2236,7 +2236,7 @@ monster AC by CR.
     - Text: the four names and descriptions SRD 5.2.1 verbatim, each with a generated note (the blade item's name the
       spell's); the actions' names and descriptions and 21 catalogue lines generated, for review (docs/TEXT-REVIEW.md).
     - Profiles: weaponcleric, bladedruid, breathsorcerer.
-    - *Fixed (owner's tests, 2026-11-22):*
+    - *Fixed 0.99.119 (owner's tests, 2026-11-22):*
       - **An item's id** (S2-25: "the orc doesn't drop the axe", the chat naming "the red-hot nwn5e Test Grounds"; S2-24:
         "the quarterstaff doesn't come back, the PC keeps attacking unarmed"). The log: "heats 0x000001B3's weapon
         0x00000000", the armour "0x0A0B0A0A", and the blade "never reached the hand" 7 s after the cast. Heat Metal and
@@ -2269,7 +2269,7 @@ monster AC by CR.
       enemy or can it attack any enemy in range?"; then "if you can build it faithfuly, then yes, C". C: a visible
       force that stays for the whole spell, not a creature in play, cast at a creature or a spot, its Strike moving
       it.
-    - *Built (Spiritual Weapon's C):*
+    - *Built 0.99.119 (Spiritual Weapon's C):*
       - **The force:** NWN's own Shelgarn's Persistent Blade (`x2_s_faerie001`: an invisible body, appearance 298,
         holding its blade) - the game's one floating-weapon look, since no visual effect draws a weapon. It stays
         where it is for the spell and fades when it ends (VFX_IMP_UNSUMMON).
