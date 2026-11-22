@@ -2329,6 +2329,40 @@ monster AC by CR.
           set off at once, as it was, it would refuse the equip.
         - The log names what was made ("appearance 298, its blade nw_wswdg001 (base item 22)"). Two seconds on it says
           what the hand holds, whether the caster sees the force, and whether it's commandable.
+      - *Decided (owner, 2026-11-22):* the force's look. The owner on S2-17c: "weapon appears, but doesn't look very
+        "spiritual", is it possible to customize the look and idle animation?"; on S2-21c: "I can right click and
+        attack the weapon, I cannot walk through it" (NWN lets a player right-click and attack any creature, and the
+        force blocked movement); then "A, make the draft look". The force becomes an effect on an invisible marker, not
+        a creature; the look agent makes its models.
+      - *Built (the force an effect):*
+        - **The marker:** the game's invisible object (`plc_invisobj`: an invisible model whose walkmesh is a use node
+          only, so nothing bumps into it) at the force's spot. It's made not useable (it can't be clicked, highlighted,
+          targeted or attacked), plot (no damage), with no UI discovery, tagged n5s_spiritforce. Not static: a static
+          placeable takes no effect and casts nothing. On it, the idle: visualeffects.2da 4180 (NWN5E_SPIRIT_WEAPON,
+          model n5_swp_idle), supernatural and permanent until the spell ends; the cast's arrival keeps its
+          VFX_IMP_GOOD_HELP.
+        - **The flight** (a Strike that moves it, or one at a spot): the idle comes off the old marker, which casts
+          spells.2da 1279 (nwn5e_Spiritual_Weapon_Flight, data/rows/spells.if_spells2024.swfx.txt: projectile
+          n5_swp_fly, homing, along its path; a cheat cast) at the new spot, so the game flies it. The row's impact
+          (n5_s_spiritland, run in C++) makes the new marker there, turned the way it flew or toward the creature, and
+          the old one goes. A landing not heard in 1.5 s plus the move's time at 4 m a second is made anyway
+          (rules::SpiritualWeaponLandingMs). A move under 0.1 m doesn't fly (rules::SpiritualWeaponFlies).
+        - **The swing** (each strike, after the flight when it moves): visualeffects.2da 4182 (NWN5E_SPIRIT_WEAPON_STRIKE,
+          model n5_swp_hit), an instant effect at the force's spot turned toward the creature
+          (rules::SpiritualWeaponFacing). The Divine Strike's holy flash on a hit, a parry's sparks on a miss, and the
+          damage land 0.15 s after it. The attack is rolled when the strike is ordered. This replaces the turn-and-back
+          swing, the dagger and the bench's leap. Row 4181 (NWN5E_SPIRIT_WEAPON_FLY) is the look agent's.
+        - **C's rules unchanged:** a cast at a creature or a spot, Strike's 25 / 20 feet measured from the force's
+          stored spot (the new spot as soon as it's ordered), the refusals, an NPC's Strike by chance, the end with
+          Concentration, a marker gone or left in another area ending the spell, a save's stray markers swept by
+          their tag.
+        - **Retired:** the x2_s_faerie001 creature, its dagger, and the tag check in the spells' gathers. The marker is
+          no creature, so the creature gathers (the Cones, Ice Knife's burst, the squares, a henchman's breath check)
+          can't find it. Shatter's object gather leaves out plot ones.
+        - **Log:** the marker made (its id, where, its effect, its flags), the flight (from, to, the row, the marker
+          casting it), the landing (how, after how long, the markers), the swing (its effect, where, its facing, the
+          damage), and the marker 2 s after the cast.
+        - Tests Level2SpiritualWeaponForce (the flight, its landing's wait, the facing); 8 of 8 mutations caught.
     - *Decided (owner, 2026-11-22):* Heat Metal's rework. The owner on S2-25b: "the axe becomes on fire (the vfx need
       to be adjusted so the weapon just glows red) but isn't visually dropped. Ah, a second time it was put away but the
       orc immediately brought it back out AND attacked the same turn so testing S2-26b is very hard as they orc equips

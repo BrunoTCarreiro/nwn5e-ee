@@ -772,6 +772,21 @@ float SpiritualWeaponMoveSeconds(float metres) {
   return metres > 0.0f ? metres / kSpiritualWeaponMetresPerSecond : 0.0f;
 }
 
+bool SpiritualWeaponFlies(float metres) { return metres >= kSpiritualWeaponLeastFlightMetres; }
+
+int SpiritualWeaponLandingMs(float metres) {
+  return kSpiritualWeaponLandingSlackMs + static_cast<int>(SpiritualWeaponMoveSeconds(metres) * 1000.0f);
+}
+
+float SpiritualWeaponFacing(float x, float y, float to_x, float to_y) {
+  const float dx = to_x - x;
+  const float dy = to_y - y;
+  if (dx * dx + dy * dy < 0.0001f) return 0.0f;
+  float degrees = std::atan2(dy, dx) * 57.29578f;
+  if (degrees < 0.0f) degrees += 360.0f;
+  return degrees;
+}
+
 bool SpiritualWeaponStrikesAtOnce(bool at_creature, bool at_caster) { return at_creature && !at_caster; }
 
 bool IsDragonsBreathRow(int row) {

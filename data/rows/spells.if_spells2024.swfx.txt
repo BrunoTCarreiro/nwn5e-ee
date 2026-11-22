@@ -1,0 +1,7 @@
+# spells.2da - #39 Part 2, level 2, build 1b, Spiritual Weapon's look (core/rules_spells2024.cpp; served with
+# spellcasting faithful, as the other spells2024 rows; owner, 2026-11-22: "A, make the draft look"): the force's flight
+# from spot to spot, 1279 - cast by its old marker (an invisible placeable) at the new spot, so the game flies its
+# projectile n5_swp_fly (the look agent's model; nothing shows until it's there); its impact, n5_s_spiritland (run in
+# C++), makes the new marker where it lands. No class lists, no feat: no one casts it but the marker.
+Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Bard Cleric Druid Paladin Ranger Wiz_Sorc Innate ConjTime ConjAnim ConjHeadVisual ConjHandVisual ConjGrndVisual ConjSoundVFX ConjSoundMale ConjSoundFemale CastAnim CastTime CastHeadVisual CastHandVisual CastGrndVisual CastSound Proj ProjModel ProjType ProjSpwnPoint ProjSound ProjOrientation ImmunityType ItemImmunity SubRadSpell1 SubRadSpell2 SubRadSpell3 SubRadSpell4 SubRadSpell5 Category Master UserType SpellDesc UseConcentration SpontaneouslyCast AltMessage HostileSetting FeatID Counter1 Counter2 HasProjectile TargetShape TargetSizeX TargetSizeY TargetFlags
+1279 nwn5e_Spiritual_Weapon_Flight 16000893 n5_is_new V L **** 0x00 0x04 n5_s_spiritland **** **** **** **** **** **** 2 0 **** **** **** **** **** **** **** **** 0 **** **** **** **** 1 n5_swp_fly homing hand **** path **** 0 **** **** **** **** **** **** **** 4 16000894 0 0 **** 0 **** **** **** 1 **** **** **** ****

@@ -623,9 +623,28 @@ ForceOrder SpiritualWeaponOrder(bool at_creature, float metres, float slack);
 constexpr int kSpiritualWeaponStandOffFeet = 4;
 float SpiritualWeaponStrikePoint(float force_x, float force_y, float target_x, float target_y, float stand_off,
                                  float* x, float* y);
-// How long its move takes - its run, 4 m a second (nothing to move: no time).
+// How long its move takes - 4 m a second (nothing to move: no time); its flight's landing is waited for that long and
+// more (SpiritualWeaponLandingMs).
 constexpr float kSpiritualWeaponMetresPerSecond = 4.0f;
 float SpiritualWeaponMoveSeconds(float metres);
+// The force's look (owner, 2026-11-22: "A, make the draft look"): an effect on an invisible marker, not a creature -
+// visualeffects.2da 4180 its idle (on the marker), 4181 its flight's (the look agent's), 4182 its swing (an instant
+// effect at its spot, turned toward the creature); its flight spells.2da 1279's projectile (n5_swp_fly), cast by the
+// old marker at the new spot, the new marker made where it lands (the row's impact).
+constexpr int kSpiritualWeaponFlight = 1279;
+constexpr int kSpiritWeaponIdleVfx = 4180;
+constexpr int kSpiritWeaponFlyVfx = 4181;
+constexpr int kSpiritWeaponStrikeVfx = 4182;
+// A move this long or longer flies; a shorter one leaves the force where it is (a strike swings from there).
+constexpr float kSpiritualWeaponLeastFlightMetres = 0.1f;
+bool SpiritualWeaponFlies(float metres);
+// How long a flight's landing (its projectile's impact) is waited for before it's made anyway: 1.5 s and the move's
+// time (SpiritualWeaponMoveSeconds).
+constexpr int kSpiritualWeaponLandingSlackMs = 1500;
+int SpiritualWeaponLandingMs(float metres);
+// The facing from (x, y) toward (to_x, to_y): NWN's degrees, anticlockwise from east, 0 to 360 (0: the same point) -
+// the marker's (its idle's way) and the swing's.
+float SpiritualWeaponFacing(float x, float y, float to_x, float to_y);
 // The cast: at a creature (not yourself) the force appears beside it and strikes at once; at a spot it appears there.
 bool SpiritualWeaponStrikesAtOnce(bool at_creature, bool at_caster);
 // Dragon's Breath: a row's type - a type's row, its exhale row or (none chosen: the master, its Bonus Action's row, an

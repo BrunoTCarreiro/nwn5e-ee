@@ -424,6 +424,27 @@ TEST(Level2SpiritualWeaponForce) {
   CHECK_EQ(SpiritualWeaponMoveSeconds(8.0f), 2.0f);
   CHECK_EQ(SpiritualWeaponMoveSeconds(0.0f), 0.0f);
   CHECK_EQ(SpiritualWeaponMoveSeconds(-1.0f), 0.0f);
+  // Its look (owner, 2026-11-22: "A, make the draft look"): a move flies from 0.1 m; its landing waited for 1.5 s
+  // and the move's time; the marker and the swing turned toward where it goes.
+  CHECK_EQ(SpiritualWeaponFlies(0.0f), false);
+  CHECK_EQ(SpiritualWeaponFlies(0.09f), false);
+  CHECK_EQ(SpiritualWeaponFlies(0.1f), true);
+  CHECK_EQ(SpiritualWeaponFlies(6.1f), true);
+  CHECK_EQ(SpiritualWeaponLandingMs(0.0f), 1500);
+  CHECK_EQ(SpiritualWeaponLandingMs(6.0f), 3000);
+  CHECK_EQ(SpiritualWeaponLandingMs(-2.0f), 1500);
+  CHECK_EQ(SpiritualWeaponFacing(0.0f, 0.0f, 3.0f, 0.0f), 0.0f);
+  CHECK_EQ(SpiritualWeaponFacing(1.0f, 1.0f, 1.0f, 4.0f) > 89.99f && SpiritualWeaponFacing(1.0f, 1.0f, 1.0f, 4.0f) < 90.01f,
+           true);
+  CHECK_EQ(SpiritualWeaponFacing(0.0f, 0.0f, -2.0f, 0.0f) > 179.99f && SpiritualWeaponFacing(0.0f, 0.0f, -2.0f, 0.0f) < 180.01f,
+           true);
+  CHECK_EQ(SpiritualWeaponFacing(0.0f, 0.0f, 0.0f, -2.0f) > 269.99f && SpiritualWeaponFacing(0.0f, 0.0f, 0.0f, -2.0f) < 270.01f,
+           true);
+  CHECK_EQ(SpiritualWeaponFacing(2.0f, 2.0f, 4.0f, 4.0f) > 44.99f && SpiritualWeaponFacing(2.0f, 2.0f, 4.0f, 4.0f) < 45.01f,
+           true);
+  CHECK_EQ(SpiritualWeaponFacing(2.0f, 2.0f, 2.0f, 2.0f), 0.0f);
+  CHECK_EQ(kSpiritualWeaponFlight, 1279);  // data/rows/spells.if_spells2024.swfx.txt
+  CHECK_EQ(Spell2024Of(kSpiritualWeaponFlight) == nullptr, true);  // no spell of its own: the marker's projectile
   // The cast: at a creature, its strike at once; at a spot or at yourself, none.
   CHECK_EQ(SpiritualWeaponStrikesAtOnce(true, false), true);
   CHECK_EQ(SpiritualWeaponStrikesAtOnce(true, true), false);
