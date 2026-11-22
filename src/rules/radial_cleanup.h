@@ -70,7 +70,11 @@ struct RadialLabel {
 // as "Stop Attacking" (owner, 2026-11-21); Detect Mode / Cancel Detect Mode (4848 / 4849) as the Search action,
 // Stealth Mode / Cancel Stealth Mode (4850 / 4851) as the Hide action (nwn5e's detect and stealth modes are them:
 // SK5). The game shows each of these strings only on its radial and quickbar buttons and the action queue's icons,
-// all meaning that same thing, so the string is renamed wherever it shows. None in NWN mode.
+// all meaning that same thing, so the string is renamed wherever it shows. "Cast Spell" (557) as Magic, the SRD 5.2.1
+// action's name (owner, 2026-11-21: "do the Magic rename and Prepare Spells now"): the client uses 557 only as the
+// spell section's entry on a radial - your ring, a DM's, your associate's, another creature's, the ground's, an
+// item's, a placeable's, a door's, and the spell menu's own "Cast Spell" entry (a DM's); the quickbar's assign ring
+// says "Assign Spell" (1158), its own string. None in NWN mode.
 const RadialLabel* RadialLabels(RuleVariant radial, size_t* count);
 // The key of the text that replaces `strref`'s, nullptr when it stays.
 const char* RadialLabelKey(RuleVariant radial, uint32_t strref);
@@ -86,5 +90,23 @@ const char* RadialRingName(RadialRing ring);  // "your", "your associate's", "an
 // The log's list of a ring's entries: the slots set (bit s of `slots`), named for your ring and the ground's
 // ("0 Character Sheet, 1 Cast Spell, ..."), numbered for the others ("0, 1, 2, 3, 6, 7"); "none" when empty.
 std::string RadialRingSlots(RadialRing ring, unsigned slots);
+
+// #126, Magic's own entries (owner, 2026-11-21, after RC-7: "Prepare spells should also be in the Cast Spell section
+// (wasn't it supposed to be called Magic)?", then "do the Magic rename and Prepare Spells now"): a feat the faithful
+// Magic page shows in a slot of its own - Prepare Spells (1547, every 2024 caster's: #36) in slot 6, Spell Special
+// Abilities' before the cleanup took it out - for a character with it; the class sections leave it out
+// (RadialMovesClassFeat), so it is in one place. One entry for a multiclass: the Prepare spells window has its "Next
+// class" button. None in NWN mode.
+struct RadialMagicEntry {
+  int feat;
+  int slot;
+  const char* name;  // for the log
+};
+const RadialMagicEntry* RadialMagicEntries(RuleVariant radial, size_t* count);
+bool RadialMovesClassFeat(RuleVariant radial, int feat);
+// Whether a Magic entry goes on a spell menu the game just built: one built as a page (`built` - the innate
+// abilities' page builds none of its own entries), on your own ring (`on_you`) or the quickbar's Assign Spell
+// (`assigning`), for a character with the feat, in a slot still empty.
+bool RadialMagicEntryShows(bool built, bool on_you, bool assigning, bool has_feat, bool slot_free);
 
 }  // namespace rules

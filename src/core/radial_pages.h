@@ -38,3 +38,7 @@ bool RemoveRadialFixedEntries(rules::RadialPage page, uintptr_t builder);
 // associate's, another creature's, the ground's) and the slots they hold. `player_creature` is the client's own creature getter (the Special Attacks
 // page's, found by radial_special_attacks.cpp, which calls this).
 void InstallRadialPages(void* (*player_creature)(void* client_app));
+
+// #126: Magic's own entries (Prepare Spells in slot 6) are placed - their pieces found, the spell menu hooked - so
+// the class sections leave those feats out (radial_class_feats.cpp).
+bool RadialMagicEntriesPlaced();

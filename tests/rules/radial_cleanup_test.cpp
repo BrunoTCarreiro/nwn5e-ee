@@ -102,23 +102,25 @@ TEST(RadialClassSectionsHideNwnOnlyFeats) {
   }
 }
 
-// #126: NWN's labels renamed in faithful - "Disengage" (stop attacking), Detect and Stealth Mode.
+// #126: NWN's labels renamed in faithful - "Disengage" (stop attacking), Detect and Stealth Mode, Cast Spell.
 TEST(RadialLabelsRenamed) {
   CHECK_EQ(Text(RadialLabelKey(kFaithful, 1057)) == "radial.stop_attacking", true);
   CHECK_EQ(Text(RadialLabelKey(kFaithful, 4848)) == "radial.search", true);
   CHECK_EQ(Text(RadialLabelKey(kFaithful, 4849)) == "radial.stop_searching", true);
   CHECK_EQ(Text(RadialLabelKey(kFaithful, 4850)) == "radial.hide", true);
   CHECK_EQ(Text(RadialLabelKey(kFaithful, 4851)) == "radial.stop_hiding", true);
-  for (uint32_t strref : {1056u, 1055u, 949u, 4852u, 4847u, 1058u, 0u}) {  // Attack, the pages, Parry Mode ...
+  CHECK_EQ(Text(RadialLabelKey(kFaithful, 557)) == "radial.magic", true);
+  // Attack, the pages, Parry Mode ...; Assign Spell (the quickbar's own string), Spells (the spell list's entry).
+  for (uint32_t strref : {1056u, 1055u, 949u, 4852u, 4847u, 1058u, 0u, 1158u, 2295u, 556u, 558u}) {
     CHECK_EQ(RadialLabelKey(kFaithful, strref) == nullptr, true);
   }
-  for (uint32_t strref : {1057u, 4848u, 4849u, 4850u, 4851u}) {
+  for (uint32_t strref : {1057u, 4848u, 4849u, 4850u, 4851u, 557u}) {
     CHECK_EQ(RadialLabelKey(kNwn, strref) == nullptr, true);
     CHECK_EQ(RadialLabelKey(kOff, strref) == nullptr, true);
   }
   size_t count = 99;
   const RadialLabel* labels = RadialLabels(kFaithful, &count);
-  CHECK_EQ(count, 5u);
+  CHECK_EQ(count, 6u);
   for (size_t i = 0; labels && i < count; ++i) {
     CHECK_EQ(Text(RadialLabelKey(kFaithful, labels[i].strref)) == Text(labels[i].key), true);
   }
@@ -147,6 +149,8 @@ TEST(RadialLabelTextsInTheCatalogue) {
   CHECK_EQ(source("radial.hide") == "srd:Hide", true);
   CHECK_EQ(text("radial.stop_searching") == "Stop Searching", true);
   CHECK_EQ(text("radial.stop_hiding") == "Stop Hiding", true);
+  CHECK_EQ(text("radial.magic") == "Magic", true);
+  CHECK_EQ(source("radial.magic") == "srd:Magic", true);
   size_t count = 0;
   const RadialLabel* labels = RadialLabels(kFaithful, &count);
   for (size_t i = 0; labels && i < count; ++i) CHECK_EQ(catalog.count(labels[i].key), 1u);
@@ -195,4 +199,41 @@ TEST(RadialRingSlots) {
   CHECK_EQ(RadialRingSlots(RadialRing::kYourAssociate, 0x01) == "0", true);
   CHECK_EQ(RadialRingSlots(RadialRing::kYours, 0) == "none", true);
   CHECK_EQ(RadialRingSlots(RadialRing::kGround, 0x100) == "none", true);  // only slots 0-7
+}
+
+// #126 (owner, 2026-11-21: "do the Magic rename and Prepare Spells now"): Prepare Spells on the Magic page, slot 6,
+// out of the class sections; nothing in NWN mode.
+TEST(RadialMagicPrepareSpells) {
+  size_t count = 99;
+  const RadialMagicEntry* entries = RadialMagicEntries(kFaithful, &count);
+  CHECK_EQ(count, 1u);
+  CHECK_EQ(entries != nullptr, true);
+  if (entries && count == 1) {
+    CHECK_EQ(entries[0].feat, 1547);
+    CHECK_EQ(entries[0].slot, 6);
+    CHECK_EQ(Text(entries[0].name) == "Prepare Spells", true);
+  }
+  count = 99;
+  CHECK_EQ(RadialMagicEntries(kNwn, &count) == nullptr, true);
+  CHECK_EQ(count, 0u);
+  count = 99;
+  CHECK_EQ(RadialMagicEntries(kOff, &count) == nullptr, true);
+  CHECK_EQ(count, 0u);
+  CHECK_EQ(RadialMovesClassFeat(kFaithful, 1547), true);
+  CHECK_EQ(RadialMovesClassFeat(kNwn, 1547), false);
+  CHECK_EQ(RadialMovesClassFeat(kOff, 1547), false);
+  for (int feat : {294, 1546, 1548, 413, 0}) CHECK_EQ(RadialMovesClassFeat(kFaithful, feat), false);
+  // Moved, not hidden as NWN-only: the two lists stay apart.
+  CHECK_EQ(RadialHidesClassFeat(kFaithful, 1547), false);
+}
+
+TEST(RadialMagicEntryShows) {
+  CHECK_EQ(RadialMagicEntryShows(true, true, false, true, true), true);   // your Magic page
+  CHECK_EQ(RadialMagicEntryShows(true, false, true, true, true), true);   // the quickbar's Assign Spell
+  CHECK_EQ(RadialMagicEntryShows(true, true, true, true, true), true);
+  CHECK_EQ(RadialMagicEntryShows(true, false, false, true, true), false);  // another creature's, the ground's
+  CHECK_EQ(RadialMagicEntryShows(false, true, false, true, true), false);  // the innate abilities' page
+  CHECK_EQ(RadialMagicEntryShows(true, true, false, false, true), false);  // no Prepare Spells
+  CHECK_EQ(RadialMagicEntryShows(true, true, false, true, false), false);  // slot 6 taken
+  CHECK_EQ(RadialMagicEntryShows(true, false, true, false, true), false);
 }

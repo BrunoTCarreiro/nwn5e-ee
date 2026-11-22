@@ -1,5 +1,7 @@
 #include "rules/radial_cleanup.h"
 
+#include "rules/class_features.h"
+
 namespace rules {
 
 namespace {
@@ -53,6 +55,11 @@ constexpr RadialLabel kLabels[] = {
     {4849, "radial.stop_searching", "Cancel Detect Mode"},
     {4850, "radial.hide", "Stealth Mode"},
     {4851, "radial.stop_hiding", "Cancel Stealth Mode"},
+    {557, "radial.magic", "Cast Spell"},
+};
+
+constexpr RadialMagicEntry kMagicEntries[] = {
+    {kFeatPrepareSpells, 6, "Prepare Spells"},
 };
 
 template <size_t N>
@@ -136,6 +143,24 @@ std::string RadialRingSlots(RadialRing ring, unsigned slots) {
     if (names && names[slot]) list += std::string(" ") + names[slot];
   }
   return list.empty() ? "none" : list;
+}
+
+const RadialMagicEntry* RadialMagicEntries(RuleVariant radial, size_t* count) {
+  const bool faithful = Faithful(radial);
+  if (count) *count = faithful ? sizeof(kMagicEntries) / sizeof(kMagicEntries[0]) : 0;
+  return faithful ? kMagicEntries : nullptr;
+}
+
+bool RadialMovesClassFeat(RuleVariant radial, int feat) {
+  if (!Faithful(radial)) return false;
+  for (const RadialMagicEntry& entry : kMagicEntries) {
+    if (entry.feat == feat) return true;
+  }
+  return false;
+}
+
+bool RadialMagicEntryShows(bool built, bool on_you, bool assigning, bool has_feat, bool slot_free) {
+  return built && (on_you || assigning) && has_feat && slot_free;
 }
 
 }  // namespace rules

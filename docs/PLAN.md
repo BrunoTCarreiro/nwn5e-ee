@@ -2610,6 +2610,24 @@ the movement extras (#55); then the staple actions (#56, a decision first).
     the slots they hold (RadialRingSlots), in either mode (radial_pages.cpp hooks the creature menu's ring builder
     98e550 and the ground's 84def0) - and the class sections' line names the ring (the ground's Special Abilities
     counted as another creature's). Tests RadialRingOf, RadialRingSlots (16 of 16 mutations caught).
+  - *Decided (owner, 2026-11-21, after RC-7: "Prepare spells should also be in the Cast Spell section (wasn't it
+    supposed to be called Magic)?", then "do the Magic rename and Prepare Spells now"):* ahead of the rest of layout
+    A, in faithful: Cast Spell named Magic, Prepare Spells on it.
+  - *Built (Magic; `radial` faithful):* the label: "Cast Spell" (557) shows as "Magic" (data/text/en.txt
+    radial.magic, srd:Magic - the SRD 5.2.1 action) wherever the client uses it - only as a radial's spell section:
+    your ring, a DM's, your associate's, another creature's, the ground's, an item's, a placeable's, a door's, and
+    the spell menu's own Cast Spell entry (a DM's); the server's 557s are a feat number, not the string; the
+    quickbar's assign ring says "Assign Spell" (1158), its own string, kept. Prepare Spells (feat 1547): the spell
+    menu's constructor hook (radial_pages.cpp) adds it in Magic's slot 6 (free since the cleanup took Spell Special
+    Abilities out; the class pages are in 5 / 4 / 3, the 3e Metamagic in 7 / 0 / 1, Epic Spells in 2) through the
+    spell menu's own feat entry helper (9a4220, with its feat leaf 9a4770 - both found in Epic Spells' page): the
+    feat's icon, name and uses, used as from the class section (a self-only feat at once, on yourself), assigned in
+    the quickbar's assign mode - on your own Magic page and the quickbar's Assign Spell, for a character with the
+    feat, if slot 6 is empty (logged otherwise); not on another creature's, the ground's or an object's, nor on the
+    innate abilities' page. One entry for a multiclass (the window's Next class button). radial_class_feats.cpp
+    leaves it out of the class sections once Magic holds it (rules::RadialMovesClassFeat, RadialMagicEntriesPlaced).
+    Tests RadialLabelsRenamed, RadialLabelTextsInTheCatalogue (Magic), RadialMagicPrepareSpells,
+    RadialMagicEntryShows (17 of 17 mutations caught).
 *Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
 0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
 Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).

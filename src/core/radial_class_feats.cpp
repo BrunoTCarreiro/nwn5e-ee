@@ -23,6 +23,8 @@
 // Epic Dragon Shape - are off every menu the same way (yours too), so the
 // quickbar's "Assign Special Abilities" (the same page builder) lists them no
 // more either; a section left with one feat shows it in place, as the game does.
+// Prepare Spells moved to the Magic page (owner, 2026-11-21: "do the Magic rename and Prepare Spells now";
+// radial_pages.cpp) is off the class sections the same way, once Magic holds it (RadialMagicEntriesPlaced).
 
 #include <windows.h>
 
@@ -35,6 +37,7 @@
 #include "creature.h"
 #include "hooks.h"
 #include "log.h"
+#include "radial_pages.h"
 #include "rules/radial_cleanup.h"
 
 namespace {
@@ -83,6 +86,7 @@ constexpr size_t kClassFeatOnMenu = 0xc;
 constexpr size_t kFeatTargetSelf = 0x2c;
 int g_logged = 0;
 int g_nwn_logged = 0;
+int g_moved_logged = 0;
 
 // The player's self-only class feats off the menu while one build runs, when
 // the menu is another creature's; the NWN-only ones off any menu (#126).
@@ -98,6 +102,7 @@ class SelfFeatsOff {
                                 Field<uint32_t>(player, kClientObjectId));
     const bool self_only = g_config.radial_hide_self_feats && others;
     const bool nwn_only = g_config.radial == rules::RuleVariant::kFaithful;
+    const bool moved = nwn_only && RadialMagicEntriesPlaced();  // to the Magic page
     if (!self_only && !nwn_only) return;
     void* stats = Field<void*>(player, kClientCreatureStats);
     uint8_t* classes = Field<uint8_t*>(game_rules, kRulesClasses);
@@ -114,6 +119,8 @@ class SelfFeatsOff {
         const uint16_t id = Field<uint16_t>(entry, 0);
         if (nwn_only && rules::RadialHidesClassFeat(g_config.radial, id)) {
           ++nwn_only_;
+        } else if (moved && rules::RadialMovesClassFeat(g_config.radial, id)) {
+          ++moved_;
         } else {
           const void* feat = self_only ? g_get_feat(game_rules, id) : nullptr;
           if (!feat || Field<int32_t>(feat, kFeatTargetSelf) == 0) continue;
@@ -128,11 +135,13 @@ class SelfFeatsOff {
   }
   size_t Count() const { return hidden_.size(); }
   size_t NwnOnly() const { return nwn_only_; }
+  size_t Moved() const { return moved_; }
   rules::RadialRing Ring() const { return ring_; }
 
  private:
   std::vector<std::pair<int32_t*, int32_t>> hidden_;
   size_t nwn_only_ = 0;
+  size_t moved_ = 0;
   rules::RadialRing ring_ = rules::RadialRing::kYours;
 };
 
@@ -140,11 +149,16 @@ class SelfFeatsOff {
 // abilities" page), though the collector itself doesn't read it.
 void* CollectClassMenus(void* menu, void* records) {
   SelfFeatsOff off(menu);
-  if (off.Count() > off.NwnOnly() && g_logged < 5) {
+  const size_t self_only = off.Count() - off.NwnOnly() - off.Moved();
+  if (self_only && g_logged < 5) {
     ++g_logged;
     // 0.99.111: the ground's ring is nobody's - its Special Abilities page counts as another creature's here.
     Log("radial: Special Abilities on %s ring - %zu self-only class feats left off it",
-        rules::RadialRingName(off.Ring()), off.Count() - off.NwnOnly());
+        rules::RadialRingName(off.Ring()), self_only);
+  }
+  if (off.Moved() && g_moved_logged < 3) {
+    ++g_moved_logged;
+    Log("radial: the class sections without Prepare Spells - it is on the Magic page (faithful, #126)");
   }
   if (off.NwnOnly() && g_nwn_logged < 3) {
     ++g_nwn_logged;

@@ -22,6 +22,15 @@
 // - The spontaneous Cure / Inflict ring (CreateSpontaneousCastingMenuRadial, 992920, from 9927f0) has no caller in
 //   this build (no call, jump, lea or pointer reaches 9927f0), and spellcasting faithful serves classes.2da with
 //   CanCastSpontaneously 0 (#36) and refuses a character Cleric's spontaneous order (#42): nothing left to remove.
+// - Magic (owner, 2026-11-21: "do the Magic rename and Prepare Spells now"; faithful): the spell section's entry
+//   "Cast Spell" (557) is "Magic" (rules_labels.cpp), and the spell menu's constructor hook puts Prepare Spells
+//   (rules::RadialMagicEntries) in Magic's slot 6 after the game's build, when the page is yours or the quickbar's
+//   Assign Spell and the character has the feat: through the spell menu's own feat entry helper (9a4220: the menu,
+//   feat, page, slot, {its feat leaf 9a4770, 0} - icon, name and uses from feat.2da, greyed as the game greys a
+//   feat; both found in Epic Spells' page, 9a2180, the one other place they're used). The leaf uses the feat at the
+//   menu's target as the class section's entry does (radial_retarget.cpp's hook on it: a self-only feat used at
+//   once), or assigns it in the quickbar's assign mode. radial_class_feats.cpp leaves it out of the class sections
+//   once this is in place (RadialMagicEntriesPlaced).
 // - Which ring opened (0.99.111's first test, owner: "there's nothing much on the radial" - the log showed only
 //   Special Abilities pages built for a menu with no creature: the ring the ground opens, 84def0 - Cast Spell, Move
 //   To, More Actions, Special Abilities -, which never had Special Attacks): the creature menu's ring builder (98e550:
@@ -44,6 +53,7 @@ using PlayerCreatureFn = void* (*)(void* client_app);
 using SpellMenuCtorFn = void* (*)(void* self, void* point, uint64_t target, uint64_t assigning, uint64_t from_menu);
 using CreatureRingFn = void (*)(void* creature_menu, uint64_t a2);
 using GroundRingFn = void (*)(void* owner, const void* point);
+using AddSpellFeatEntryFn = void (*)(void* spell_menu, uint32_t feat, void* page, int slot, const void* handler);
 
 PlayerCreatureFn g_player_creature = nullptr;
 SpellMenuCtorFn g_spell_menu = nullptr;
@@ -53,6 +63,10 @@ CreatureRingFn g_creature_ring = nullptr;
 GroundRingFn g_ground_ring = nullptr;
 const int32_t* g_menus_made = nullptr;  // &g_nCRadialMenu_ctorCounter
 int g_rings_logged = 0;
+AddSpellFeatEntryFn g_add_spell_feat = nullptr;  // 9a4220
+uintptr_t g_spell_feat_leaf = 0;                 // 9a4770
+bool g_magic_entries = false;                    // Magic's entries placed (the class sections leave them out)
+int g_magic_logged = 0;
 
 constexpr const char* kAppManager = "?g_pAppManager@@3PEAVCAppManager@@EA";
 constexpr const char* kSetEntry = "?SetEntryx@CRadialMenu@@QEAAXHPEBDIPEAXP8CCallbackHandlerBase@@EAAX_J@Z2@Z";
@@ -65,6 +79,16 @@ constexpr size_t kEntryCallWithin = 64;               // the setter's call after
 constexpr const char* kSpecialAbilitiesAnchor = "isk_taunt";  // referenced by the Special Abilities page alone
 constexpr const char* kCastSpellAnchor = "IR_SPELL_ABS";      // by the spell menu's constructor alone
 constexpr const char* kGroundRingAnchor = "IR_MOVETO";        // by the ground's ring alone
+// Epic Spells' page (9a2180), a feat's entry: lea rbp,[the spell menu's feat leaf]; nop; mov rax,[rdi+878h];
+// mov rcx,[rax]; mov [rsp+50h],rbp; mov [rsp+58h],r15d; movaps; movdqa [rsp+60h]; lea rax,[rsp+60h];
+// mov [rsp+20h],rax; mov r9d,ebx; mov r8,rsi; movzx edx,word [rcx]; mov rcx,rdi; call <the feat entry helper>
+constexpr const char* kSpellFeatEntryPattern =
+    "48 8D 2D ?? ?? ?? ?? 0F 1F 40 00 48 8B 87 78 08 00 00 48 8B 08 48 89 6C 24 50 44 89 7C 24 58 0F 28 44 24 50 "
+    "66 0F 7F 44 24 60 48 8D 44 24 60 48 89 44 24 20 44 8B CB 4C 8B C6 0F B7 11 48 8B CF E8";
+constexpr size_t kSpellFeatLeafLea = 3;        // its rel32 (the instruction ends at +7)
+constexpr size_t kSpellFeatEntryCall = 0x40;   // the E8
+constexpr size_t kSpellMenuTarget = 0x88c;     // what the spell menu was opened on
+constexpr size_t kSpellMenuAssigning = 0x890;  // the quickbar's assign handler (null: a radial)
 constexpr const char* kMenusMade = "?g_nCRadialMenu_ctorCounter@@3HA";
 // The creature menu's ring builder, at its own-ring check: mov eax,[rax+8]; cmp [rdi+7F8h],eax; jne; mov rcx,rdi;
 // mov rbx,[rsp+60h]; add rsp,40h; pop rdi; jmp <your ring>; cmp [rdi+804h],eax (your associate's?); jne
@@ -106,20 +130,72 @@ uintptr_t FunctionReferencing(const char* what, const char* text) {
   return FunctionEntry(references[0]);
 }
 
-void* SpellMenu(void* self, void* point, uint64_t target, uint64_t assigning, uint64_t from_menu) {
-  RadialFeatsMasked masked(Player(), rules::RadialPage::kCastSpell);
-  void* menu = g_spell_menu(self, point, target, assigning, from_menu);
-  if (masked.Count() && g_cast_logged < 3) {
-    ++g_cast_logged;
-    Log("radial: Cast Spell built without the character's 3e Metamagic / Epic Character feats (%s)",
-        masked.Feats().c_str());
-  }
-  return menu;
-}
-
 uint32_t PlayerId() {
   void* player = Player();
   return player ? Field<uint32_t>(player, kClientObjectId) : rules::kRadialNoObject;
+}
+
+bool PlayerHasFeat(void* player, uint16_t feat) {
+  void* stats = player ? Field<void*>(player, kClientCreatureStats) : nullptr;
+  if (!stats) return false;
+  for (size_t list : kStatsFeatLists) {
+    const uint16_t* data = Field<uint16_t*>(stats, list);
+    const int32_t count = Field<int32_t>(stats, list + 8);
+    for (int32_t i = 0; data && i < count && i < 4096; ++i) {
+      if (data[i] == feat) return true;
+    }
+  }
+  return false;
+}
+
+struct FeatHandler {  // as the game's entries pass it: {the leaf, 0}
+  uintptr_t function;
+  uint32_t param;
+  uint32_t pad;
+};
+
+// Magic's own entries (Prepare Spells, slot 6) on a spell menu the game just built.
+void AddMagicEntries(void* menu, uint64_t from_menu) {
+  if (!g_magic_entries || !menu) return;
+  void* player = Player();
+  const bool on_you = player && Field<uint32_t>(menu, kSpellMenuTarget) == Field<uint32_t>(player, kClientObjectId);
+  const bool assigning = Field<void*>(menu, kSpellMenuAssigning) != nullptr;
+  size_t count = 0;
+  const rules::RadialMagicEntry* entries = rules::RadialMagicEntries(g_config.radial, &count);
+  for (size_t i = 0; entries && i < count; ++i) {
+    const rules::RadialMagicEntry& entry = entries[i];
+    const bool has = PlayerHasFeat(player, static_cast<uint16_t>(entry.feat));
+    const bool free = Field<void*>(menu, kMenuLabels + entry.slot * 8) == nullptr;
+    if (!rules::RadialMagicEntryShows(static_cast<uint32_t>(from_menu) != 0, on_you, assigning, has, free)) {
+      if (has && !free && (on_you || assigning) && g_magic_logged < 6) {
+        ++g_magic_logged;
+        Log("radial: Magic's slot %d is taken - %s not added there", entry.slot, entry.name);
+      }
+      continue;
+    }
+    const FeatHandler handler{g_spell_feat_leaf, 0, 0};
+    g_add_spell_feat(menu, static_cast<uint32_t>(entry.feat), menu, entry.slot, &handler);
+    if (g_magic_logged < 6) {
+      ++g_magic_logged;
+      Log("radial: %s in the Magic page's slot %d (%s)", entry.name, entry.slot,
+          assigning ? "the quickbar's Assign Spell" : "your ring");
+    }
+  }
+}
+
+void* SpellMenu(void* self, void* point, uint64_t target, uint64_t assigning, uint64_t from_menu) {
+  void* menu = nullptr;
+  {
+    RadialFeatsMasked masked(Player(), rules::RadialPage::kCastSpell);
+    menu = g_spell_menu(self, point, target, assigning, from_menu);
+    if (masked.Count() && g_cast_logged < 3) {
+      ++g_cast_logged;
+      Log("radial: Cast Spell built without the character's 3e Metamagic / Epic Character feats (%s)",
+          masked.Feats().c_str());
+    }
+  }
+  AddMagicEntries(menu, from_menu);
+  return menu;
 }
 
 void CreatureRing(void* creature_menu, uint64_t a2) {
@@ -252,9 +328,24 @@ void InstallRadialPages(void* (*player_creature)(void* client_app)) {
         "creature getter wasn't found");
     return;
   }
-  if (HookAddress("radial Cast Spell (the spell menu; 3e Metamagic and Epic Spells left out)", spell_menu,
-                  reinterpret_cast<void*>(&SpellMenu), reinterpret_cast<void**>(&g_spell_menu))) {
-    Log("radial: Cast Spell without the 3e Metamagic page (Empower ... Still Spell; the 2024 Sorcerer's Metamagic "
-        "goes there later) and Epic Spells, for a character with their feats (faithful)");
+  const uintptr_t feat_entry = FindPattern("the spell menu's feat entry (Epic Spells' page)", kSpellFeatEntryPattern);
+  g_add_spell_feat =
+      reinterpret_cast<AddSpellFeatEntryFn>(feat_entry ? CallTarget(feat_entry + kSpellFeatEntryCall) : 0);
+  g_spell_feat_leaf =
+      feat_entry ? feat_entry + 7 + *reinterpret_cast<const int32_t*>(feat_entry + kSpellFeatLeafLea) : 0;
+  if (!HookAddress("radial Cast Spell (the spell menu; 3e Metamagic and Epic Spells left out, Magic's entries)",
+                   spell_menu, reinterpret_cast<void*>(&SpellMenu), reinterpret_cast<void**>(&g_spell_menu))) {
+    return;
   }
+  Log("radial: Cast Spell without the 3e Metamagic page (Empower ... Still Spell; the 2024 Sorcerer's Metamagic "
+      "goes there later) and Epic Spells, for a character with their feats (faithful)");
+  if (!g_add_spell_feat || !g_spell_feat_leaf) {
+    Log("SKIP radial: Prepare Spells stays in the class section - the spell menu's feat entry wasn't found");
+    return;
+  }
+  g_magic_entries = true;
+  Log("radial: Magic (the Cast Spell entry, renamed) holds Prepare Spells in slot 6 - your ring's and the quickbar's "
+      "Assign Spell, for a character with the feat; the class sections leave it out (faithful)");
 }
+
+bool RadialMagicEntriesPlaced() { return g_magic_entries; }
