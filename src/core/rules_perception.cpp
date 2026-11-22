@@ -1060,6 +1060,19 @@ void FindUnseenHider(void* context, uint32_t id, void* other) {
 
 bool UnseenHiderMove(void* creature, const float* to) {
   if (IsPlayer(creature)) return false;
+  // #9 (2026-11-22): nwn5e's own investigation (a noise heard, a light put out) walks to the sound itself - turned
+  // into the search, that move waited behind the investigation's looks and 6 s wait at its post.
+  if (rules::OwnInvestigationMove(g_config.perception == rules::RuleVariant::kFaithful,
+                                  engine::GetLocalInt(creature, "nwn5e_seek"),
+                                  engine::GetLocalInt(creature, "nwn5e_seek_why"))) {
+    int64_t& logged = g_hunt_logged[IdOf(creature)];
+    if (NowMs() - logged > 6000 && LogSlot()) {
+      logged = NowMs();
+      Log("stealth: 0x%08X investigates (nwn5e_seek_why %d) - its move to (%.1f, %.1f) goes ahead, not turned into a "
+          "search", IdOf(creature), engine::GetLocalInt(creature, "nwn5e_seek_why"), to[0], to[1]);
+    }
+    return false;
+  }
   const auto own = g_search_move.find(IdOf(creature));
   if (own != g_search_move.end() && NowMs() - own->second.at < 3000) {
     const float dx = to[0] - own->second.x;

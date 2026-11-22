@@ -65,6 +65,12 @@
 //   associate or not commandable; again after 25 s at most. NWN's own AI never
 //   acts on hearing ("DO NOT RELY ON HEARING FOR ENEMY DETECTION",
 //   nw_c2_default2) beyond a head scratch within 7 m. `heard_investigates`.
+//   #9 (owner, 2026-11-22: "When an enemy goes into search mode they take quite a long time before actually moving
+//   to where they heard a sound"; "The cones also appear and disappear when an enemy is actively searching"): its
+//   move to the sound goes ahead - #136's hook had turned it into #133's search (it ends within 1 m of the hider),
+//   whose move then queued behind this investigation's head turns, 6 s wait, walk back and detect off, all at its
+//   post: about 10 s standing, detect mode off for a second (the cone back) and the next investigation's
+//   ClearAllActions cancelling the walk (rules::OwnInvestigationMove).
 // - Light (0.32.0; owner: environmental light, "do the sensible distances"):
 //   the light where the hiding character stands, for rules_perception.cpp's G
 //   (local nwn5e_light_level, + 1): bright - within 4 m of a lit placeable

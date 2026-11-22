@@ -519,6 +519,13 @@ bool UnseenHiderSearched(bool faithful, bool attacker_is_player, bool target_hid
 constexpr float kUnseenHiderMoveReach = 1.0f;  // metres
 bool MoveOntoUnseenHider(bool faithful, bool mover_is_player, bool target_hiding, bool mover_sees_target,
                          float distance_to_target);
+// #9 (owner, 2026-11-22: "When an enemy goes into search mode they take quite a long time before actually moving to
+// where they heard a sound"): nwn5e's own investigation - under way (nwn5e_seek) for a noise heard (the stealth
+// watch: nwn5e_seek_why 1) or a light put out (2) - moves where it means to, to the sound itself: #136 doesn't turn
+// that move into #133's search (the search's move then queued behind the investigation's own looks, 6 s wait and
+// walk back, all at its post, and the next investigation cancelled it). An illusion's reaction (nwn5e_seek without
+// a why) isn't one. Faithful only (the hook is).
+bool OwnInvestigationMove(bool faithful, int seek, int seek_why);
 // #136 B: SRD 5.2's Surprise - "If a combatant is surprised by combat starting, that combatant has Disadvantage on
 // their Initiative roll." Here a creature is surprised when it rolls seeing no enemy while one is hidden from it
 // (a hider's attack started the fight). Faithful only.

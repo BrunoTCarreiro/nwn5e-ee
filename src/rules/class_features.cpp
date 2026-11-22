@@ -912,6 +912,10 @@ bool MoveOntoUnseenHider(bool faithful, bool mover_is_player, bool target_hiding
          distance_to_target <= kUnseenHiderMoveReach;
 }
 
+bool OwnInvestigationMove(bool faithful, int seek, int seek_why) {
+  return faithful && seek > 0 && (seek_why == 1 || seek_why == 2);
+}
+
 bool SurprisedAtInitiative(bool faithful, bool sees_an_enemy, bool an_enemy_hidden_from_it) {
   return faithful && !sees_an_enemy && an_enemy_hidden_from_it;
 }

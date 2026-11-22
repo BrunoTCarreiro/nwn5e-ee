@@ -582,6 +582,16 @@ TEST(ExtraActions) {
   CHECK_EQ(MoveOntoUnseenHider(true, false, false, false, 0.0f), false); // not hiding
   CHECK_EQ(MoveOntoUnseenHider(true, true, true, false, 0.0f), false);   // a player's order stands
   CHECK_EQ(MoveOntoUnseenHider(false, false, true, false, 0.0f), false); // NWN mode
+  // #9 (2026-11-22): nwn5e's own investigation walks to the noise itself. Breaks caught: a noise's or a light's
+  // investigation turned into the search, an illusion's reaction (no why) or a finished one (no seek) let through,
+  // NWN mode.
+  CHECK_EQ(OwnInvestigationMove(true, 25, 1), true);    // a noise heard (the stealth watch)
+  CHECK_EQ(OwnInvestigationMove(true, 1, 1), true);     // its countdown's last pass
+  CHECK_EQ(OwnInvestigationMove(true, 25, 2), true);    // a light put out
+  CHECK_EQ(OwnInvestigationMove(true, 120, 0), false);  // an illusion's reaction
+  CHECK_EQ(OwnInvestigationMove(true, 0, 1), false);    // over
+  CHECK_EQ(OwnInvestigationMove(true, 25, 3), false);   // no such why
+  CHECK_EQ(OwnInvestigationMove(false, 25, 1), false);  // NWN mode
   CHECK_EQ(SurprisedAtInitiative(true, false, true), true);    // hit by a hider it never saw
   CHECK_EQ(SurprisedAtInitiative(true, true, true), false);    // it sees an enemy: not surprised
   CHECK_EQ(SurprisedAtInitiative(true, false, false), false);  // no hidden enemy

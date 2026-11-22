@@ -5802,6 +5802,25 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   it, so it follows the clock (`!clock right / bottom`) and covers none of the game's own HUD (the quickbar, chat,
   Talk line and the resource panel are bottom centre / left; the party bar top right). A client NUI window as the
   clock's (light_gem_panel.cpp; rules/light_gem.h, tested). `light_gem` (on; needs stealth_light).
+  *Owner, 2026-11-22 (0.99.120):* "The cones also appear and disappear when an enemy is actively searching, but
+  they're always present when they're idle. When an enemy goes into search mode they take quite a long time before
+  actually moving to where they heard a sound". The log (21:51:00-21:51:53): orc 0x381 heard the hider at 00.6, the
+  watch's investigation started at the next pass (01.5) and #136's hook (a script's move ending within 1 m of an
+  unseen hider becomes #133's search) turned its move to the sound into the search ("would run to ... unseen - it
+  searches where it last heard it instead") - whose move, queued 0.1 s later, came behind the investigation's own
+  head turns, 6 s wait, walk back and detect off, all at its post: about 10 s standing before a first step. Then
+  detect off ended its search mode for a second (its cone back: slices attached at 12.56 and 23.56) and, still
+  hearing the hider, the next pass started another investigation whose ClearAllActions cancelled the walk - every
+  11 s (01.5, 12.5, 23.5, 34.5, 45.5: 5 investigations) until a search roll found the hider at 52.7. The idle looks
+  played no part (0x381's last look 21:50:50, "doesn't look about - searching" after).
+  *Fixed (#9):* nwn5e's own investigation (nwn5e_seek with nwn5e_seek_why 1, a noise; 2, a light put out) moves
+  where it means to - the hook lets it through (rules::OwnInvestigationMove, tested), so it walks to the sound at
+  once, turns its head, waits 6 s there and walks back, in search mode all the while. The drawing is left as it is
+  (the cone while calm, the ring while searching; owner, 2026-11-22, a follow-up: "is it possible to add an
+  animation to the cone when is active search instead of making the cone disappear when not? if idle being lowest
+  alert mode has a cone, any mode should have it as well" - options put to the owner): between two investigations
+  of a creature that still hears the hider it is calm until the next pass, so its cone still shows for about a
+  second each round, now once per walk-look-wait-return instead of every 11 s.
 - **Light where you hide** (0.32.0; owner: "do the sensible distances, I'll add
   light queries down the line"). The !light readings (Training Halls, night,
   interior): moon ambient 58 (dim), braziers / torch brackets found lit by
