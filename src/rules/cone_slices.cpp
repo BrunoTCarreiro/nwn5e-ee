@@ -8,38 +8,38 @@ namespace rules {
 const float kConeSliceLengths[kConeSliceLengthCount] = {1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 35, 40, 50};
 
 namespace {
-constexpr int kDrawnCones[] = {60, 90, 120, 150};  // core/stealth_watch.cpp's kConeAngles
 constexpr float kPi = 3.14159265f;
+constexpr int kFrontFirst = 7;   // the front ten positions: #9 part 1's rows
+constexpr int kFrontLast = 16;
+constexpr int kRearPerColour = (kConeSlicePositions - (kFrontLast - kFrontFirst + 1)) * kConeSliceLengthCount;
+int Wrap(int position) { return ((position % kConeSlicePositions) + kConeSlicePositions) % kConeSlicePositions; }
+int Clamp(int value, int low, int high) { return value < low ? low : (value > high ? high : value); }
 }  // namespace
 
 int DrawnConeDegrees(int degrees) {
-  int best = kDrawnCones[0];
-  for (int drawn : kDrawnCones) {
-    const int d = drawn > degrees ? drawn - degrees : degrees - drawn;
-    const int b = best > degrees ? best - degrees : degrees - best;
-    if (d < b) best = drawn;
-  }
-  return best;
+  const int drawn = (degrees + 15) / 30 * 30;
+  return Clamp(drawn, 30, 330);
 }
 
-SliceSpan ConeSliceSpan(int drawn_degrees) {
+SliceSpan ConeSliceSpan(int drawn_degrees, int step) {
   SliceSpan span;
-  span.count = static_cast<int>(drawn_degrees / kConeSliceDegrees + 0.5f);
-  if (span.count < 0) span.count = 0;
-  if (span.count > kConeSlicePositions) span.count = kConeSlicePositions;
-  span.first = (kConeSlicePositions - span.count) / 2;
+  span.count = Clamp(static_cast<int>(drawn_degrees / kConeSliceDegrees + 0.5f), 0, kConeSlicePositions);
+  span.first = Wrap(kConeSlicePositions / 2 - span.count / 2 + step);
   return span;
 }
 
+bool InSliceSpan(const SliceSpan& span, int position) {
+  return Wrap(position - span.first) < span.count;
+}
+
 float ConeSliceMiddle(int position) {
-  return -kConeSliceDegrees * kConeSlicePositions / 2.0f + kConeSliceDegrees * (static_cast<float>(position) + 0.5f);
+  return -180.0f + kConeSliceDegrees * (static_cast<float>(position) + 0.5f);
 }
 
 int ConeSliceAt(float degrees_off_facing) {
-  const float from_edge = degrees_off_facing + kConeSliceDegrees * kConeSlicePositions / 2.0f;
-  if (!(from_edge >= 0.0f)) return -1;
-  const int k = static_cast<int>(from_edge / kConeSliceDegrees);
-  return k < kConeSlicePositions ? k : -1;
+  float d = fmodf(degrees_off_facing + 180.0f, 360.0f);
+  if (d < 0.0f) d += 360.0f;
+  return Wrap(static_cast<int>(d / kConeSliceDegrees));
 }
 
 float DegreesOffFacing(float dx, float dy, float fx, float fy) {
@@ -61,7 +61,7 @@ int ConeSliceLengthAtMost(float metres) {
 int ConeSliceReach(int top, int hint, const std::function<bool(int)>& clear) {
   if (top < 0) return -1;
   if (top >= kConeSliceLengthCount) top = kConeSliceLengthCount - 1;
-  int clear_to = -1;          // known clear up to this index
+  int clear_to = -1;           // known clear up to this index
   int blocked_from = top + 1;  // known blocked from this index (past `top`: not looked at)
   if (hint >= 0 && hint <= top) {
     if (clear(hint)) return hint;  // the next length up is past where the engine found the block
@@ -83,22 +83,36 @@ int ConeSliceRow(int colour, int position, int length_index) {
       length_index < 0 || length_index >= kConeSliceLengthCount) {
     return 0;
   }
-  return kConeSliceRow + colour * kConeSlicePositions * kConeSliceLengthCount + position * kConeSliceLengthCount +
-         length_index;
+  if (position >= kFrontFirst && position <= kFrontLast) {
+    return kConeSliceRow + colour * (kFrontLast - kFrontFirst + 1) * kConeSliceLengthCount +
+           (position - kFrontFirst) * kConeSliceLengthCount + length_index;
+  }
+  const int j = position < kFrontFirst ? position : position - (kFrontLast - kFrontFirst + 1);
+  return kConeSliceRearRow + colour * kRearPerColour + j * kConeSliceLengthCount + length_index;
 }
 
 bool ConeSliceRowParts(int row, int* colour, int* position, int* length_index) {
-  if (row < kConeSliceRow || row > kConeSliceRowLast) return false;
-  const int at = row - kConeSliceRow;
-  *colour = at / (kConeSlicePositions * kConeSliceLengthCount);
-  *position = at / kConeSliceLengthCount % kConeSlicePositions;
-  *length_index = at % kConeSliceLengthCount;
-  return true;
+  if (row >= kConeSliceRow && row <= kConeSliceRowLast) {
+    const int at = row - kConeSliceRow;
+    const int per_colour = (kFrontLast - kFrontFirst + 1) * kConeSliceLengthCount;
+    *colour = at / per_colour;
+    *position = kFrontFirst + at % per_colour / kConeSliceLengthCount;
+    *length_index = at % kConeSliceLengthCount;
+    return true;
+  }
+  if (row >= kConeSliceRearRow && row <= kConeSliceRearRowLast) {
+    const int at = row - kConeSliceRearRow;
+    *colour = at / kRearPerColour;
+    const int j = at % kRearPerColour / kConeSliceLengthCount;
+    *position = j < kFrontFirst ? j : j + (kFrontLast - kFrontFirst + 1);
+    *length_index = at % kConeSliceLengthCount;
+    return true;
+  }
+  return false;
 }
 
 bool SeenInsideSlices(const int rows[kConeSlicePositions], float degrees_off_facing, float metres) {
   const int k = ConeSliceAt(degrees_off_facing);
-  if (k < 0) return false;
   int colour = 0, position = 0, length = 0;
   if (!ConeSliceRowParts(rows[k], &colour, &position, &length) || position != k) return false;
   return metres <= kConeSliceLengths[length] + 1e-4f;
@@ -113,6 +127,52 @@ int ConeSliceSignature(const int rows[kConeSlicePositions]) {
   }
   if (!any) return 0;
   return static_cast<int>(hash % 0x3ffffffeu) + 1;
+}
+
+SearchSweep SaneSearchSweep(SearchSweep sweep) {
+  sweep.cone_degrees = DrawnConeDegrees(sweep.cone_degrees);
+  sweep.sweep_degrees = Clamp(sweep.sweep_degrees, 0, 180);
+  sweep.period_ms = Clamp(sweep.period_ms, 1000, 60000);
+  sweep.pause_ms = Clamp(sweep.pause_ms, 0, sweep.period_ms / 2 - 200);
+  return sweep;
+}
+
+float SweepAngle(const SearchSweep& sweep, int64_t ms) {
+  const float a = static_cast<float>(sweep.sweep_degrees);
+  if (a <= 0.0f || sweep.period_ms <= 0) return 0.0f;
+  const int64_t period = sweep.period_ms, pause = sweep.pause_ms;
+  const int64_t move = (period - 2 * pause) / 2;  // one way, -a to +a
+  if (move <= 0) return 0.0f;
+  if (ms < 0) ms = 0;
+  // The canonical swing: held at -a, up to +a, held there, back down - started half way up (on the facing).
+  const int64_t u = (ms + pause + move / 2) % period;
+  if (u < pause) return -a;
+  if (u < pause + move) return -a + 2.0f * a * static_cast<float>(u - pause) / static_cast<float>(move);
+  if (u < 2 * pause + move) return a;
+  return a - 2.0f * a * static_cast<float>(u - 2 * pause - move) / static_cast<float>(move);
+}
+
+int SweepStep(float degrees) {
+  return static_cast<int>(floorf(degrees / kConeSliceDegrees + 0.5f));
+}
+
+SliceSpan SweepRange(const SearchSweep& sweep) {
+  const SliceSpan cone = ConeSliceSpan(sweep.cone_degrees, 0);
+  const int reach = SweepStep(static_cast<float>(sweep.sweep_degrees));
+  SliceSpan span;
+  span.count = cone.count + 2 * reach;
+  if (span.count >= kConeSlicePositions) {
+    span.first = 0;
+    span.count = kConeSlicePositions;
+    return span;
+  }
+  span.first = Wrap(cone.first - reach);
+  return span;
+}
+
+bool InSweepCone(const SearchSweep& sweep, int64_t ms, float degrees_off_facing) {
+  const SliceSpan now = ConeSliceSpan(sweep.cone_degrees, SweepStep(SweepAngle(sweep, ms)));
+  return InSliceSpan(now, ConeSliceAt(degrees_off_facing));
 }
 
 }  // namespace rules

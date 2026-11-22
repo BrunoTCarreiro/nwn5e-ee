@@ -87,5 +87,9 @@ TEST(VisualEffectsRowFilesNeverShareARow) {
   int slices = 0;
   for (int row = 2260; row <= 3059; ++row) slices += owner.count(row) == 1 && owner[row] == "visualeffects.slices.txt";
   CHECK_EQ(slices, 800);
-  CHECK_EQ(owner.count(3060), 0u);
+  // ... and the sweeping cone's other 14 positions (#9, 2026-11-22): 1120 rows from 3060, a file of their own
+  int sweep = 0;
+  for (int row = 3060; row <= 4179; ++row) sweep += owner.count(row) == 1 && owner[row] == "visualeffects.sweep.txt";
+  CHECK_EQ(sweep, 1120);
+  CHECK_EQ(owner.count(4180), 0u);
 }

@@ -93,6 +93,15 @@ struct Config {
   // middle, measured once a second (stealth_watch.cpp) - and the rule agrees: it doesn't see past where a slice is
   // cut (rules_perception.cpp). Off: whole cones, drawn through walls.
   bool cone_walls = true;
+  // #9 (owner, 2026-11-22: "if idle being lowest alert mode has a cone, any mode should have it as well" - "A, go
+  // with the sweeping cone"): a searching creature (detect mode, investigating, alert in combat) keeps a cone,
+  // search_cone degrees wide, sweeping search_sweep_degrees to either side of its facing and back every
+  // search_sweep_ms, holding search_sweep_pause_ms at each end; it sees a hider only inside it (its d20 Perception
+  // roll). search_cone 0 or 360: all round, as before (stealth_watch.cpp, rules_perception.cpp).
+  int search_cone = 120;
+  int search_sweep_degrees = 60;
+  int search_sweep_ms = 4000;
+  int search_sweep_pause_ms = 500;
   // #9 d (owner, 2026-11-15: "yes, sounds fun but we have to tune this"): while a player character hides, calm
   // hostiles within 40 m of it look about now and then (stealth_watch.cpp): every idle_look_min_seconds ..
   // idle_look_max_seconds, a turn of idle_look_min_degrees .. idle_look_max_degrees left or right, held

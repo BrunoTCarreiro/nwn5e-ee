@@ -5821,6 +5821,30 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   alert mode has a cone, any mode should have it as well" - options put to the owner): between two investigations
   of a creature that still hears the hider it is calm until the next pass, so its cone still shows for about a
   second each round, now once per walk-look-wait-return instead of every 11 s.
+  *Decided (owner, 2026-11-22):* "is it possible to add an animation to the cone when is active search instead of
+  making the cone disappear when not? if idle being lowest alert mode has a cone, any mode should have it as well",
+  then "A, go with the sweeping cone" - a searching enemy keeps a cone that sweeps, and the rule follows the sweep.
+  *Built (#9, the sweeping cone):* every alert state draws a cone. Calm keeps vision_cone (90) on its facing; a
+  searching one (Searching(): detect mode - an investigation's too - or in combat with alert_creatures_search) a
+  `search_cone` (120) that sweeps `search_sweep_degrees` (60) to either side of its facing and back every
+  `search_sweep_ms` (4000), holding `search_sweep_pause_ms` (500) at each end, linear between (rules::SweepAngle),
+  drawn a 15-degree step at a time (about 5 steps a second with the defaults), starting on its facing when its search
+  begins. The all-round sight and the ring outline are retired (the ring shows only with search_cone 0 / 360, or no
+  cones at all). The rule follows the drawing: a searching enemy sees a hider only inside its cone as drawn (its
+  slices' rows, cut at walls) or, not drawn (beyond the nearest stealth_rings), inside the cone where its sweep
+  points now (rules::InSweepCone) - and there rolls its d20 Perception as before; up close (B) still finds; its roll
+  is told to you only when you're in its cone. The margin colours work for it unchanged: SpotMargin is the passive
+  score against your Stealth, and with a d20 that is the roll's odds - red 6+ (it finds you on 85% of rolls or more),
+  orange-red 1-5 (60-80%), orange -4-0 (35-55%), yellow-orange -9 to -5 (10-30%), yellow -10 or less (5% or less).
+  Drawing: the slices go all round the creature now (24 positions; rows 2260-3059 the front ten as before, 3060-4179
+  the other fourteen, 1120 new models n5_cr*, data/rows/visualeffects.sweep.txt), and each drawn creature's cone is
+  kept from its own update rather than the once-a-second pass: its lengths measured a position at a time (the
+  shown ones first; 2 an update, 240 sight lines a second at most for all creatures; again when it moves 0.5 m or
+  turns 7.5 degrees, else every 3 s), a position not measured yet drawn to its sight, and only the slices whose rows
+  change redrawn (10 times a second at most) - a sweep step swaps two. The cost is logged once (the first second
+  anything is measured); each state change ("searches - its 120-degree cone sweeps ...", "calm again"; 60 lines)
+  and the first 40 draws are logged. cone_walls=0 draws the slices uncut. The idle looks (calm only) are as they
+  were; a calm cone's cuts now follow a look's turn within a few updates.
 - **Light where you hide** (0.32.0; owner: "do the sensible distances, I'll add
   light queries down the line"). The !light readings (Training Halls, night,
   interior): moon ambient 58 (dim), braziers / torch brackets found lit by

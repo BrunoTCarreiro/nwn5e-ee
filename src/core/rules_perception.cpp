@@ -35,6 +35,10 @@
 //   cut at walls (#9 c, cone_walls): a calm observer whose cone is drawn in
 //   slices (stealth_watch.cpp) sees a hider only inside a drawn slice, no
 //   farther than its length - never past where the drawing is cut;
+//   the sweeping cone (#9; owner, 2026-11-22: "A, go with the sweeping cone"):
+//   a searching observer no longer sees all round - only inside its cone
+//   (search_cone degrees) as it sweeps (stealth_watch.cpp), drawn or not, and
+//   there with its d20 Perception roll as before; up close still finds;
 // - found ends hiding (F; owner, 2026-10-25: "once discovered the PC leaves
 //   stealth mode"): a hostile that sees a hiding player character - a search,
 //   a look inside its cone, or up close - takes it out of stealth mode (on the
@@ -111,7 +115,9 @@ bool InFogCloud(void* creature);                                  // rules_spell
 bool IllusionReactionUnderWay(uint32_t creature);                 // rules_utility_cantrips.cpp (#152's ordering)
 void IllusionReactionResume(uint32_t creature);                   // rules_utility_cantrips.cpp
 bool MindSpikeKnows(void* observer, void* target);                // rules_spells2024.cpp (#39 level 2 build 1a)
-bool ConeCutsSight(void* observer, void* hider, float* metres, float* reach);  // stealth_watch.cpp (#9 c)
+int DrawnConeSees(void* observer, void* hider, float* metres, float* reach);  // stealth_watch.cpp (#9 c)
+bool SweepConesOn();                                                         // stealth_watch.cpp (#9, the sweep)
+bool SweepConeSees(void* observer, void* hider);                             // stealth_watch.cpp
 extern "C" __declspec(dllimport) unsigned short __stdcall RtlCaptureStackBackTrace(unsigned long skip, unsigned long count,
                                                                                  void** frames, unsigned long* hash);
 extern "C" __declspec(dllimport) unsigned long long __stdcall GetTickCount64();
@@ -798,16 +804,31 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
   // D / E: a calm observer sees a hider only inside its vision cone (it can
   // hear one anywhere); searching ones see all round.
   const bool searching = Searching(observer);
-  bool in_cone = !searching && g_config.hiders_need_search && InVisionCone(observer, target);
-  // #9 c: its cone drawn cut at walls - not past where its slice is cut (the rule reads the slices drawn).
+  // #9: a searching one keeps a cone that sweeps (search_cone); without the sweep it sees all round, as before.
+  const bool sweeping = searching && g_config.hiders_need_search && SweepConesOn();
+  // #9 c: a cone drawn in slices decides - inside a drawn slice, within its length (the rows on it: the rule and the
+  // drawing agree); else the cone's angle alone (calm: vision_cone on its facing; searching: where its sweep is).
   float cut_metres = 0.0f, cut_reach = 0.0f;
-  const bool cut = spot && in_cone && ConeCutsSight(observer, target, &cut_metres, &cut_reach);
-  if (cut) in_cone = false;
-  if (spot && result && g_config.hiders_need_search && !searching && !in_cone) {
+  const int drawn = spot && g_config.hiders_need_search && (!searching || sweeping)
+                        ? DrawnConeSees(observer, target, &cut_metres, &cut_reach)
+                        : -1;
+  bool in_cone = false;
+  if (g_config.hiders_need_search) {
+    if (drawn >= 0) {
+      in_cone = drawn == 1;
+    } else if (sweeping) {
+      in_cone = SweepConeSees(observer, target);
+    } else {
+      in_cone = searching || InVisionCone(observer, target);
+    }
+  }
+  if (spot && result && g_config.hiders_need_search && !in_cone) {
     result = 0;
-    if (cut) {
-      sprintf_s(up_close, "; calm, past where its cone is cut (%.1f m away, its slice %.0f m): unseen", cut_metres,
-                cut_reach);
+    if (drawn == 0) {
+      sprintf_s(up_close, "; %s, outside its drawn cone or past where it is cut (%.1f m away, that slice %.0f m): unseen",
+                searching ? "searching" : "calm", cut_metres, cut_reach);
+    } else if (sweeping) {
+      sprintf_s(up_close, "; searching, outside its sweeping cone: unseen");
     } else {
       sprintf_s(up_close, "; calm, outside its %d-degree cone: unseen", g_config.vision_cone);
     }
@@ -822,7 +843,7 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
     close = true;
     sprintf_s(up_close, "; found up close: %.1f m in front, clear line", metres);
   }
-  if (spot && g_config.hiders_need_search && (searching || in_cone || result) && PartyHider(target)) {
+  if (spot && g_config.hiders_need_search && (in_cone || result) && PartyHider(target)) {
     TellCheck(observer, target, result, searching, close);
   }
   // #133: where it heard a hider - a search goes there (UnseenHiderSearch).
