@@ -2187,7 +2187,7 @@ monster AC by CR.
         seat, 0 otherwise (the constructor's too). A henchman getting up now gets the engine's own pick
         (RecomputeAmbientAnimationState: the posture, then its "stand" animation); 0 if that export is missing.
         DH-1c passed. *Accepted (owner, 2026-11-21: "DH-1c fixed").*
-  - *Built (build 1b; owner, 2026-11-22: "start it"):* Spiritual Weapon, Flame Blade, Dragon's Breath, Heat Metal, SRD
+  - *Built 0.99.117 (build 1b; owner, 2026-11-22: "start it"):* Spiritual Weapon, Flame Blade, Dragon's Breath, Heat Metal, SRD
     5.2.1 (new rows 1256-1275, feats 1567-1577: data/rows/spells.if_spells2024.l2b1b.txt, feat.if_spells2024.l2b1b.txt;
     faithful only - none is NWN's, so NWN mode keeps NWN's spells as they are).
     - **Spiritual Weapon** (1256; Cleric; a Bonus Action spell, Healing Word's way - feat 1567 casts 1257; Concentration
