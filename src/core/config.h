@@ -93,6 +93,16 @@ struct Config {
   // middle, measured once a second (stealth_watch.cpp) - and the rule agrees: it doesn't see past where a slice is
   // cut (rules_perception.cpp). Off: whole cones, drawn through walls.
   bool cone_walls = true;
+  // #9 d (owner, 2026-11-15: "yes, sounds fun but we have to tune this"): while a player character hides, calm
+  // hostiles within 40 m of it look about now and then (stealth_watch.cpp): every idle_look_min_seconds ..
+  // idle_look_max_seconds, a turn of idle_look_min_degrees .. idle_look_max_degrees left or right, held
+  // idle_look_hold seconds (the look-far animation), then back to their post's facing.
+  bool idle_look = true;
+  int idle_look_min_seconds = 8;
+  int idle_look_max_seconds = 16;
+  int idle_look_min_degrees = 40;
+  int idle_look_max_degrees = 120;
+  int idle_look_hold = 3;
   // SK5 F (owner, 2026-10-25: "once discovered the PC leaves stealth mode"): a
   // hostile that sees a hiding player character takes it out of stealth mode.
   bool found_ends_hiding = true;

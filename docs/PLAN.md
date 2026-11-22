@@ -5683,6 +5683,22 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   so a slice whose middle passes a doorway shows its full length beside the door frame; the lengths round down
   (up to 5 m short of a far wall; the guard doesn't see that last stretch either); a sight range between steps
   (28 m) draws and sees to the step below (25 m).
+  *Built (#9 part 2):* idle guards looking about (d). While a player character hides, each calm hostile within 40 m
+  of it looks about now and then: every 8-16 s at random it turns 40-120 degrees left or right of its post's
+  facing (SetFacing), holds the look 3 s (ANIMATION_LOOPING_LOOK_FAR) and turns back to its post's facing - all
+  queued actions, so anything it does of its own (it hears you, a fight) takes over, and its next look starts from
+  its post again (a look cut short doesn't leave it turned). Not one that is fighting, searching, investigating a
+  noise (nwn5e_seek), hiding, a player or someone's associate, dead, not hostile, or has any action under way or
+  queued (walking a route, sitting, a conversation's - HasNoOrders), nor one in a conversation or not commandable.
+  Its post is where it stood at its first look; moved more than 1.5 m, taken afresh. Only while a player character
+  hides, and its first look a whole wait after you hide: cheaper (no turns or script runs for creatures nobody
+  watches; one script per look, about one per guard every 12 s) and fair - the looks only matter to a hider's
+  cones, and a calm hostile sees a hider only in its cone; guards don't turn the moment you hide. The cone turns
+  with the creature at once; its wall cuts follow at the next pass (within a second) - the rule reads the drawn
+  slices, so it agrees meanwhile. Tuned in play: `idle_look` (on), `idle_look_min_seconds` / `_max_seconds` (8 /
+  16), `idle_look_min_degrees` / `_max_degrees` (40 / 120), `idle_look_hold` (3); made sane (rules/idle_look.h,
+  tested): seconds 2-600, degrees 5-180, hold 1-30, the shortest wait at least the hold + 1 s. Each look logged
+  (300 lines at most), why one doesn't look when that changes (60).
 - **Light where you hide** (0.32.0; owner: "do the sensible distances, I'll add
   light queries down the line"). The !light readings (Training Halls, night,
   interior): moon ambient 58 (dim), braziers / torch brackets found lit by

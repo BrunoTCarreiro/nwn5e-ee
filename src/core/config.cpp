@@ -72,6 +72,16 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.hiders_need_search = ReadBool(ini, L"hiders_need_search", g_config.hiders_need_search);
   g_config.vision_cone = GetPrivateProfileIntW(L"rules", L"vision_cone", g_config.vision_cone, ini);
   g_config.cone_walls = ReadBool(ini, L"cone_walls", g_config.cone_walls);
+  g_config.idle_look = ReadBool(ini, L"idle_look", g_config.idle_look);
+  g_config.idle_look_min_seconds =
+      GetPrivateProfileIntW(L"rules", L"idle_look_min_seconds", g_config.idle_look_min_seconds, ini);
+  g_config.idle_look_max_seconds =
+      GetPrivateProfileIntW(L"rules", L"idle_look_max_seconds", g_config.idle_look_max_seconds, ini);
+  g_config.idle_look_min_degrees =
+      GetPrivateProfileIntW(L"rules", L"idle_look_min_degrees", g_config.idle_look_min_degrees, ini);
+  g_config.idle_look_max_degrees =
+      GetPrivateProfileIntW(L"rules", L"idle_look_max_degrees", g_config.idle_look_max_degrees, ini);
+  g_config.idle_look_hold = GetPrivateProfileIntW(L"rules", L"idle_look_hold", g_config.idle_look_hold, ini);
   g_config.found_ends_hiding = ReadBool(ini, L"found_ends_hiding", g_config.found_ends_hiding);
   g_config.stealth_light = ReadBool(ini, L"stealth_light", g_config.stealth_light);
   g_config.stealth_ghost = ReadBool(ini, L"stealth_ghost", g_config.stealth_ghost);

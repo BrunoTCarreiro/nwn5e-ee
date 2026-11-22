@@ -41,6 +41,18 @@
 //   drawn slice, no farther than its length, read from the rows drawn - so it never sees past where its slice is
 //   cut; the engine's own line of sight still applies inside a slice (a pillar off the slice's middle still hides
 //   you), so the drawing may show more than it sees, never less.
+//   Idle guards look about (#9 d; owner, 2026-11-15: "yes, sounds fun but we have to tune this"): while a player
+//   character hides, each calm hostile within 40 m of it looks about now and then - every idle_look_min_seconds ..
+//   idle_look_max_seconds (8-16) at random, it turns idle_look_min_degrees .. idle_look_max_degrees (40-120) left or
+//   right of its post's facing (SetFacing), holds the look idle_look_hold seconds (3; the look-far animation) and
+//   turns back to its post's facing - so its cone sweeps. All queued as actions, so anything the creature does of
+//   its own (it hears you, a fight) takes over; its next look starts from its post again, so a look cut short
+//   doesn't leave it turned for good. Not one fighting, searching, investigating a noise, hiding, someone's
+//   associate, or with any action under way or queued (walking a route, sitting ...; rules/idle_look.h), nor one in
+//   a conversation or not commandable. Its first look comes a whole wait after you hide (not at once), and only
+//   while a player character hides: cheaper (no turning or script runs for creatures nobody watches) and fair -
+//   the looks only matter to a hider's cones, and calm hostiles see a hider only in them. Each look logged (who,
+//   the turn, the next look's time; 300 lines at most), and why one doesn't look when that changes (60 at most).
 // - Heard, not seen (0.27.0; owner: "for the hearing detection, do option 2"):
 //   2024 rules (perception=faithful) - finding a hider by hearing is finding it,
 //   so a hostile that hears it but doesn't see it investigates: it walks to where
@@ -122,6 +134,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <random>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -135,6 +148,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "rules/cone_slices.h"
+#include "rules/idle_look.h"
 #include "rules/skills.h"
 
 bool SpotMargin(void* observer, void* hider, int* margin);  // rules_perception.cpp
@@ -197,6 +211,26 @@ constexpr const char* kVarSlice = "nwn5e_cs";         // + position: the slice's
 constexpr const char* kVarSliceSig = "nwn5e_csig";    // their signature (0: none measured - the whole cone shows)
 constexpr const char* kVarSliceDrawn = "nwn5e_csh";   // + position: the row drawn (the pass script's)
 constexpr const char* kVarSliceDrawnSig = "nwn5e_csigh";  // the signature drawn (0: not drawn in slices)
+
+// #9 d: idle guards looking about.
+struct Looker {
+  uint64_t next = 0;  // ms: when it may look about next
+  bool has_post = false;
+  float post_x = 0.0f, post_y = 0.0f, post_facing = 0.0f;  // where it stands and faces between looks
+  rules::IdleLookBlock last = rules::IdleLookBlock::kNone;
+};
+std::unordered_map<uint32_t, Looker> g_lookers;  // by creature, within reach of the hiding player character
+rules::IdleLookTuning g_look;
+std::mt19937 g_look_dice;
+void* g_hider_area = nullptr;  // the hiding player character's area and spot, at its last pass
+float g_hider_x = 0.0f, g_hider_y = 0.0f;
+
+bool IdleLookOn() {
+  return g_config.idle_look && g_config.perception == rules::RuleVariant::kFaithful && g_config.hiders_need_search &&
+         g_config.vision_cone > 0 && g_config.vision_cone < 360;
+}
+
+double LookRoll() { return std::uniform_real_distribution<double>(0.0, 1.0)(g_look_dice); }
 
 bool SlicesOn() {
   return g_config.cone_walls && g_config.stealth_rings > 0 && g_config.perception == rules::RuleVariant::kFaithful &&
@@ -757,6 +791,97 @@ void HenchmanPass(void* creature, uint32_t id) {
   }
 }
 
+// #9 d: a creature near the hiding player character, each AI pass - when its next look is due, it looks about if
+// nothing keeps it from it (rules::IdleLookBlocker), turned from its post's facing and back to it.
+void IdleLook(void* creature, uint32_t id) {
+  if (!g_hider || !g_hider_area || id == g_hider) return;
+  const float x = Field<float>(creature, ee::kObjectPositionX), y = Field<float>(creature, ee::kObjectPositionY);
+  const float metres = sqrtf((x - g_hider_x) * (x - g_hider_x) + (y - g_hider_y) * (y - g_hider_y));
+  if (engine::AreaOf(creature) != g_hider_area || metres > rules::kIdleLookReach) {
+    if (!g_lookers.empty()) g_lookers.erase(id);
+    return;
+  }
+  const uint64_t now = GetTickCount64();
+  auto found = g_lookers.find(id);
+  if (found == g_lookers.end()) {
+    // First near the hider: its first look a whole wait from now, not at once when you hide.
+    Looker fresh;
+    fresh.next = now + rules::IdleLookWaitMs(g_look, LookRoll());
+    g_lookers.emplace(id, fresh);
+    return;
+  }
+  Looker& looker = found->second;
+  if (now < looker.next) return;
+  looker.next = now + rules::IdleLookWaitMs(g_look, LookRoll());
+  const double wait = (looker.next - now) / 1000.0;
+  rules::IdleLookFacts facts;
+  facts.player = Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0;
+  const uint32_t master = Field<uint32_t>(creature, ee::kCreatureMaster);
+  facts.associate = master != 0 && master != ee::kObjectInvalid;
+  facts.dead = engine::IsDeadOrDying(creature);
+  facts.hostile = engine::IsEnemy(creature, g_hider);
+  facts.fighting = Field<int32_t>(creature, ee::kCreatureInCombat) != 0;
+  facts.searching = Field<uint8_t>(creature, ee::kCreatureDetectMode) != 0;
+  facts.investigating = engine::GetLocalInt(creature, "nwn5e_seek") > 0;
+  facts.hiding = Field<uint8_t>(creature, ee::kCreatureStealthMode) == 1;
+  facts.busy = !engine::HasNoOrders(creature);
+  facts.metres = metres;
+  const rules::IdleLookBlock block = rules::IdleLookBlocker(facts);
+  static int blocks_logged = 0;
+  if (block != rules::IdleLookBlock::kNone) {
+    if (block != looker.last && facts.hostile && blocks_logged < 60) {
+      ++blocks_logged;
+      Log("stealth watch: 0x%08X doesn't look about - %s (asked again in %.1f s)", id, rules::IdleLookBlockName(block),
+          wait);
+    }
+    looker.last = block;
+    if (looker.has_post && rules::IdleLookMovedOff(looker.post_x, looker.post_y, x, y)) looker.has_post = false;
+    return;
+  }
+  const float facing = rules::FacingDegrees(atan2f(Field<float>(creature, ee::kObjectOrientationY),
+                                                   Field<float>(creature, ee::kObjectOrientationX)) *
+                                            180.0f / 3.14159265f);
+  if (!looker.has_post || rules::IdleLookMovedOff(looker.post_x, looker.post_y, x, y)) {
+    looker.has_post = true;
+    looker.post_x = x;
+    looker.post_y = y;
+    looker.post_facing = facing;
+  }
+  const bool left = LookRoll() < 0.5;
+  const float turn = rules::IdleLookTurn(g_look, LookRoll(), left);
+  const float to = rules::FacingDegrees(looker.post_facing + turn);
+  char code[600];
+  sprintf_s(code,
+            "object o = OBJECT_SELF; int done = 2;"
+            "if (!IsInConversation(o) && GetCommandable(o)) {"
+            " ActionDoCommand(SetFacing(%.1f));"
+            " ActionPlayAnimation(ANIMATION_LOOPING_LOOK_FAR, 1.0, %d.0);"
+            " ActionDoCommand(SetFacing(%.1f));"
+            " done = 1;"
+            "}"
+            "SetLocalInt(o, \"nwn5e_look_done\", done);",
+            to, g_look.hold_seconds, looker.post_facing);
+  Run(code, id, "idle look");
+  if (engine::GetLocalInt(creature, "nwn5e_look_done") != 1) {
+    if (looker.last != rules::IdleLookBlock::kBusy && blocks_logged < 60) {
+      ++blocks_logged;
+      Log("stealth watch: 0x%08X doesn't look about - in a conversation or not commandable (asked again in %.1f s)", id,
+          wait);
+    }
+    looker.last = rules::IdleLookBlock::kBusy;
+    return;
+  }
+  looker.last = block;
+  static int looks_logged = 0;
+  if (looks_logged < 300) {
+    ++looks_logged;
+    Log("stealth watch: 0x%08X looks about - %+.0f degrees (%s; facing %.0f -> %.0f), holds %d s, back to %.0f; "
+        "its next look in %.1f s%s",
+        id, turn, left ? "left" : "right", looker.post_facing, to, g_look.hold_seconds, looker.post_facing, wait,
+        looks_logged == 300 ? " (further looks not logged)" : "");
+  }
+}
+
 // Every creature, each AI pass: its ring rows as locals, written when they change.
 void WriteRanges(void* creature, uint32_t id) {
   const bool fighting = Field<int32_t>(creature, ee::kCreatureInCombat) != 0;
@@ -799,7 +924,11 @@ void Update(void* creature) {
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   if (g_config.stealth_rings > 0) WriteRanges(creature, id);
   if (Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) == 0) {
-    if (PlayersHenchman(creature)) HenchmanPass(creature, id);
+    if (PlayersHenchman(creature)) {
+      HenchmanPass(creature, id);
+    } else if (g_hider && IdleLookOn()) {
+      IdleLook(creature, id);
+    }
     return;
   }
   Watch& watch = g_watches[id];
@@ -811,8 +940,13 @@ void Update(void* creature) {
   if (!area) return;
   if (hiding) {
     g_hider = id;
+    g_hider_area = area;
+    g_hider_x = Field<float>(creature, ee::kObjectPositionX);
+    g_hider_y = Field<float>(creature, ee::kObjectPositionY);
   } else if (g_hider == id) {
     g_hider = 0;
+    g_hider_area = nullptr;
+    g_lookers.clear();  // the next hide starts the looks afresh
   }
   if (area != watch.area) {
     // A new area (or a loaded game): markers and rings left in it from before go.
@@ -869,6 +1003,14 @@ void InstallStealthWatch() {
   g_investigate = g_config.heard_investigates && g_config.perception == rules::RuleVariant::kFaithful;
   if (!g_config.stealth_marker && g_config.stealth_rings <= 0 && !g_investigate) return;
   g_clear_line_of_sight = reinterpret_cast<ClearLineOfSightFn>(EngineExport(ee::kClearLineOfSight));
+  rules::IdleLookTuning look;
+  look.min_seconds = g_config.idle_look_min_seconds;
+  look.max_seconds = g_config.idle_look_max_seconds;
+  look.min_degrees = g_config.idle_look_min_degrees;
+  look.max_degrees = g_config.idle_look_max_degrees;
+  look.hold_seconds = g_config.idle_look_hold;
+  g_look = rules::SaneIdleLook(look);
+  g_look_dice.seed(static_cast<uint32_t>(GetTickCount64()));
   g_compute_height = reinterpret_cast<ComputeHeightFn>(EngineExport(ee::kComputeHeight));
   if (AddCreatureUpdateListener(&Update)) {
     Log("stealth watch: while a player character hides - markers %s, rings on the nearest %d, heard -> investigate %s",
@@ -889,6 +1031,19 @@ void InstallStealthWatch() {
           rules::ConeSliceSpan(rules::DrawnConeDegrees(g_config.vision_cone)).count,
           rules::DrawnConeDegrees(g_config.vision_cone),
           rules::kConeSliceLengthCount, rules::kConeSliceRow, rules::kConeSliceRowLast, g_config.stealth_rings);
+    }
+    // #9 d's launch line.
+    if (!g_config.idle_look) {
+      Log("stealth watch: idle looks off (idle_look=0) - calm enemies keep facing one way");
+    } else if (!IdleLookOn()) {
+      Log("stealth watch: idle looks - idle_look=1 but off: no calm vision cones (perception, hiders_need_search, "
+          "vision_cone)");
+    } else {
+      Log("stealth watch: idle looks - idle_look=1 idle_look_min_seconds=%d idle_look_max_seconds=%d "
+          "idle_look_min_degrees=%d idle_look_max_degrees=%d idle_look_hold=%d: calm hostiles within %.0f m of a "
+          "hiding player character turn left or right, hold the look and turn back to their post",
+          g_look.min_seconds, g_look.max_seconds, g_look.min_degrees, g_look.max_degrees, g_look.hold_seconds,
+          rules::kIdleLookReach);
     }
   }
 }
