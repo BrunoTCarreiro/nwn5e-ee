@@ -6,12 +6,9 @@
 // engine's own CNWSArea::ClearLineOfSight, from its eyes as its perception calls it - rounded down to a drawn length
 // (kConeSliceLengths), never past its sight range. The rule agrees with the drawing (core/rules_perception.cpp): a
 // hostile whose cone is drawn in slices sees a hider only inside a drawn slice, no farther than that slice's length.
-// The sweeping cone (#9; owner, 2026-11-22: "A, go with the sweeping cone"): a searching hostile keeps a cone too,
-// wider (search_cone), sweeping side to side round its facing as it scans (SweepAngle), stepped a slice at a time; it
-// sees a hider only inside its cone as it points now. The slice positions go all round the creature for it. This
-// file only decides; the engine side measures and draws.
-
-#include <stdint.h>
+// A searching hostile keeps a cone too (#9, 2026-11-22; its glances: rules/search_glance.h), and the slice
+// positions go all round the creature (a wide search_cone, a glance). This file only decides; the engine side measures
+// and draws.
 
 #include <functional>
 
@@ -74,32 +71,5 @@ bool SeenInsideSlices(const int rows[kConeSlicePositions], float degrees_off_fac
 
 // A drawn set's signature: 0 when nothing is drawn, never 0 otherwise.
 int ConeSliceSignature(const int rows[kConeSlicePositions]);
-
-// The sweep (owner, 2026-11-22: "A, go with the sweeping cone"): a searching creature's cone, cone_degrees wide,
-// swings sweep_degrees to either side of its facing and back every period_ms, holding pause_ms at each end - linear in
-// between. nwn5e.ini: search_cone, search_sweep_degrees, search_sweep_ms, search_sweep_pause_ms.
-struct SearchSweep {
-  int cone_degrees = 120;
-  int sweep_degrees = 60;
-  int period_ms = 4000;
-  int pause_ms = 500;
-};
-// The keys as read, made sane: the cone drawn as DrawnConeDegrees does, the sweep 0-180 degrees, the period
-// 1000-60000 ms, the pause 0 up to half the period less 200 ms (it always moves).
-SearchSweep SaneSearchSweep(SearchSweep sweep);
-
-// Where the cone points `ms` after the search began, degrees off the facing (anticlockwise +): it starts on the
-// facing, swinging left (anticlockwise).
-float SweepAngle(const SearchSweep& sweep, int64_t ms);
-
-// The cone's step as drawn (15-degree steps): the angle rounded to the nearest step.
-int SweepStep(float degrees);
-
-// Every position the sweeping cone covers over its swing (what is measured for it), capped at the whole circle.
-SliceSpan SweepRange(const SearchSweep& sweep);
-
-// The rule for a searching creature whose cone isn't drawn: is a hider `degrees_off_facing` off its facing inside
-// its cone as it points `ms` after the search began (the drawn step's positions)?
-bool InSweepCone(const SearchSweep& sweep, int64_t ms, float degrees_off_facing);
 
 }  // namespace rules

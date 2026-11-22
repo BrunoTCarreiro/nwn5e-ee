@@ -77,11 +77,14 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.vision_cone = GetPrivateProfileIntW(L"rules", L"vision_cone", g_config.vision_cone, ini);
   g_config.cone_walls = ReadBool(ini, L"cone_walls", g_config.cone_walls);
   g_config.search_cone = GetPrivateProfileIntW(L"rules", L"search_cone", g_config.search_cone, ini);
-  g_config.search_sweep_degrees =
-      GetPrivateProfileIntW(L"rules", L"search_sweep_degrees", g_config.search_sweep_degrees, ini);
-  g_config.search_sweep_ms = GetPrivateProfileIntW(L"rules", L"search_sweep_ms", g_config.search_sweep_ms, ini);
-  g_config.search_sweep_pause_ms =
-      GetPrivateProfileIntW(L"rules", L"search_sweep_pause_ms", g_config.search_sweep_pause_ms, ini);
+  g_config.search_glance_min_degrees =
+      GetPrivateProfileIntW(L"rules", L"search_glance_min_degrees", g_config.search_glance_min_degrees, ini);
+  g_config.search_glance_max_degrees =
+      GetPrivateProfileIntW(L"rules", L"search_glance_max_degrees", g_config.search_glance_max_degrees, ini);
+  g_config.search_glance_min_ms =
+      GetPrivateProfileIntW(L"rules", L"search_glance_min_ms", g_config.search_glance_min_ms, ini);
+  g_config.search_glance_max_ms =
+      GetPrivateProfileIntW(L"rules", L"search_glance_max_ms", g_config.search_glance_max_ms, ini);
   g_config.idle_look = ReadBool(ini, L"idle_look", g_config.idle_look);
   g_config.idle_look_min_seconds =
       GetPrivateProfileIntW(L"rules", L"idle_look_min_seconds", g_config.idle_look_min_seconds, ini);

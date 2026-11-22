@@ -5984,6 +5984,27 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   anything is measured); each state change ("searches - its 120-degree cone sweeps ...", "calm again"; 60 lines)
   and the first 40 draws are logged. cone_walls=0 draws the slices uncut. The idle looks (calm only) are as they
   were; a calm cone's cuts now follow a look's turn within a few updates.
+  *Owner, 2026-11-22 (0.99.123):* "the sweeping 120 cone is very very annoying. I'm not sure why. Also, cones of
+  vision are supposed to indicate danger zones. Right now I can sneak by in the darkness through cones of vision and
+  enemies won't see me. If they can't see me because of the light level I'd expect the cone to be mush shorter to
+  show where detection is possible".
+  *Decided (owner, 2026-11-22):* "1.A 2. Mostly A, but if there's an illuminated patch further out, there should not
+  be an island of vision, it should form a contiguous slice of detectability" - 1: glances replace the sweep (a
+  searching enemy's cone on its real facing, moved only when it turns to look); 2: light shortens each slice to the
+  farthest point it could spot a hider, contiguous out to a lit patch.
+  *Built (#9, glances):* the sweep is retired (search_sweep_* gone; SearchSweep / SweepAngle out of
+  rules/cone_slices). A searching enemy keeps `search_cone` (now 90, the calm width) on its real facing, drawn and
+  cut as the calm one, and glances while it stands still (300 ms): SetFacing at once, outside its action queue, by
+  `search_glance_min_degrees` .. `_max_degrees` (45-90) - the first glance toward where it last heard the hider when
+  that is 1.5 m away or more, then to either side of that line in turn (left or right first at random) - each held
+  `search_glance_min_ms` .. `_max_ms` (1500-2500) (rules/search_glance.h, tested). It glances only when its current
+  action is a wait (GetCurrentAction 36, ACTION_WAIT: the investigation's 6 s at the noise, #133's 3 s) or it has
+  no orders at all - never while it walks (the walk's own facing), plays the investigation's head turns, fights or
+  casts; refused, it asks again in 0.5 s. So at the noise it glances about three times in its 6 s wait, then walks
+  back. Its cone turns with it at once, the wall cuts follow within a few updates; the rule reads the drawn rows (or,
+  undrawn, search_cone on its facing). Only while a player character hides, within 40 m. The log: "glances (toward
+  where it heard you / about) - facing a -> b, holds n s" (300 lines), "stands but doesn't glance - busy (action
+  n)" (20).
 - **Light where you hide** (0.32.0; owner: "do the sensible distances, I'll add
   light queries down the line"). The !light readings (Training Halls, night,
   interior): moon ambient 58 (dim), braziers / torch brackets found lit by

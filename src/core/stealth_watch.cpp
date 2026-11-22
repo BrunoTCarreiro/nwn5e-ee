@@ -41,18 +41,23 @@
 //   drawn slice, no farther than its length, read from the rows drawn - so it never sees past where its slice is
 //   cut; the engine's own line of sight still applies inside a slice (a pillar off the slice's middle still hides
 //   you), so the drawing may show more than it sees, never less.
-//   The sweeping cone (#9; owner, 2026-11-22: "is it possible to add an animation to the cone when is active search
-//   instead of making the cone disappear when not? if idle being lowest alert mode has a cone, any mode should have
-//   it as well" - "A, go with the sweeping cone"): a searching hostile (detect mode, investigating, or in combat with
-//   alert_creatures_search) keeps a cone - search_cone degrees (120) - that sweeps search_sweep_degrees (60) to
-//   either side of its facing and back every search_sweep_ms (4000), holding search_sweep_pause_ms (500) at each
-//   end (rules::SweepAngle), stepped a 15-degree slice at a time; the slices now go all round the creature (24
-//   positions: visualeffects 2260-3059 the front ten, 3060-4179 the rest). The all-round ring is retired (it shows
-//   only with search_cone 0 or 360, or no cones at all). Each drawn creature's cone is kept on it from its own
-//   update, not the pass: its lengths measured a position at a time (2 an update, 240 sight lines a second at most
-//   for all; again when it moves 0.5 m or turns 7.5 degrees, else every 3 s), unmeasured ones drawn to its sight,
-//   and redrawn when its rows change (10 a second at most) - only the slices that change. cone_walls=0 draws the
-//   slices uncut.
+//   A searching hostile's cone (#9; owner, 2026-11-22: "if idle being lowest alert mode has a cone, any mode should
+//   have it as well" - the sweep, then "the sweeping 120 cone is very very annoying" - "1.A"): a searching hostile
+//   (detect mode, investigating, or in combat with alert_creatures_search) keeps a cone - search_cone degrees (90,
+//   the calm width) - on its real facing, and glances about while it stands (Glance below): its cone moves only when
+//   it turns. The slices go all round the creature (24 positions: visualeffects 2260-3059 the front ten, 3060-4179
+//   the rest; a wide search_cone uses them). The all-round ring shows only with search_cone 0 or 360, or no cones at
+//   all. Each drawn creature's cone is kept on it from its own update, not the pass: its lengths measured a position
+//   at a time (2 an update, 240 sight lines a second at most for all; again when it moves 0.5 m or turns 7.5
+//   degrees, else every 3 s), unmeasured ones drawn to its sight, and redrawn when its rows change (10 a second at
+//   most) - only the slices that change. cone_walls=0 draws the slices uncut.
+//   Its glances (rules/search_glance.h): while a player character hides, a searching hostile within 40 m of it that
+//   stands still (300 ms) turns - SetFacing at once, outside its action queue - search_glance_min_degrees ..
+//   _max_degrees (45-90), the first toward where it heard the hider when that is 1.5 m away or more, then to either
+//   side in turn, each held search_glance_min_ms .. _max_ms (1.5-2.5 s). Only when its current action is a wait
+//   (an investigation's 6 s at the noise, #133's 3 s) or it has none: never while it walks (its walk's own facing),
+//   plays the investigation's head turns, fights or casts - so it doesn't fight the investigation. Each glance logged
+//   (300 lines at most).
 //   Idle guards look about (#9 d; owner, 2026-11-15: "yes, sounds fun but we have to tune this"): while a player
 //   character hides, each calm hostile within 40 m of it looks about now and then - every idle_look_min_seconds ..
 //   idle_look_max_seconds (8-16) at random, it turns idle_look_min_degrees .. idle_look_max_degrees (40-120) left or
@@ -171,6 +176,7 @@
 #include "log.h"
 #include "rules/cone_slices.h"
 #include "rules/idle_look.h"
+#include "rules/search_glance.h"
 #include "rules/skills.h"
 
 bool SpotMargin(void* observer, void* hider, int* margin);  // rules_perception.cpp
@@ -178,6 +184,7 @@ bool StealthParts(void* creature, int* extra, bool* proficient);  // rules_skill
 int CarriedLightRadius(void* creature);                      // rules_perception.cpp
 void SetStealthOpacity(uint32_t id, float opacity);          // stealth_ghost.cpp
 bool StealthGhostOn();                                       // stealth_ghost.cpp
+bool HeardSpot(uint32_t observer, uint32_t hider, float* x, float* y);  // rules_perception.cpp (#9)
 
 namespace {
 
@@ -228,7 +235,7 @@ using ComputeHeightFn = float (*)(void* area, Vec3 at);
 ClearLineOfSightFn g_clear_line_of_sight = nullptr;
 ComputeHeightFn g_compute_height = nullptr;
 int g_pass = 0;                     // the hiding player character's last pass (its nwn5e_watch_pass)
-// #9 c and the sweep: each creature's cone near the hiding player character, kept in slices round it.
+// #9 c: each creature's cone near the hiding player character, kept in slices round it.
 struct ConeState {
   int length[rules::kConeSlicePositions];    // each position's measured length (an index; -1 blocked at its feet)
   int epoch_of[rules::kConeSlicePositions];  // the anchor it was measured from (-1 never)
@@ -237,7 +244,6 @@ struct ConeState {
   bool anchored = false;
   float ax = 0.0f, ay = 0.0f, af = 0.0f;  // the anchor: where it stood and faced (degrees) when measured
   bool searching = false;
-  uint64_t sweep_start = 0;               // when its search began (its sweep's time)
   int drawn[rules::kConeSlicePositions];  // the rows on it now (its effects nwn5e_cs<position>)
   int drawn_sig = 0;
   uint64_t next_draw = 0;
@@ -251,7 +257,19 @@ struct ConeState {
   }
 };
 std::unordered_map<uint32_t, ConeState> g_cones;
-rules::SearchSweep g_sweep;
+// #9: a searching creature's glances.
+struct Glancer {
+  float x = 0.0f, y = 0.0f;  // where it was at its last update
+  uint64_t still_since = 0;  // standing there since
+  int n = 0;                 // this stand's glances so far
+  float base = 0.0f;         // its facing when the stand began (degrees)
+  bool has_toward = false;
+  float toward = 0.0f;       // toward where it heard the hider (degrees)
+  bool left_first = true;
+  uint64_t next = 0;         // its glance's hold is over
+};
+std::unordered_map<uint32_t, Glancer> g_glancers;
+rules::GlanceTuning g_glance;
 constexpr int kTestsPerSecond = 240;     // sight lines a second, all creatures together
 constexpr int kPositionsPerUpdate = 2;   // positions measured in one creature update
 constexpr uint64_t kDrawEveryMs = 100;   // a creature's cone redrawn at most this often
@@ -292,9 +310,9 @@ bool ConesOn() {
 }
 // Their lengths cut at walls (#9 c).
 bool CutsOn() { return ConesOn() && g_config.cone_walls && g_clear_line_of_sight && g_compute_height; }
-// A searching creature keeps a sweeping cone (the rule and the drawing): off with search_cone 0 / 360+, or no calm
-// cones (a calm one seeing all round, a searching one would see less).
-bool SweepOn() {
+// A searching creature keeps a cone (the rule and the drawing): off with search_cone 0 / 360+, or no calm cones (a
+// calm one seeing all round, a searching one would see less).
+bool SearchConeOn() {
   return g_config.perception == rules::RuleVariant::kFaithful && g_config.hiders_need_search &&
          g_config.vision_cone > 0 && g_config.vision_cone < 360 && g_config.search_cone > 0 &&
          g_config.search_cone < 360;
@@ -480,9 +498,9 @@ void DrawCone(uint32_t id, ConeState& s, const int want[rules::kConeSlicePositio
   s.drawn_sig = sig;
 }
 
-// #9 c and the sweep, each creature update: the cone of a creature near the hiding player character - its search's
-// start (the sweep's time), and, when the last pass drew its rings, its slices measured and drawn as it is now (calm:
-// vision_cone on its facing; searching: search_cone where the sweep points). `drawn`: its rings drawn.
+// #9 c, each creature update: the cone of a creature near the hiding player character - when the last pass drew its
+// rings, its slices measured and drawn as it is now (calm: vision_cone, searching: search_cone, on its facing).
+// `drawn`: its rings drawn.
 void UpdateCone(void* creature, uint32_t id, float sight, int colour, int cone_row, bool drawn) {
   auto found = g_cones.find(id);
   if (!ConesOn() || !g_hider || id == g_hider || engine::AreaOf(creature) != g_hider_area) {
@@ -497,29 +515,23 @@ void UpdateCone(void* creature, uint32_t id, float sight, int colour, int cone_r
   const uint64_t now = GetTickCount64();
   const bool searching = SearchingNow(creature);
   static int told = 0;
-  if (searching != s.searching || s.sweep_start == 0) {
-    if (s.sweep_start != 0 && drawn && told < 60) {
+  if (searching != s.searching) {
+    if (drawn && told < 60) {
       ++told;
-      if (searching && SweepOn()) {
-        Log("stealth watch: 0x%08X searches - its %d-degree cone sweeps %d degrees either way every %.1f s (%.1f s at "
-            "each end)", id, g_sweep.cone_degrees, g_sweep.sweep_degrees, g_sweep.period_ms / 1000.0,
-            g_sweep.pause_ms / 1000.0);
+      if (searching && SearchConeOn()) {
+        Log("stealth watch: 0x%08X searches - its %d-degree cone on its facing, glancing about when it stands", id,
+            rules::DrawnConeDegrees(g_config.search_cone));
       } else {
         Log("stealth watch: 0x%08X %s", id, searching ? "searches - all round (search_cone off)" : "calm again");
       }
     }
     s.searching = searching;
-    s.sweep_start = now;
   }
   int want[rules::kConeSlicePositions] = {};
   if (drawn) {
     rules::SliceSpan shown, range;
     if (searching) {
-      if (SweepOn()) {
-        shown = rules::ConeSliceSpan(g_sweep.cone_degrees,
-                                     rules::SweepStep(rules::SweepAngle(g_sweep, static_cast<int64_t>(now - s.sweep_start))));
-        range = rules::SweepRange(g_sweep);
-      }
+      if (SearchConeOn()) shown = range = rules::ConeSliceSpan(rules::DrawnConeDegrees(g_config.search_cone));
     } else if (cone_row > 0) {
       shown = range = rules::ConeSliceSpan(rules::DrawnConeDegrees(g_config.vision_cone));
     }
@@ -728,11 +740,11 @@ void Pass(uint32_t pc, int carried) {
         "  int sight = GetLocalInt(o, \"" + std::string(kVarSightRing) + "\");"
         "  int hear = GetLocalInt(o, \"" + std::string(kVarHearRing) + "\");"
         "  int cone = GetLocalInt(o, \"" + std::string(kVarConeRing) + "\");"
-        // Its cone is drawn in slices from its own update (calm, and searching with the sweep: UpdateCone); the
-        // full ring - it sees all round - only without cones (cone 0) or a searching one without the sweep.
+        // Its cone is drawn in slices from its own update (calm, and searching: UpdateCone); the full ring - it sees
+        // all round - only without cones (cone 0) or a searching one without its cone (search_cone 0 / 360).
         "  int searching = GetActionMode(o, ACTION_MODE_DETECT) || (" + Num(g_config.alert_creatures_search ? 1 : 0) +
         " && GetIsInCombat(o));"
-        "  int look = (searching && " + Num(SweepOn() && ConesOn() ? 0 : 1) + ") || cone == 0 ? sight : 0;";
+        "  int look = (searching && " + Num(SearchConeOn() && ConesOn() ? 0 : 1) + ") || cone == 0 ? sight : 0;";
     code +=
         "  int ring = 0;"
         "  if (GetLocalInt(o, \"nwn5e_ring_pass\") == pass && hear > 0) ring = look * 10000 + hear;"
@@ -1012,6 +1024,74 @@ void IdleLook(void* creature, uint32_t id) {
   }
 }
 
+// #9: a searching creature near the hiding player character, each AI pass - standing still, it glances about
+// (rules::GlanceFacing), only while its current action is a wait or it has none.
+
+void Glance(void* creature, uint32_t id) {
+  const uint64_t now = GetTickCount64();
+  const float x = Field<float>(creature, ee::kObjectPositionX), y = Field<float>(creature, ee::kObjectPositionY);
+  const float metres = sqrtf((x - g_hider_x) * (x - g_hider_x) + (y - g_hider_y) * (y - g_hider_y));
+  if (!SearchingNow(creature) || engine::AreaOf(creature) != g_hider_area || metres > rules::kIdleLookReach ||
+      Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0 || engine::IsDeadOrDying(creature) ||
+      !engine::IsEnemy(creature, g_hider)) {
+    if (!g_glancers.empty()) g_glancers.erase(id);
+    return;
+  }
+  Glancer& g = g_glancers[id];
+  if (g.still_since == 0 || (x - g.x) * (x - g.x) + (y - g.y) * (y - g.y) > 0.05f * 0.05f) {
+    // Moving (or new): a stand begins once it stops.
+    g.x = x;
+    g.y = y;
+    g.still_since = now;
+    g.n = 0;
+    g.next = 0;
+    return;
+  }
+  if (!rules::GlanceDue(static_cast<int>(now - g.still_since), now >= g.next)) return;
+  const float facing = rules::FacingDegrees(atan2f(Field<float>(creature, ee::kObjectOrientationY),
+                                                   Field<float>(creature, ee::kObjectOrientationX)) *
+                                            180.0f / 3.14159265f);
+  if (g.n == 0) {
+    g.base = facing;
+    float hx = 0.0f, hy = 0.0f;
+    g.has_toward = false;
+    if (HeardSpot(id, g_hider, &hx, &hy) && (hx - x) * (hx - x) + (hy - y) * (hy - y) >= 1.5f * 1.5f) {
+      g.has_toward = true;
+      g.toward = rules::FacingDegrees(atan2f(hy - y, hx - x) * 180.0f / 3.14159265f);
+    }
+    g.left_first = LookRoll() < 0.5;
+  }
+  const float to = rules::GlanceFacing(g_glance, g.base, g.n, LookRoll(), g.has_toward, g.toward, g.left_first);
+  const int hold = rules::GlanceHoldMs(g_glance, LookRoll());
+  char code[400];
+  // 36: ACTION_WAIT (an investigation's wait at the noise, #133's); none at all is fine too.
+  sprintf_s(code,
+            "object o = OBJECT_SELF; int a = GetCurrentAction(o); int done = a;"
+            "if (a == 36 || (%s && a == ACTION_INVALID)) { SetFacing(%.1f); done = -1; }"
+            "SetLocalInt(o, \"nwn5e_glanced\", done);",
+            engine::HasNoOrders(creature) ? "TRUE" : "FALSE", to);
+  Run(code, id, "glance");
+  const int done = engine::GetLocalInt(creature, "nwn5e_glanced");
+  static int logged = 0;
+  if (done != -1) {
+    g.next = now + 500;  // busy (walking, its head turns, a fight ...): asked again soon
+    static int busy_logged = 0;
+    if (busy_logged < 20) {
+      ++busy_logged;
+      Log("stealth watch: 0x%08X searching, stands but doesn't glance - busy (action %d)", id, done);
+    }
+    return;
+  }
+  g.next = now + hold;
+  if (logged < 300) {
+    ++logged;
+    Log("stealth watch: 0x%08X glances (%s) - facing %.0f -> %.0f, holds %.1f s%s", id,
+        g.n == 0 && g.has_toward ? "toward where it heard you" : "about", facing, to, hold / 1000.0,
+        logged == 300 ? " (further glances not logged)" : "");
+  }
+  ++g.n;
+}
+
 // Every creature, each AI pass: its ring rows as locals, written when they change.
 void WriteRanges(void* creature, uint32_t id) {
   const bool fighting = Field<int32_t>(creature, ee::kCreatureInCombat) != 0;
@@ -1056,8 +1136,9 @@ void Update(void* creature) {
   if (Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) == 0) {
     if (PlayersHenchman(creature)) {
       HenchmanPass(creature, id);
-    } else if (g_hider && IdleLookOn()) {
-      IdleLook(creature, id);
+    } else if (g_hider) {
+      if (IdleLookOn()) IdleLook(creature, id);
+      if (SearchConeOn()) Glance(creature, id);
     }
     return;
   }
@@ -1087,6 +1168,7 @@ void Update(void* creature) {
     g_hider = 0;
     g_hider_area = nullptr;
     g_lookers.clear();  // the next hide starts the looks afresh
+    g_glancers.clear();
   }
   if (area != watch.area) {
     // A new area (or a loaded game): markers and rings left in it from before go.
@@ -1138,21 +1220,8 @@ int DrawnConeSees(void* observer, void* hider, float* metres, float* reach) {
   return rules::SeenInsideSlices(found->second.drawn, off, *metres) ? 1 : 0;
 }
 
-// The sweep (rules_perception.cpp): whether searching creatures keep a sweeping cone, and - for one whose cone isn't
-// drawn - whether `hider` is inside it as it points now (from when its search began; now if not known).
-bool SweepConesOn() { return SweepOn(); }
-
-bool SweepConeSees(void* observer, void* hider) {
-  if (!observer || !hider) return true;
-  const uint64_t now = GetTickCount64();
-  const auto found = g_cones.find(Field<uint32_t>(observer, ee::kObjectId));
-  const uint64_t start = found != g_cones.end() && found->second.searching ? found->second.sweep_start : now;
-  const float dx = Field<float>(hider, ee::kObjectPositionX) - Field<float>(observer, ee::kObjectPositionX);
-  const float dy = Field<float>(hider, ee::kObjectPositionY) - Field<float>(observer, ee::kObjectPositionY);
-  const float off = rules::DegreesOffFacing(dx, dy, Field<float>(observer, ee::kObjectOrientationX),
-                                            Field<float>(observer, ee::kObjectOrientationY));
-  return rules::InSweepCone(g_sweep, static_cast<int64_t>(now - start), off);
-}
+// rules_perception.cpp: whether a searching creature keeps a cone (search_cone) rather than seeing all round.
+bool SearchConesOn() { return SearchConeOn(); }
 
 void InstallStealthWatch() {
   g_investigate = g_config.heard_investigates && g_config.perception == rules::RuleVariant::kFaithful;
@@ -1167,12 +1236,12 @@ void InstallStealthWatch() {
   g_look = rules::SaneIdleLook(look);
   g_look_dice.seed(static_cast<uint32_t>(GetTickCount64()));
   g_compute_height = reinterpret_cast<ComputeHeightFn>(EngineExport(ee::kComputeHeight));
-  rules::SearchSweep sweep;
-  sweep.cone_degrees = g_config.search_cone;
-  sweep.sweep_degrees = g_config.search_sweep_degrees;
-  sweep.period_ms = g_config.search_sweep_ms;
-  sweep.pause_ms = g_config.search_sweep_pause_ms;
-  g_sweep = rules::SaneSearchSweep(sweep);
+  rules::GlanceTuning glance;
+  glance.min_degrees = g_config.search_glance_min_degrees;
+  glance.max_degrees = g_config.search_glance_max_degrees;
+  glance.min_ms = g_config.search_glance_min_ms;
+  glance.max_ms = g_config.search_glance_max_ms;
+  g_glance = rules::SaneGlance(glance);
   if (AddCreatureUpdateListener(&Update)) {
     Log("stealth watch: while a player character hides - markers %s, rings on the nearest %d, heard -> investigate %s",
         g_config.stealth_marker ? "on" : "off", g_config.stealth_rings, g_investigate ? "on (2024)" : "off");
@@ -1194,16 +1263,18 @@ void InstallStealthWatch() {
           rules::kConeSliceRowLast, rules::kConeSliceRearRow, rules::kConeSliceRearRowLast, g_config.stealth_rings,
           kPositionsPerUpdate, kTestsPerSecond);
     }
-    // The sweep's launch line.
-    if (!SweepOn()) {
-      Log("stealth watch: sweeping search cones off (search_cone=%d) - a searching enemy sees all round (its ring)",
+    // The searching cone's launch line.
+    if (!SearchConeOn()) {
+      Log("stealth watch: searching cones off (search_cone=%d) - a searching enemy sees all round (its ring)",
           g_config.search_cone);
     } else {
-      Log("stealth watch: sweeping search cones - search_cone=%d search_sweep_degrees=%d search_sweep_ms=%d "
-          "search_sweep_pause_ms=%d: a searching enemy's %d-degree cone sweeps %d degrees either way and back every "
-          "%.1f s, %.1f s at each end; it sees a hider only inside it (a d20 Perception roll)",
-          g_config.search_cone, g_config.search_sweep_degrees, g_config.search_sweep_ms, g_config.search_sweep_pause_ms,
-          g_sweep.cone_degrees, g_sweep.sweep_degrees, g_sweep.period_ms / 1000.0, g_sweep.pause_ms / 1000.0);
+      Log("stealth watch: searching cones - search_cone=%d search_glance_min_degrees=%d search_glance_max_degrees=%d "
+          "search_glance_min_ms=%d search_glance_max_ms=%d: a searching enemy's %d-degree cone on its facing; standing, "
+          "it glances %d-%d degrees (first toward where it heard you), holding %.1f-%.1f s; it sees a hider only inside "
+          "its cone (a d20 Perception roll)",
+          g_config.search_cone, g_config.search_glance_min_degrees, g_config.search_glance_max_degrees,
+          g_config.search_glance_min_ms, g_config.search_glance_max_ms, rules::DrawnConeDegrees(g_config.search_cone),
+          g_glance.min_degrees, g_glance.max_degrees, g_glance.min_ms / 1000.0, g_glance.max_ms / 1000.0);
     }
     InstallLightGem();  // #9 a: its own launch line
     // #9 d's launch line.
