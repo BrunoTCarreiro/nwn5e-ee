@@ -2642,6 +2642,18 @@ the movement extras (#55); then the staple actions (#56, a decision first).
     RadialRingSlots (Spells in faithful) - 9 of 9 mutations caught.
   - The cleanup, Spells and Prepare Spells: the RC and MG rows passed. *Accepted (owner, 2026-11-22: "I think the
     radial menu is good for now").* #182 closed; #126 stays open for layout A, after #125's actions.
+  - *Decided (owner, 2026-11-22, Barter - NWN's trade window between two players - seen in the quickbar's assign
+    menus: "Leave the barter then but it probably should only appear when showing the radial menu on another
+    player?"):* in faithful, Barter on another player character's ring alone.
+  - *Built (Barter; `radial` faithful):* what the game does: another creature's ring (993790) puts Barter in slot 7
+    only when that creature is a player character (its player entry, 6ac100; Talk To or Loot Creature there for
+    anyone else - an NPC, a henchman; your associate's and your own rings have none); the quickbar's assign ring
+    (a player's, 9adb20) has Assign Other Actions (slot 4, 9ac920) with Assign Barter in slot 7 for no one at all;
+    a DM's Socialize pages (992540, 994b40 - only a DM reaches them) grey it unless the target is a player. Now: the
+    ring's slot 7 as the game's (another player only); Assign Barter's call taken out (radial_pages.cpp, its strref
+    67569 finding the page; RadialFixedEntries' fifth row) - that slot stays empty; the DM's pages kept.
+    rules::RadialBarterShows (another player / anyone else / no one). Tests RadialBarterShows,
+    RadialFixedEntriesLeftOut (9 of 9 mutations caught).
 *Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
 0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
 Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).

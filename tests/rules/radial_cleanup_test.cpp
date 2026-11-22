@@ -61,9 +61,9 @@ TEST(RadialCastSpellHidesMetamagicAndEpicSpells) {
 TEST(RadialFixedEntriesLeftOut) {
   size_t count = 99;
   const RadialFixedEntry* entries = RadialFixedEntries(kFaithful, &count);
-  CHECK_EQ(count, 4u);
+  CHECK_EQ(count, 5u);
   CHECK_EQ(entries != nullptr, true);
-  if (!entries || count != 4) return;
+  if (!entries || count != 5) return;
   CHECK_EQ(static_cast<int>(entries[0].page), static_cast<int>(RadialPage::kSpecialAttacks));
   CHECK_EQ(entries[0].slot, 0);
   CHECK_EQ(Text(entries[0].icon) == "isk_parry", true);
@@ -80,6 +80,12 @@ TEST(RadialFixedEntriesLeftOut) {
   CHECK_EQ(entries[3].slot, 6);
   CHECK_EQ(Text(entries[3].icon) == "IR_SPELL_ABS", true);
   CHECK_EQ(entries[3].sub_page, true);
+  // The quickbar's Assign Barter (RadialBarterShows: no one to trade with).
+  CHECK_EQ(static_cast<int>(entries[4].page), static_cast<int>(RadialPage::kAssignOtherActions));
+  CHECK_EQ(entries[4].slot, 7);
+  CHECK_EQ(Text(entries[4].icon) == "IR_BARTER", true);
+  CHECK_EQ(entries[4].sub_page, false);
+  CHECK_EQ(RadialPageHidesFeat(kFaithful, RadialPage::kAssignOtherActions, 28), false);
   count = 99;
   CHECK_EQ(RadialFixedEntries(kNwn, &count) == nullptr, true);
   CHECK_EQ(count, 0u);
@@ -253,4 +259,26 @@ TEST(RadialSpellsEntryShows) {
   CHECK_EQ(RadialSpellsEntryShows(true, true, false, false, true), false);  // no Prepare Spells
   CHECK_EQ(RadialSpellsEntryShows(true, true, false, true, false), false);  // slot 6 taken
   CHECK_EQ(RadialSpellsEntryShows(true, false, true, false, true), false);
+}
+
+// #126 (owner, 2026-11-22: "Leave the barter then but it probably should only appear when showing the radial menu on
+// another player?"): Barter on another player character's ring alone in faithful; the game's in NWN mode.
+TEST(RadialBarterShows) {
+  CHECK_EQ(RadialBarterShows(kFaithful, BarterTarget::kAnotherPlayer), true);
+  CHECK_EQ(RadialBarterShows(kFaithful, BarterTarget::kNonPlayer), false);
+  CHECK_EQ(RadialBarterShows(kFaithful, BarterTarget::kNoTarget), false);
+  CHECK_EQ(RadialBarterShows(kNwn, BarterTarget::kAnotherPlayer), true);
+  CHECK_EQ(RadialBarterShows(kNwn, BarterTarget::kNonPlayer), false);  // the game's ring: Talk To / Loot there
+  CHECK_EQ(RadialBarterShows(kNwn, BarterTarget::kNoTarget), true);    // the game's quickbar
+  CHECK_EQ(RadialBarterShows(kOff, BarterTarget::kNoTarget), true);
+  // The table and the rule agree: the quickbar's Assign Barter is left out exactly when Barter isn't shown there.
+  for (RuleVariant mode : {kFaithful, kNwn, kOff}) {
+    size_t count = 0;
+    const RadialFixedEntry* entries = RadialFixedEntries(mode, &count);
+    bool listed = false;
+    for (size_t i = 0; entries && i < count; ++i) {
+      if (entries[i].page == RadialPage::kAssignOtherActions && Text(entries[i].icon) == "IR_BARTER") listed = true;
+    }
+    CHECK_EQ(listed, !RadialBarterShows(mode, BarterTarget::kNoTarget));
+  }
 }
