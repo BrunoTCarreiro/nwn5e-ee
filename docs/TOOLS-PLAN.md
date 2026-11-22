@@ -83,7 +83,18 @@ quoted here, as in PLAN.md.
   through the browser's storage (vfxbench.hand), not the draft; the key tables, "remove turn / scale keys" and Clear
   gone - "Its time" (a key's exact time) in the selection card and a "Delete keys" row (which keys, which part). An
   emitter's Rate / Starts after / On for: proposed A (the bar stays the timing control; birthrate out of Key).
-  browser_check 148 ok, check_beats, composer_check, the spell bench's checks pass. Tests KP-1..8.
+  browser_check 148 ok, check_beats, composer_check, the spell bench's checks pass. Tests KP-1..8. *Decided (owner,
+  2026-11-22: "keep your recommendations"):* the emitter's timing A (the bar), the hand-key list in the browser,
+  Delete keys for Clear. KP-2..4 passed. *KP-1 ("the second make it spin introduces a section where the node rotates
+  the opposite way") and KP-5 ("the node and emitter organization in the timeline is kind of confusing as they are
+  added top to bottom on their creation order ... I also thought that nodes were basically groups that you organized
+  emitters into?") - decided (owner, 2026-11-22: "go with your recommendations, A for the timeline"); built
+  4956122:* the owner's move / turn key among a tool's keys kept as an adjustment to its motion (a re-run: the new
+  motion plus the old offset; turns composed as rotations); the timeline as a tree - a node's row with what hangs
+  under it indented, folded by its label box, nodes first, "node - turns / moves / still; nothing under it", a row's
+  label dragged onto a node's row hangs it there (onto the ruler: the character's point), a loop refused, one Undo
+  step. browser_check 150 ok, check_beats, composer_check, the spell bench's checks pass. Tests KP-1b, KP-2b,
+  TR-1..4.
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 

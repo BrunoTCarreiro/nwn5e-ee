@@ -2613,7 +2613,7 @@ the movement extras (#55); then the staple actions (#56, a decision first).
   - *Decided (owner, 2026-11-21, after RC-7: "Prepare spells should also be in the Cast Spell section (wasn't it
     supposed to be called Magic)?", then "do the Magic rename and Prepare Spells now"):* ahead of the rest of layout
     A, in faithful: Cast Spell named Magic, Prepare Spells on it.
-  - *Built (Magic; `radial` faithful):* the label: "Cast Spell" (557) shows as "Magic" (data/text/en.txt
+  - *Built 0.99.113 (Magic - renamed Spells in 0.99.114; `radial` faithful):* the label: "Cast Spell" (557) shows as "Magic" (data/text/en.txt
     radial.magic, srd:Magic - the SRD 5.2.1 action) wherever the client uses it - only as a radial's spell section:
     your ring, a DM's, your associate's, another creature's, the ground's, an item's, a placeable's, a door's, and
     the spell menu's own Cast Spell entry (a DM's); the server's 557s are a feat number, not the string; the
@@ -2631,7 +2631,7 @@ the movement extras (#55); then the staple actions (#56, a decision first).
   - *Decided (owner, 2026-11-22: "instead of "magic" let's keep "spells". So the radial item would be "spells"
     instead of "magic" and the quickbar would be "assign spells""):* the spell section is "Spells", the quickbar's
     entry "Assign Spells".
-  - *Built (Spells; `radial` faithful):* "Cast Spell" (557) shows as "Spells" and the quickbar's "Assign Spell"
+  - *Built 0.99.114 (Spells; `radial` faithful):* "Cast Spell" (557) shows as "Spells" and the quickbar's "Assign Spell"
     (1158) as "Assign Spells" (data/text/en.txt radial.spells, radial.assign_spells - the owner's words, source
     owner; radial.magic gone). 1158's uses checked as 557's: the client sets it only as slot 1 of the quickbar's two
     assign rings (yours 9ac4e0, a DM's 9adb20); no 2DA names it, and the other 0x486s in the code are a script
