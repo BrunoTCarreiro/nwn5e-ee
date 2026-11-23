@@ -6818,7 +6818,7 @@ m) spans 0.2-1 m. genericdoors.2da has a BlockSight column (the portcullises 0, 
 reads it isn't found yet. Only the test session can settle: how a placeable's box height is weighed against the
 line (the table, the bench, the rubble, the crate, the barrel), whether an open door's walkmesh leaves the list,
 whether a shut portcullis blocks, and which tile meshes block.
-*Built (#166 part 2's probe):* `!los [tag]` ([debug] test_commands; los_command.cpp, rules/los_probe.h, tested):
+*Built 0.99.126 (#166 part 2's probe):* `!los [tag]` ([debug] test_commands; los_command.cpp, rules/los_probe.h, tested):
 from the nearest enemy (or the creature tagged so) to the speaker, ClearLineOfSight as perception calls it to six
 points of the speaker's body - feet 0.2 m, waist 1.0, chest 1.3, head 1.7, the shoulders 0.3 m to either side of
 the line at 1.4 - each clear or blocked, its blocker (type, resref, tag; the tileset with none) and the hit point;
@@ -6828,7 +6828,7 @@ shoulder, right shoulder clear"; the catalogue's test_commands.los_*, generated)
 ("los: ..."). And the cones' log says what cut a slice: "stealth watch: 0x... slice n (+d degrees) cut at L m by
 placeable plc_bookshelf 'Bookshelf' - no hit point" or "by the tileset - hit x m out, h m over its feet", when it
 changes for a creature's slice (80 lines at most).
-*Built (#166 part 2's cover zone, tools/testmodule):* the Test Grounds' hall grew north to 6 x 9 tiles, and past its
+*Built 0.99.126 (#166 part 2's cover zone, tools/testmodule):* the Test Grounds' hall grew north to 6 x 9 tiles, and past its
 old north wall twelve cover stations, three columns (marks at x 8 / 28 / 48) by four rows (y 44 / 55 / 66 / 77):
 a mark `n5test_cast_cover_<name>` facing east (`!go cover_<name>`, no rebuild of the DLL), its obstacle 2.25 m
 ahead, a brazier 3 m beside the obstacle (the mark bright, so light doesn't shorten the cones), room for a guard 5
