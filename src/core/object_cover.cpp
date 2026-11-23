@@ -1,0 +1,521 @@
+// Cover from objects (#166 part 2; owner, 2026-11-23: "the results from CV are that from all those, the only one that
+// blocks LoS is the closed door, all others leave everything clear" - then "A, and apply cover to all three").
+// - The table: data\placeable_bounds.txt beside the DLL - each placeables.2da row's model's visible bounds, made at build
+//   time from the player's own game (tools/data/placeable_bounds.js, through mdlmesh --bounds) and never committed -
+//   read at launch (InstallCoverObjects): its rows and misses logged.
+// - The boxes: an area's placeables listed every 3 s at most when asked (a script on a creature there: id, scale,
+//   resref - not plc_invisobj, nwn5e's own markers (tags nwn5e_*), Spiritual Weapon's force (n5s_spiritforce), an
+//   illusion's image (n5c_image)), each one's appearance read from the object (CNWSPlaceable +0x32c, uint16, as
+//   light_sources.cpp reads it) and looked up; no bounds, or under 0.3 m tall: no box (a miss logged once per
+//   appearance). Its box: the bounds turned by its facing (+0xb0) and scaled, at its place (rules::BoxOf). Static
+//   placeables count: the server loads them as objects (LoadPlaceable's "Static", light_sources.cpp +0x5a0), and the
+//   area's list holds them. Plot or not doesn't matter.
+// - A line: blocked when the engine's (CNWSArea::ClearLineOfSight: the tileset's walls, shut doors) is, or a box is in
+//   the way (rules::SegmentHitsBox, each box culled by the segment's bounds; a box the line starts inside doesn't
+//   count - the looker's own table edge). At most kBoxTestsPerSecond box tests a second for every line together
+//   (past it, lines count as clear for the rest of that second); the cost logged once.
+// - Cover: the six body points !los uses (rules::kLosBody) from the eyes (+1 m, as perception looks), the blocked
+//   ones counted (rules::CoverFromBlocked: 3-4 Half, 5 Three-Quarters, 6 Total); kept a second while neither moves.
+// - Uses: !los (los_command.cpp), the cones' slices (stealth_watch.cpp), a hider behind Three-Quarters or Total Cover
+//   unseen (rules_perception.cpp), attacks' AC and Total Cover's refusal (rules_cover.cpp, action_order.cpp), and
+//   Dexterity saves from the effect's origin (here: SaveCoverBonus, from rules_save_roll.cpp).
+
+#include "object_cover.h"
+
+#include <windows.h>
+
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <fstream>
+#include <map>
+#include <set>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "chat.h"
+#include "config.h"
+#include "creature.h"
+#include "data_serving.h"
+#include "ee_layout.h"
+#include "effects.h"
+#include "engine.h"
+#include "hooks.h"
+#include "log.h"
+#include "player_text.h"
+#include "rules/cover_objects.h"
+#include "rules/los_probe.h"
+
+void* GameObjectById(uint32_t id);       // light_sources.cpp (the NWS object)
+bool HoldsRangedWeapon(void* creature);  // light_sources.cpp (baseitems.2da RangedWeapon)
+
+namespace {
+
+struct Vec3 {
+  float x, y, z;
+};
+using ClearLineOfSightFn = int (*)(void* area, Vec3 from, Vec3 to, Vec3* hit, uint32_t* hit_object, uint32_t from_id,
+                                   uint32_t to_id, int flag);
+using PlaceableByIdFn = void* (*)(void* app, uint32_t id);
+constexpr const char* kGetPlaceableById = "?GetPlaceableByGameObjectID@CServerExoApp@@QEAAPEAVCNWSPlaceable@@I@Z";
+constexpr size_t kPlaceableAppearance = 0x32c;  // uint16 (placeables.2da; light_sources.cpp)
+constexpr size_t kSpellTargetX = 0x208;  // CNWSObject: the last spell's target location, float x y z (GetSpellTargetLocation)
+constexpr uint64_t kRefreshMs = 3000;
+constexpr uint64_t kKeepMs = 1000;       // a cover kept while neither moves
+constexpr uint64_t kTellEveryMs = 6000;  // a round
+constexpr int kBoxTestsPerSecond = 50000;
+constexpr float kOriginHeight = 1.0f;  // an effect's lines start 1 m over its origin, as a creature's eyes
+
+struct Box {
+  uint32_t id = 0;
+  rules::ObjectBox box;
+};
+struct AreaBoxes {
+  uint64_t at = 0;
+  std::vector<Box> boxes;
+};
+struct Kept {
+  uint64_t at = 0;
+  float a[3] = {0, 0, 0}, b[3] = {0, 0, 0};
+  rules::Cover cover = rules::Cover::kNone;
+  std::string by;
+  uint32_t by_id = 0;
+};
+
+std::map<int, rules::ModelBounds> g_bounds;  // placeables.2da row -> its model's bounds
+bool g_table = false;
+std::unordered_map<void*, AreaBoxes> g_areas;
+std::unordered_map<uint32_t, std::string> g_names;  // placeable id -> resref
+std::set<int> g_missed;                             // appearances logged without bounds
+std::unordered_map<uint64_t, Kept> g_kept;          // (observer, target) -> its cover
+std::unordered_map<uint64_t, uint64_t> g_told;      // (kind, a, b) -> when told
+ClearLineOfSightFn g_clear_line = nullptr;
+PlaceableByIdFn g_placeable_by_id = nullptr;
+void** g_app_manager = nullptr;
+int g_logged = 0;
+
+struct Cost {
+  uint64_t start = 0;
+  int lines = 0, tests = 0, hits = 0;
+  double ms = 0;
+  bool logged = false, capped = false;
+};
+Cost g_cost;
+
+uint32_t IdOf(const void* object) { return object ? Field<uint32_t>(object, ee::kObjectId) : ee::kObjectInvalid; }
+uint64_t Pair(uint32_t a, uint32_t b) { return (static_cast<uint64_t>(a) << 32) | b; }
+
+std::wstring DllDirectory() {
+  HMODULE module = nullptr;
+  GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                     reinterpret_cast<LPCWSTR>(&DllDirectory), &module);
+  wchar_t path[MAX_PATH] = {};
+  GetModuleFileNameW(module, path, MAX_PATH);
+  std::wstring directory = path;
+  const size_t slash = directory.find_last_of(L"\\/");
+  return slash == std::wstring::npos ? L"." : directory.substr(0, slash);
+}
+
+void* PlaceableById(uint32_t id) {
+  if (!g_placeable_by_id || !g_app_manager || !*g_app_manager) return nullptr;
+  void* app = Field<void*>(*g_app_manager, ee::kAppManagerServerApp);
+  return app ? g_placeable_by_id(app, id) : nullptr;
+}
+
+// Once a round for each (kind, a, b).
+bool TellNow(int kind, uint32_t a, uint32_t b) {
+  const uint64_t now = GetTickCount64();
+  if (g_told.size() > 1024) g_told.clear();
+  uint64_t& told = g_told[Pair(a, b) ^ (static_cast<uint64_t>(kind) << 56)];
+  if (told && now < told + kTellEveryMs) return false;
+  told = now;
+  return true;
+}
+
+bool LogSlotHere() {
+  if (!g_config.log_attacks || g_logged >= 300) return false;
+  ++g_logged;
+  return true;
+}
+
+// The area's placeables as boxes, listed again when older than kRefreshMs.
+const std::vector<Box>& BoxesOf(void* area, uint32_t self) {
+  AreaBoxes& cache = g_areas[area];
+  const uint64_t now = GetTickCount64();
+  if (cache.at && now < cache.at + kRefreshMs) return cache.boxes;
+  void* me = CreatureById(self);
+  if (!me || engine::AreaOf(me) != area) return cache.boxes;
+  cache.at = now;
+  cache.boxes.clear();
+  const int ran = RunScriptChunk(
+      "object a = GetArea(OBJECT_SELF); string s = \"\"; object o = GetFirstObjectInArea(a, OBJECT_TYPE_PLACEABLE);"
+      "while (GetIsObjectValid(o)) {"
+      " string r = GetResRef(o); string t = GetTag(o);"
+      " if (r != \"plc_invisobj\" && t != \"n5s_spiritforce\" && t != \"n5c_image\" && GetStringLeft(t, 6) != \"nwn5e_\")"
+      "  s += ObjectToString(o) + \" \" + FloatToString(GetObjectVisualTransform(o, OBJECT_VISUAL_TRANSFORM_SCALE), 0, 3)"
+      "   + \" \" + r + \";\";"
+      " o = GetNextObjectInArea(a, OBJECT_TYPE_PLACEABLE);"
+      "}"
+      "SetLocalString(OBJECT_SELF, \"nwn5e_cover_list\", s);",
+      self);
+  static bool failed_told = false;
+  if (ran != 0 && !failed_told) {
+    failed_told = true;
+    Log("cover objects: the placeables' listing script failed (%d) - no boxes", ran);
+  }
+  const std::string list = engine::GetLocalString(me, "nwn5e_cover_list");
+  int listed = 0, missing = 0, small = 0;
+  std::string example;
+  std::istringstream entries(list);
+  std::string entry;
+  while (std::getline(entries, entry, ';')) {
+    std::istringstream words(entry);
+    std::string hex, resref;
+    float scale = 1.0f;
+    if (!(words >> hex >> scale >> resref)) continue;
+    ++listed;
+    const uint32_t id = static_cast<uint32_t>(strtoul(hex.c_str(), nullptr, 16));
+    void* placeable = PlaceableById(id);
+    if (!placeable) continue;
+    const int appearance = Field<uint16_t>(placeable, kPlaceableAppearance);
+    const auto found = g_bounds.find(appearance);
+    if (found == g_bounds.end()) {
+      ++missing;
+      if (g_missed.insert(appearance).second && g_missed.size() <= 40) {
+        Log("cover objects: %s (appearance %d) - no bounds in data\\placeable_bounds.txt: no cover from it (logged once)",
+            resref.c_str(), appearance);
+      }
+      continue;
+    }
+    if (!rules::BoundsCount(found->second)) {
+      ++small;
+      continue;
+    }
+    Box box;
+    box.id = id;
+    box.box = rules::BoxOf(found->second, Field<float>(placeable, ee::kObjectPositionX),
+                           Field<float>(placeable, ee::kObjectPositionY), Field<float>(placeable, ee::kObjectPositionZ),
+                           Field<float>(placeable, ee::kObjectOrientationX),
+                           Field<float>(placeable, ee::kObjectOrientationY), scale);
+    cache.boxes.push_back(box);
+    g_names[id] = resref;
+    if (example.empty()) {
+      char e[160];
+      sprintf_s(e, "%s appearance %d: %.2f x %.2f x %.2f m", resref.c_str(), appearance, 2 * box.box.half[0],
+                2 * box.box.half[1], 2 * box.box.half[2]);
+      example = e;
+    }
+  }
+  static int logged = 0;
+  if (logged < 12) {
+    ++logged;
+    Log("cover objects: an area listed - %d placeables, %zu boxes (%d without bounds, %d under %.1f m)%s%s", listed,
+        cache.boxes.size(), missing, small, rules::kCoverMinHeight, example.empty() ? "" : "; e.g. ", example.c_str());
+  }
+  return cache.boxes;
+}
+
+void CountCost(uint64_t now, double ms, int tests, bool hit) {
+  if (now >= g_cost.start + 1000) {
+    if (!g_cost.logged && g_cost.lines > 0) {
+      g_cost.logged = true;
+      Log("cover objects: in a second, %d lines against the boxes - %d box tests, %d blocked, %.2f ms in all (at most "
+          "%d box tests a second; logged once)",
+          g_cost.lines, g_cost.tests, g_cost.hits, g_cost.ms, kBoxTestsPerSecond);
+    }
+    g_cost.start = now;
+    g_cost.lines = g_cost.tests = g_cost.hits = 0;
+    g_cost.ms = 0;
+  }
+  ++g_cost.lines;
+  g_cost.tests += tests;
+  g_cost.hits += hit ? 1 : 0;
+  g_cost.ms += ms;
+}
+
+// A script's answer: an object's name (GetName), "" when gone.
+std::string NameOf(uint32_t self, uint32_t id) {
+  void* me = CreatureById(self);
+  if (!me) return "";
+  char code[200];
+  sprintf_s(code, "SetLocalString(OBJECT_SELF, \"nwn5e_cover_name\", GetName(StringToObject(\"%x\")));", id);
+  RunScriptChunk(code, self);
+  return engine::GetLocalString(me, "nwn5e_cover_name");
+}
+
+// The words for what covers: a placeable's name, else "a wall" (the engine's line).
+std::string ByWords(uint32_t self, uint32_t by_id) {
+  if (by_id == ee::kObjectInvalid) return PlayerText("cover.by_wall");
+  const std::string name = NameOf(self, by_id);
+  return name.empty() ? PlayerText("cover.by_wall") : name;
+}
+
+const char* CoverLogWords(rules::Cover cover) {
+  switch (cover) {
+    case rules::Cover::kHalf: return "Half Cover";
+    case rules::Cover::kThreeQuarters: return "Three-Quarters Cover";
+    case rules::Cover::kTotal: return "Total Cover";
+    case rules::Cover::kNone: break;
+  }
+  return "no cover";
+}
+
+}  // namespace
+
+bool CoverObjectsOn() {
+  return g_table && g_config.cover_objects && g_config.mode == rules::RuleVariant::kFaithful;
+}
+
+std::string ObjectName(uint32_t id) {
+  const auto it = g_names.find(id);
+  return it == g_names.end() ? "" : it->second;
+}
+
+bool ObjectsBlockLine(void* area, uint32_t self, const float a[3], const float b[3], uint32_t* blocker, float* t) {
+  if (!CoverObjectsOn() || !area) return false;
+  const uint64_t now = GetTickCount64();
+  if (now < g_cost.start + 1000 && g_cost.tests >= kBoxTestsPerSecond) {
+    if (!g_cost.capped) {
+      g_cost.capped = true;
+      Log("cover objects: %d box tests in a second - the rest of that second's lines count as clear (logged once)",
+          kBoxTestsPerSecond);
+    }
+    return false;
+  }
+  LARGE_INTEGER start, stop, frequency;
+  QueryPerformanceCounter(&start);
+  const std::vector<Box>& boxes = BoxesOf(area, self);
+  int tests = 0;
+  bool hit = false;
+  float best = 2.0f;
+  for (const Box& box : boxes) {
+    if (!rules::SegmentNearBox(a, b, box.box)) continue;
+    ++tests;
+    if (rules::PointInBox(a, box.box)) continue;  // the looker stands in it: its own table's edge
+    float at = 0.0f;
+    if (rules::SegmentHitsBox(a, b, box.box, &at) && at < best) {
+      best = at;
+      hit = true;
+      if (blocker) *blocker = box.id;
+    }
+  }
+  if (t && hit) *t = best;
+  QueryPerformanceCounter(&stop);
+  QueryPerformanceFrequency(&frequency);
+  CountCost(now, 1000.0 * (stop.QuadPart - start.QuadPart) / frequency.QuadPart, tests, hit);
+  return hit;
+}
+
+rules::Cover CoverFrom(void* area, uint32_t from_id, uint32_t self, const float eye[3], void* target,
+                       CoverPoint points[6], std::string* by, uint32_t* by_id) {
+  if (by) by->clear();
+  if (by_id) *by_id = ee::kObjectInvalid;
+  if (!area || !target) return rules::Cover::kNone;
+  const uint32_t target_id = IdOf(target);
+  const float tx = Field<float>(target, ee::kObjectPositionX), ty = Field<float>(target, ee::kObjectPositionY),
+              tz = Field<float>(target, ee::kObjectPositionZ);
+  std::map<uint32_t, int> blockers;
+  int blocked = 0;
+  for (int i = 0; i < rules::kLosBodyPoints; ++i) {
+    CoverPoint& p = points[i];
+    p = CoverPoint();
+    float to[3];
+    rules::LosPointAt(rules::kLosBody[i], eye[0], eye[1], tx, ty, tz, &to[0], &to[1], &to[2]);
+    if (g_clear_line) {
+      Vec3 hit{to[0], to[1], to[2]};
+      uint32_t object = ee::kObjectInvalid;
+      const bool open = g_clear_line(area, Vec3{eye[0], eye[1], eye[2]}, Vec3{to[0], to[1], to[2]}, &hit, &object,
+                                     from_id, target_id, 1) == 1;
+      if (!open) {
+        p.clear = false;
+        p.blocker = ee::kObjectInvalid;
+      }
+    }
+    uint32_t box = 0;
+    if (p.clear && ObjectsBlockLine(area, self, eye, to, &box, nullptr)) {
+      p.clear = false;
+      p.object = true;
+      p.blocker = box;
+    }
+    if (!p.clear) {
+      ++blocked;
+      ++blockers[p.object ? p.blocker : ee::kObjectInvalid];
+    }
+  }
+  int most = 0;
+  for (const auto& b : blockers) {
+    if (b.second > most) {
+      most = b.second;
+      if (by) *by = b.first == ee::kObjectInvalid ? "the tileset" : ObjectName(b.first);
+      if (by_id) *by_id = b.first;
+    }
+  }
+  return rules::CoverFromBlocked(blocked);
+}
+
+rules::Cover CoverBetween(void* observer, void* target, std::string* by, uint32_t* by_id) {
+  if (by) by->clear();
+  if (by_id) *by_id = ee::kObjectInvalid;
+  if (!observer || !target || !CoverObjectsOn()) return rules::Cover::kNone;
+  void* area = engine::AreaOf(observer);
+  if (!area || engine::AreaOf(target) != area) return rules::Cover::kNone;
+  const float eye[3] = {Field<float>(observer, ee::kObjectPositionX), Field<float>(observer, ee::kObjectPositionY),
+                        Field<float>(observer, ee::kObjectPositionZ) + 1.0f};
+  const float at[3] = {Field<float>(target, ee::kObjectPositionX), Field<float>(target, ee::kObjectPositionY),
+                       Field<float>(target, ee::kObjectPositionZ)};
+  const uint32_t id = IdOf(observer);
+  const uint64_t now = GetTickCount64();
+  if (g_kept.size() > 2048) g_kept.clear();
+  Kept& kept = g_kept[Pair(id, IdOf(target))];
+  bool same = kept.at && now < kept.at + kKeepMs;
+  for (int k = 0; k < 3 && same; ++k) same = fabsf(kept.a[k] - eye[k]) < 0.05f && fabsf(kept.b[k] - at[k]) < 0.05f;
+  if (!same) {
+    CoverPoint points[6];
+    kept.cover = CoverFrom(area, id, id, eye, target, points, &kept.by, &kept.by_id);
+    kept.at = now;
+    for (int k = 0; k < 3; ++k) {
+      kept.a[k] = eye[k];
+      kept.b[k] = at[k];
+    }
+  }
+  if (by) *by = kept.by;
+  if (by_id) *by_id = kept.by_id;
+  return kept.cover;
+}
+
+std::string CoverWords(rules::Cover cover) {
+  switch (cover) {
+    case rules::Cover::kHalf: return PlayerText("cover.degree.half");
+    case rules::Cover::kThreeQuarters: return PlayerText("cover.degree.three_quarters");
+    case rules::Cover::kTotal: return PlayerText("cover.degree.total");
+    case rules::Cover::kNone: break;
+  }
+  return "";
+}
+
+void TellAttackCover(void* attacker, void* target, rules::Cover cover, int bonus, uint32_t by_id, bool creature) {
+  const uint32_t a = IdOf(attacker), t = IdOf(target);
+  if (!TellNow(1, a, t)) return;
+  if (LogSlotHere()) {
+    Log("cover: 0x%08X has %s (+%d AC) against 0x%08X - %s 0x%08X %s", t, CoverLogWords(cover), bonus, a,
+        creature ? "a creature" : by_id == ee::kObjectInvalid ? "the tileset" : "the placeable", by_id,
+        creature ? "is in the way" : ObjectName(by_id).c_str());
+  }
+  const std::string what = creature ? PlayerText("cover.by_creature") : ByWords(t, by_id);
+  const std::string degree = CoverWords(cover), plus = std::to_string(bonus);
+  TellPlayer(a, PlayerText("cover.target_has_cover", {{"cover", degree}, {"bonus", plus}, {"by", what}}));
+  TellPlayer(t, PlayerText("cover.you_have_cover", {{"cover", degree}, {"bonus", plus}, {"by", what}}));
+}
+
+bool TotalCoverHoldsAttack(void* creature, void* node) {
+  if (!CoverObjectsOn() || !creature || !node) return false;
+  void* target = CreatureById(Field<uint32_t>(node, ee::kActionFirstParam));
+  if (!target || target == creature) return false;
+  std::string by;
+  uint32_t by_id = ee::kObjectInvalid;
+  const rules::Cover cover = CoverBetween(creature, target, &by, &by_id);
+  if (cover != rules::Cover::kTotal) return false;
+  const float dx = Field<float>(target, ee::kObjectPositionX) - Field<float>(creature, ee::kObjectPositionX);
+  const float dy = Field<float>(target, ee::kObjectPositionY) - Field<float>(creature, ee::kObjectPositionY);
+  const float metres = sqrtf(dx * dx + dy * dy);
+  const bool ranged = HoldsRangedWeapon(creature);
+  if (!rules::CoverRefusesAttack(cover, ranged, metres)) return false;
+  const uint32_t a = IdOf(creature), t = IdOf(target);
+  if (TellNow(2, a, t)) {
+    if (LogSlotHere()) {
+      Log("cover: 0x%08X's %s attack on 0x%08X refused - Total Cover (%s), %.1f m", a, ranged ? "ranged" : "melee", t,
+          by.c_str(), metres);
+    }
+    TellPlayer(a, PlayerText("cover.total_no_attack", {{"target", NameOf(a, t)}, {"by", ByWords(a, by_id)}}));
+  }
+  return true;
+}
+
+int SaveCoverBonus(void* creature, uint32_t versus, uint32_t script_self, int spell) {
+  if (!CoverObjectsOn() || !creature) return 0;
+  void* area = engine::AreaOf(creature);
+  const uint32_t origin_id = script_self != ee::kObjectInvalid ? script_self : versus;
+  void* origin = GameObjectById(origin_id);
+  if (!area || !origin || origin == creature || engine::AreaOf(origin) != area) return 0;
+  float eye[3] = {Field<float>(origin, ee::kObjectPositionX), Field<float>(origin, ee::kObjectPositionY),
+                  Field<float>(origin, ee::kObjectPositionZ)};
+  const char* from = "its source";
+  const uint8_t kind = Field<uint8_t>(origin, ee::kGameObjectType);
+  if (kind == ee::kObjectTypeAreaOfEffect) {
+    from = "the area's centre";
+  } else if (kind == ee::kObjectTypeCreature) {
+    static const std::vector<std::string> shapes = GameTableColumn("spells", "TargetShape");
+    const std::string shape = spell >= 0 && static_cast<size_t>(spell) < shapes.size() ? shapes[spell] : "";
+    from = "the caster";
+    if (rules::SaveOriginForShape(shape) == rules::SaveOrigin::kTargetPoint) {
+      const float px = Field<float>(origin, kSpellTargetX), py = Field<float>(origin, kSpellTargetX + 4),
+                  pz = Field<float>(origin, kSpellTargetX + 8);
+      if (!(px == 0.0f && py == 0.0f && pz == 0.0f)) {
+        eye[0] = px;
+        eye[1] = py;
+        eye[2] = pz;
+        from = "the spell's point";
+      }
+    }
+  }
+  eye[2] += kOriginHeight;
+  CoverPoint points[6];
+  std::string by;
+  uint32_t by_id = ee::kObjectInvalid;
+  const rules::Cover cover = CoverFrom(area, origin_id, IdOf(creature), eye, creature, points, &by, &by_id);
+  const int bonus = rules::CoverSaveBonus(cover);
+  if (!bonus) return 0;
+  const uint32_t t = IdOf(creature);
+  if (TellNow(3, origin_id, t)) {
+    if (LogSlotHere()) {
+      Log("cover: 0x%08X has %s from %s (0x%08X, spell %d, at %.1f, %.1f, %.1f): +%d to its Dexterity save - %s", t,
+          CoverLogWords(cover), from, origin_id, spell, eye[0], eye[1], eye[2] - kOriginHeight, bonus, by.c_str());
+    }
+    const std::string degree = CoverWords(cover), plus = std::to_string(bonus), what = ByWords(t, by_id);
+    TellPlayer(t, PlayerText("cover.save_you", {{"cover", degree}, {"bonus", plus}, {"by", what}}));
+    void* caster = kind == ee::kObjectTypeCreature ? origin : CreatureById(versus);
+    if (caster && caster != creature) {
+      TellPlayer(IdOf(caster), PlayerText("cover.save_target", {{"target", NameOf(t, t)}, {"cover", degree},
+                                                                {"bonus", plus}, {"by", what}}));
+    }
+  }
+  return bonus;
+}
+
+void InstallCoverObjects() {
+  g_clear_line = reinterpret_cast<ClearLineOfSightFn>(EngineExport(ee::kClearLineOfSight));
+  g_placeable_by_id = reinterpret_cast<PlaceableByIdFn>(EngineExport(kGetPlaceableById));
+  g_app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
+  if (!g_config.cover_objects) {
+    Log("cover objects: off (cover_objects=0) - sight and cover are the engine's: walls and shut doors only");
+    return;
+  }
+  std::ifstream file(DllDirectory() + L"\\data\\placeable_bounds.txt", std::ios::binary);
+  int misses = 0;
+  std::string line;
+  while (file && std::getline(file, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    int row = -1;
+    rules::ModelBounds bounds;
+    if (rules::ParseBoundsLine(line, &row, &bounds)) {
+      g_bounds[row] = bounds;
+    } else if (line.rfind("# miss ", 0) == 0) {
+      ++misses;
+    }
+  }
+  g_table = !g_bounds.empty();
+  if (!g_table) {
+    Log("cover objects: cover_objects=1 but no data\\placeable_bounds.txt (build.bat makes it from your game with "
+        "tools\\data\\build_derived.js) - no cover from objects");
+    return;
+  }
+  Log("cover objects: cover_objects=1 (%s) - %zu placeables.2da rows' bounds from data\\placeable_bounds.txt, %d rows "
+      "with a model unread or nothing drawn (no cover from them); a line is blocked by the engine's sight (walls, shut doors) or a placeable's box %.1f m "
+      "tall or more; cover from six body points (3-4 Half, 5 Three-Quarters, 6 Total)%s",
+      g_config.mode == rules::RuleVariant::kFaithful ? "faithful" : "off: not the faithful rules", g_bounds.size(), misses,
+      rules::kCoverMinHeight, g_placeable_by_id ? "" : " - NO GetPlaceableByGameObjectID: no boxes");
+}

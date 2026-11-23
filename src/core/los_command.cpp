@@ -8,6 +8,9 @@
 // And for the same line the area's walk-blocking boxes (CNWArea::NoNonWalkPolysInDoors, as ClearLine in
 // rules_perception.cpp asks them: the line's own heights, radius 0.05 m), so a placeable the sight line ignores shows.
 // One chat line (the catalogue's test_commands.los_*), the detail in nwn5e.log.
+// #166 part 2 (owner, 2026-11-23: "A, and apply cover to all three"): with cover_objects, a line the engine leaves
+// clear is blocked by a placeable's box in the way (object_cover.cpp), and the line ends with the cover degree the
+// six points give (3-4 blocked Half, 5 Three-Quarters, 6 Total) and what gives it most.
 //
 // What the sight line weighs (read from nwmain 89.8193.37, CNWSArea::ClearLineOfSight rva 0x35c590-0x35cd0f): the
 // tiles the line crosses (CNWSTile::ComputeClippedLineSegment, then CNWSTile::ClearLineOfSight for each - the tile's
@@ -24,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -33,7 +37,9 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "object_cover.h"
 #include "player_text.h"
+#include "rules/cover_objects.h"
 #include "rules/los_probe.h"
 
 namespace {
@@ -125,6 +131,7 @@ std::vector<std::string> LosCommand(void* creature, const std::string& args) {
     Vec3 hit;
     int walk;  // the walk-blocking boxes: 1 clear, 0 blocked, -1 not asked
     uint32_t walk_blocker;
+    bool box;  // blocked by a placeable's box (cover_objects), not the engine's line
   };
   std::vector<Line> lines;
   std::vector<uint32_t> ids;
@@ -134,6 +141,17 @@ std::vector<std::string> LosCommand(void* creature, const std::string& args) {
     line.hit = line.to;
     line.blocker = ee::kObjectInvalid;
     line.clear = clear_line(area, eye, line.to, &line.hit, &line.blocker, from_id, self, 1) == 1;
+    line.box = false;
+    if (line.clear) {
+      const float a3[3] = {eye.x, eye.y, eye.z}, b3[3] = {line.to.x, line.to.y, line.to.z};
+      float t = 0.0f;
+      if (ObjectsBlockLine(area, self, a3, b3, &line.blocker, &t)) {
+        line.clear = false;
+        line.box = true;
+        line.hit = Vec3{eye.x + (line.to.x - eye.x) * t, eye.y + (line.to.y - eye.y) * t,
+                        eye.z + (line.to.z - eye.z) * t};
+      }
+    }
     line.walk = -1;
     line.walk_blocker = ee::kObjectInvalid;
     if (static_line) {
@@ -169,8 +187,9 @@ std::vector<std::string> LosCommand(void* creature, const std::string& args) {
                              : line.walk ? "clear"
                                          : "blocked by " + (names[2 * i + 1].empty() ? std::string("an object")
                                                                                       : names[2 * i + 1]);
-    Log("los:   %-14s (%.2f, %.2f, %.2f): sight %s%s%s; walk-blocking boxes %s", rules::kLosBody[i].key, line.to.x,
-        line.to.y, line.to.z, line.clear ? "clear" : "blocked by ", blocker.c_str(), hit, walk.c_str());
+    Log("los:   %-14s (%.2f, %.2f, %.2f): sight %s%s%s%s; walk-blocking boxes %s", rules::kLosBody[i].key, line.to.x,
+        line.to.y, line.to.z, line.clear ? "clear" : "blocked by ", blocker.c_str(),
+        line.box ? " (its box: cover_objects)" : "", hit, walk.c_str());
     rules::LosPointResult result;
     result.name = PlayerText((std::string("test_commands.") + "los_" + rules::kLosBody[i].key).c_str());
     result.clear = line.clear;
@@ -179,6 +198,29 @@ std::vector<std::string> LosCommand(void* creature, const std::string& args) {
   }
   const std::string summary = rules::LosSummary(results, PlayerText("test_commands.los_clear"),
                                                 PlayerText("test_commands.los_blocked"));
-  Log("los: %s", summary.c_str());
-  return {PlayerText("test_commands.los_summary", {{"observer", observer_name}, {"points", summary}})};
+  // #166: the cover degree those points give, and what blocks the most of them.
+  int blocked = 0;
+  std::map<std::string, int> by;
+  for (const rules::LosPointResult& result : results) {
+    if (result.clear) continue;
+    ++blocked;
+    ++by[result.blocker];
+  }
+  std::string most;
+  int most_count = 0;
+  for (const auto& b : by) {
+    if (b.second > most_count) {
+      most_count = b.second;
+      most = b.first;
+    }
+  }
+  const rules::Cover cover = rules::CoverFromBlocked(blocked);
+  Log("los: %s - %d of 6 blocked: %s%s%s%s", summary.c_str(), blocked,
+      cover == rules::Cover::kNone ? "no cover" : CoverWords(cover).c_str(), most.empty() ? "" : " (", most.c_str(),
+      most.empty() ? "" : ")");
+  if (cover == rules::Cover::kNone) {
+    return {PlayerText("test_commands.los_summary_no_cover", {{"observer", observer_name}, {"points", summary}})};
+  }
+  return {PlayerText("test_commands.los_summary_cover", {{"observer", observer_name}, {"points", summary},
+                                                         {"cover", CoverWords(cover)}, {"by", most}})};
 }

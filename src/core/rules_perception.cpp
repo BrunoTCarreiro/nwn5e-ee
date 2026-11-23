@@ -105,6 +105,7 @@
 #include "rules/grenades.h"
 #include "rules/skills.h"
 #include "data/twoda.h"
+#include "object_cover.h"
 #include "rules_loaded.h"
 #include "skill_rank.h"
 #include "player_text.h"
@@ -914,6 +915,7 @@ int AddMoveToPoint(void* creature, uint16_t group, const float* position, uint32
 }  // namespace
 
 void InstallPerceptionRules() {
+  InstallCoverObjects();  // #166: the placeables' bounds (sight, cover) - attacks and saves use them in any perception
   if (g_config.perception != rules::RuleVariant::kFaithful) return;
   if (g_config.stealth_light) ServeConditionalRows("light2024");  // EE's night terms zeroed: G replaces them
   g_listen_code = FunctionAt(EngineExport(ee::kDoListenDetection));

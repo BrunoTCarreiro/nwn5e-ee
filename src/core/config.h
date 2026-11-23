@@ -95,10 +95,17 @@ struct Config {
   // creatures see no hider (D as it was); 360 = all round.
   int vision_cone = 90;  // owner, 2026-10-25: "Vision cones should be 90 degrees"
   // #9 c (owner, 2026-11-15: "yes" - the cones cut at walls): a calm creature's cone, drawn while a player character
-  // hides, is cut where walls and large placeables cut its sight - 15-degree slices, each its line of sight along its
-  // middle, measured once a second (stealth_watch.cpp) - and the rule agrees: it doesn't see past where a slice is
-  // cut (rules_perception.cpp). Off: whole cones, drawn through walls.
+  // hides, is cut where walls (and, with cover_objects, placeables) cut its sight - 15-degree slices, each its line of
+  // sight along its middle, measured once a second (stealth_watch.cpp) - and the rule agrees: it doesn't see past
+  // where a slice is cut (rules_perception.cpp). Off: whole cones, drawn through walls.
   bool cone_walls = true;
+  // #166 (owner, 2026-11-23: "A, and apply cover to all three"; the engine's sight knows only the tileset's walls and
+  // shut doors): placeables block sight and give cover - each one's box from its model's visible bounds
+  // (data\placeable_bounds.txt, made at build time from the game), the cover degree from six body points (3-4 Half,
+  // 5 Three-Quarters, 6 Total). Cones are cut by them, a hider behind Three-Quarters or Total Cover from a creature
+  // isn't seen by it, attacks get +2 / +5 AC (Total: no attack), Dexterity saves +2 / +5 from the effect's origin
+  // (object_cover.cpp). Faithful only. 0: NWN's sight - placeables block nothing, cover only from creatures.
+  bool cover_objects = true;
   // #9 (owner, 2026-11-22: "2. Mostly A, but if there's an illuminated patch further out, there should not be an
   // island of vision, it should form a contiguous slice of detectability"): with cone_walls and stealth_light, each
   // slice reaches only as far as the creature could spot a hider - lit ground, or darkness within its darkvision -

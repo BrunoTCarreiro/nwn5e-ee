@@ -135,6 +135,18 @@ conditions.you_re_charmed_by_it | generated | nwn5e: you're charmed by it - you 
 # --- src/core/rules_cover.cpp --------------------------------------------------------------------------------
 cover.your_target_has_half_cover | generated | nwn5e: your target has Half Cover (+2 AC) - a creature stands in the way.
 cover.half_cover_2_ac_a | generated | nwn5e: Half Cover (+2 AC) - a creature stands between you and the attack.
+# #166 part 2 (owner, 2026-11-23: "A, and apply cover to all three"): cover from walls and placeables - attacks, Total
+# Cover's refusal, Dexterity saves (src/core/cover_objects.cpp). The degrees are the SRD's terms.
+cover.degree.half | srd:Cover | Half Cover
+cover.degree.three_quarters | srd:Cover | Three-Quarters Cover
+cover.degree.total | srd:Cover | Total Cover
+cover.by_wall | generated | a wall
+cover.by_creature | generated | a creature
+cover.target_has_cover | generated | nwn5e: your target has {cover} (+{bonus} AC) - {by} is in the way.
+cover.you_have_cover | generated | nwn5e: {cover} (+{bonus} AC) - {by} is between you and the attack.
+cover.total_no_attack | generated | nwn5e: {target} has Total Cover ({by}) - you can't attack it from here.
+cover.save_you | generated | nwn5e: {cover} from the effect ({by}) - +{bonus} to your Dexterity save.
+cover.save_target | generated | nwn5e: {target} has {cover} from the effect ({by}) - +{bonus} to its Dexterity save.
 
 # --- src/core/rules_cunning_strike.cpp -----------------------------------------------------------------------
 cunning_strike.cunning_strike_comes_at_rogue | generated | Cunning Strike comes at Rogue 5.
@@ -744,6 +756,9 @@ test_commands.los_chest | generated | chest
 test_commands.los_head | generated | head
 test_commands.los_left_shoulder | generated | left shoulder
 test_commands.los_right_shoulder | generated | right shoulder
+# #166 part 2: the cover degree the six points give (3-4 blocked Half, 5 Three-Quarters, 6 Total), what gives the most.
+test_commands.los_summary_cover | generated | nwn5e: los from {observer}: {points} - {cover} ({by})
+test_commands.los_summary_no_cover | generated | nwn5e: los from {observer}: {points} - no cover
 test_commands.spawn_away | generated | , its back to you
 # #39 Part 2, level 2, build 1a: Prayer of Healing's 10 minutes and its creatures; Mind Spike's knowledge.
 spells2024.takes_minutes_to_cast | generated | nwn5e: {spell_name} takes {minutes} minutes to cast - not in a fight.

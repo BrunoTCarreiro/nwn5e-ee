@@ -6858,6 +6858,27 @@ rows naming no model in the game ("user", "os_reserved") counted on the last lin
 sight and cover; the walkmesh footprint is recorded only (the engine walks by it, sight doesn't). It needs
 NWN5E_TOOLS and Node at build time, as build_derived does; NWN5E_DERIVED=skip makes no table, and the DLL then logs
 it and gives no cover from objects.
+*Built (part 2b, nwn5e's sight test):* rules/cover_objects.{h,cpp} (tests CoverBoundsTableLines,
+CoverSegmentAgainstABox, CoverDegreesFromBlockedPoints): ParseBoundsLine, BoundsCount (0.3 m tall at least), BoxOf
+(the bounds scaled and turned so the model's +Y is the object's facing, at its place), SegmentHitsBox (a slab test
+in the box's frame), SegmentNearBox (the cull: the segment's bounds against the box's), PointInBox.
+core/object_cover.cpp: the table read at launch ("cover objects: ... rows' bounds ..."); an area's placeables listed
+every 3 s at most (a script: id, scale - GetObjectVisualTransform - and resref), each one's appearance read from the
+object (+0x32c, as light_sources.cpp reads it). Skipped: plc_invisobj, the tags n5s_spiritforce, n5c_image and
+nwn5e_*, bounds under 0.3 m tall; an appearance with no bounds gives no cover, logged once. Plot or not doesn't
+matter; static placeables count (the server loads them as objects - LoadPlaceable's "Static" - and the area's list
+holds them). A line is blocked when the engine's ClearLineOfSight is or a box is in the way; a box the line starts
+inside doesn't count (the looker's own table edge). The cost is capped at 50,000 box tests a second for every line
+together (past it, lines count as clear for the rest of that second), the first second's cost logged once ("cover
+objects: in a second, n lines against the boxes - ... ms"). Config cover_objects=1 (faithful; 0 = NWN's sight only:
+walls and shut doors, cover only from creatures), nwn5e.ini.
+*Built (part 2c, the cover degree):* the six !los body points from the eyes (+1 m): 0-2 blocked none, 3-4 Half, 5
+Three-Quarters, 6 Total (rules::CoverFromBlocked); kept a second while neither moves. `!los` blocks a line on a
+placeable's box too (the log: "(its box: cover_objects)") and ends with the degree and what gives most of it: "los
+from Orc: ... - Total Cover (plc_bookshelf)", or "... - no cover" (test_commands.los_summary_cover / _no_cover,
+generated; the degrees cover.degree.*, the SRD's terms). What it means for low obstacles: five of the six points are
+at 1.0 m or higher, so anything under about 1 m - the table (0.9 m), the crate (0.97), the barrel, the bench, the
+rubble - blocks the feet at most and gives no cover wherever you stand (an open question, below).
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms

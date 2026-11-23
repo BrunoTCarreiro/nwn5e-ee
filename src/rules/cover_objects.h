@@ -1,0 +1,76 @@
+#pragma once
+
+// Cover from objects (#166 part 2; owner, 2026-11-23: "A, and apply cover to all three"). The session showed the
+// engine's own sight line knows only the tileset's walls and shut doors ("from all those, the only one that blocks LoS
+// is the closed door"), so nwn5e tests its own lines against the placeables: each one's box - its model's visible
+// bounds (data\placeable_bounds.txt, made at build time from the player's game: tools/data/placeable_bounds.js),
+// turned by its facing, scaled, at its place. A line is blocked when the engine's line is or a box is in the way. The
+// cover degree from the six body points `!los` uses (rules/los_probe.h). This file only decides.
+
+#include <string>
+
+#include "rules/cover.h"
+
+namespace rules {
+
+// A model's visible geometry's bounds in model space (metres).
+struct ModelBounds {
+  float lo[3] = {0, 0, 0};
+  float hi[3] = {0, 0, 0};
+};
+
+// One line of data\placeable_bounds.txt - "<placeables.2da row> <model> <x0> <x1> <y0> <y1> <z0> <z1> [walk ...]" -
+// read; false for a comment ("#"), an empty line or a bad one.
+bool ParseBoundsLine(const std::string& line, int* row, ModelBounds* bounds);
+
+// A placeable counts as an obstacle when its visible geometry is this tall at least: smaller ones - a candle, a book,
+// an invisible marker's sliver - cover no one.
+constexpr float kCoverMinHeight = 0.3f;
+bool BoundsCount(const ModelBounds& bounds);
+
+// A placeable's box in the area: its model's bounds times `scale`, turned so the model's +Y is the object's facing
+// (fx, fy) - as a creature's model faces its facing - at (x, y, z).
+struct ObjectBox {
+  float centre[3] = {0, 0, 0};
+  float half[3] = {0, 0, 0};
+  float ax = 1, ay = 0;  // the model's +X in the area
+  float bx = 0, by = 1;  // its +Y (the facing)
+  float lo[3] = {0, 0, 0};  // the box's own bounds in the area (the cull)
+  float hi[3] = {0, 0, 0};
+};
+ObjectBox BoxOf(const ModelBounds& bounds, float x, float y, float z, float fx, float fy, float scale);
+
+// Whether the segment from `a` to `b` passes through the box (its surface counts); `t` (optional): where it enters,
+// 0 at `a` to 1 at `b`.
+bool SegmentHitsBox(const float a[3], const float b[3], const ObjectBox& box, float* t = nullptr);
+
+// Whether a point is inside the box (its surface counts).
+bool PointInBox(const float p[3], const ObjectBox& box);
+
+// The cull: whether the segment's own bounds overlap the box's.
+bool SegmentNearBox(const float a[3], const float b[3], const ObjectBox& box);
+
+// The cover degree from how many of the six body points' lines are blocked (SRD 5.2.1: Half Cover "at least half",
+// Three-Quarters "about three-quarters", Total "completely concealed"): 0-2 none, 3-4 Half, 5 Three-Quarters, 6 Total.
+Cover CoverFromBlocked(int blocked);
+
+// The 2024 Hide condition: behind Three-Quarters or Total Cover from a creature, a hider can't be seen by it.
+bool CoverHides(Cover cover);
+
+// A Dexterity save's bonus from cover from the effect's point of origin: Half +2, Three-Quarters +5; Total Cover +5
+// too (an area that reaches it at all: nwn5e's reading - the owner may rule otherwise).
+int CoverSaveBonus(Cover cover);
+
+// Total Cover: no direct attack. A ranged attack is refused wherever the attacker stands; a melee one once the
+// attacker is within reach (`metres` <= kMeleeCoverReach) - farther out it walks on, and the cover may be gone when it
+// gets there.
+constexpr float kMeleeCoverReach = 3.0f;
+bool CoverRefusesAttack(Cover cover, bool ranged, float metres);
+
+// Where a Dexterity save's area starts (spells.2da TargetShape): a sphere (or hsphere) at the point the spell targets; a cone or
+// a line (rectangle) at the caster; anything else, or none, at what the save is against (the caster, or an area of
+// effect's own place).
+enum class SaveOrigin { kVersus, kCaster, kTargetPoint };
+SaveOrigin SaveOriginForShape(const std::string& target_shape);
+
+}  // namespace rules
