@@ -24,6 +24,11 @@
 //   Dexterity saves from the effect's origin (here: SaveCoverBonus, from rules_save_roll.cpp); #184: the boxes round a
 //   spell's point of origin, and the origin itself, for its particle mask (spell_mask.cpp: ObjectBoxesAround,
 //   SpellOriginOf; !maskproof's ObjectBoxesNear).
+// - #184 part 4, breaking: a placeable broken (0 HP: light_sources.cpp's DoDamage hook) leaves every area's boxes and the
+//   kept covers on the next server frame (CoverPlaceableBroken: after the spell resolving now - an instant area reads
+//   its obstacles as it takes effect, so creatures behind a bookcase its own blast broke keep their cover from it), and
+//   stays out while it lingers before the engine removes it; a placeable destroyed outright blocks nothing once it's
+//   gone (ObjectsBlockLine skips a box whose placeable isn't there). The spells' lasting masks round it are re-measured.
 
 #include "object_cover.h"
 
@@ -58,6 +63,7 @@
 #include "rules/los_probe.h"
 #include "rules/reposition.h"
 #include "rules/spells2024.h"
+#include "server_tick.h"
 #include "spell_mask.h"
 
 void* GameObjectById(uint32_t id);       // light_sources.cpp (the NWS object)
@@ -104,6 +110,8 @@ std::unordered_map<uint32_t, std::string> g_names;  // placeable id -> resref
 std::set<int> g_missed;                             // appearances logged without bounds
 std::unordered_map<uint64_t, Kept> g_kept;          // (observer, target) -> its cover
 std::unordered_map<uint64_t, uint64_t> g_told;      // (kind, a, b) -> when told
+std::set<uint32_t> g_gone;                          // #184 part 4: placeables broken (0 HP), dropped from the boxes
+std::vector<uint32_t> g_breaking;                   // broken this frame: dropped on the next
 ClearLineOfSightFn g_clear_line = nullptr;
 PlaceableByIdFn g_placeable_by_id = nullptr;
 ComputeHeightFn g_compute_height = nullptr;
@@ -193,7 +201,7 @@ const std::vector<Box>& BoxesOf(void* area, uint32_t self) {
     ++listed;
     const uint32_t id = static_cast<uint32_t>(strtoul(hex.c_str(), nullptr, 16));
     void* placeable = PlaceableById(id);
-    if (!placeable) continue;
+    if (!placeable || g_gone.count(id)) continue;  // (#184 part 4: broken - it lingers 2 s, its box gone at once)
     const int appearance = Field<uint16_t>(placeable, kPlaceableAppearance);
     const auto found = g_bounds.find(appearance);
     if (found == g_bounds.end()) {
@@ -396,6 +404,10 @@ std::vector<NearObjectBox> ObjectBoxesAround(void* area, uint32_t lister, const 
   return out;
 }
 
+void CoverPlaceableBroken(uint32_t id) {
+  if (g_table) g_breaking.push_back(id);
+}
+
 bool ObjectsBlockLine(void* area, uint32_t self, const float a[3], const float b[3], uint32_t* blocker, float* t) {
   if (!CoverObjectsOn() || !area) return false;
   const uint64_t now = GetTickCount64();
@@ -417,6 +429,7 @@ bool ObjectsBlockLine(void* area, uint32_t self, const float a[3], const float b
     if (!rules::SegmentNearBox(a, b, box.box)) continue;
     ++tests;
     if (rules::PointInBox(a, box.box)) continue;  // the looker stands in it: its own table's edge
+    if (!PlaceableById(box.id)) continue;          // #184 part 4: destroyed since the list was made
     float at = 0.0f;
     if (rules::SegmentHitsBox(a, b, box.box, &at) && at < best) {
       best = at;
@@ -695,6 +708,35 @@ bool SpellOriginOf(uint32_t origin_id, int spell, float at[3], rules::AreaOrigin
   return true;
 }
 
+namespace {
+
+// #184 part 4: the placeables broken last frame leave every area's boxes and the kept covers (attacks, hiding and the
+// cones count them no more), and the spells' lasting masks round them are re-measured.
+void DropBroken() {
+  if (g_breaking.empty()) return;
+  std::vector<uint32_t> now;
+  now.swap(g_breaking);
+  if (g_gone.size() > 4096) g_gone.clear();
+  for (uint32_t id : now) {
+    g_gone.insert(id);
+    for (auto& area : g_areas) {
+      std::vector<Box>& boxes = area.second.boxes;
+      const size_t before = boxes.size();
+      boxes.erase(std::remove_if(boxes.begin(), boxes.end(), [id](const Box& b) { return b.id == id; }), boxes.end());
+      if (boxes.size() == before) continue;
+      static int logged = 0;
+      if (logged < 30) {
+        ++logged;
+        Log("cover objects: %s (0x%08X) broke - its box dropped from the cover at once", ObjectName(id).c_str(), id);
+      }
+      SpellMaskObstacleGone(area.first, id);
+    }
+  }
+  g_kept.clear();
+}
+
+}  // namespace
+
 bool LeftOutOfArea(void* caster, int spell, uint32_t target_id) {
   if (!CoverObjectsOn() || !caster) return false;
   void* target = CreatureById(target_id);
@@ -777,6 +819,7 @@ void InstallCoverObjects() {
     }
   }
   g_table = !g_bounds.empty();
+  if (g_table && !AddServerTickListener(&DropBroken)) Log("cover objects: no server tick - a broken placeable's box stays up to 3 s");
   if (!g_table) {
     Log("cover objects: cover_objects=1 but no data\\placeable_bounds.txt (build.bat makes it from your game with "
         "tools\\data\\build_derived.js) - no cover from objects");

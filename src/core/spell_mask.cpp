@@ -444,6 +444,14 @@ void LookForAreas(uint64_t now) {
   }
 }
 
+// A lasting mask's boxes read again; re-sent when they changed.
+void Recheck(Active* a, const char* why) {
+  const std::vector<uint32_t> before = a->box_ids;
+  PickBoxes(a, CreatureById(a->caster) ? a->caster : 0);
+  if (a->box_ids == before) return;
+  a->id = g_next_id++;  // a new id: every client showing it gets it again (its place among the masks kept)
+  if (LogSlot()) Log("spell mask: re-sent for %s from 0x%08X - %s: %s", a->what.c_str(), a->caster, why, MaskWords(a->shape).c_str());
+}
 
 void Tick() {
   if (!g_registry) return;
@@ -463,6 +471,9 @@ void Tick() {
       void* aoe = GameObjectById(a.aoe);
       if (!aoe || engine::AreaOf(aoe) != a.area) {
         why = "its area ended";
+      } else if (now >= a.checked_ms + kBoxCheckMs) {
+        a.checked_ms = now;
+        Recheck(&a, "an obstacle in its reach gone");
       }
     }
     if (why) {
@@ -635,6 +646,15 @@ void SetSpellMaskNow(void* caster, int spell) {
   SetMask(id, id, spell, "at its burst", 0, "");
 }
 
+void SpellMaskObstacleGone(void* area, uint32_t id) {
+  for (Active& a : g_active) {
+    if (!a.lasting || a.area != area) continue;
+    char why[96];
+    sprintf_s(why, "the placeable 0x%08X broke", id);
+    Recheck(&a, why);
+  }
+  if (!g_active.empty()) Reconcile(GameMs(), 0);
+}
 
 void SetProofMask(void* creature, const rules::ParticleMask& mask, int hold_ms) {
   if (!creature) return;

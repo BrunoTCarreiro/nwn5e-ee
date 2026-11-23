@@ -38,6 +38,9 @@ bool SpellMasksOn();
 // code's for the burst.
 void SetSpellMaskNow(void* caster, int spell);
 
+// A placeable gone from `area`'s boxes (object_cover.cpp, a frame after it broke): every lasting mask there re-reads its
+// boxes, and one that changed is re-sent.
+void SpellMaskObstacleGone(void* area, uint32_t id);
 
 // !maskproof (mask_proof.cpp): `mask` shown to the players in `creature`'s area for `hold_ms`, as a spell's would be;
 // "off": the speaker's proof masks dropped. Logged as "the proof".

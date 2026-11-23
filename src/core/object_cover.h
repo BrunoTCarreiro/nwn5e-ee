@@ -42,6 +42,12 @@ std::vector<NearObjectBox> ObjectBoxesAround(void* area, uint32_t lister, const 
 // #184: an effect's point of origin as the cover rule draws it - `origin_id` the caster or an area of effect,
 // ScopedAreaOrigin's spot when one is set: `at` (the area's metres) and its kind. False when it can't be placed.
 bool SpellOriginOf(uint32_t origin_id, int spell, float at[3], rules::AreaOrigin* kind);
+// #184 part 4: a placeable broken (0 HP - light_sources.cpp's CNWSPlaceable::DoDamage hook, once an object). Cover drops
+// it on the next server frame - after the spell resolving now, so an instant area reads its obstacles as it takes effect
+// and the creatures behind a bookcase its own blast broke keep their cover from that blast - and the spells' lasting
+// masks are re-measured (spell_mask.cpp). A placeable destroyed outright (DestroyObject) stops counting as soon as it's
+// gone: a box whose placeable no longer exists blocks nothing.
+void CoverPlaceableBroken(uint32_t id);
 
 // One body point's line: clear, or blocked by the engine's line (walls, shut doors: `blocker` kObjectInvalid) or by
 // a placeable's box (`object` true, `blocker` its id).

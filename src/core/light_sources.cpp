@@ -206,6 +206,7 @@
 #include "grenades.h"
 #include "light_sources.h"
 #include "log.h"
+#include "object_cover.h"
 #include "plot_dressing_load.h"
 #include "script_hooks.h"
 #include "player_text.h"
@@ -1156,6 +1157,7 @@ void PlaceableDoDamage(void* placeable, int damage) {
   if (g_broken.size() > 4096) g_broken.clear();
   if (!g_broken.insert(id).second) return;  // once an object
   g_breaking.push_back(Breaking{id, Field<uint16_t>(placeable, kPlaceableAppearance), lit});
+  CoverPlaceableBroken(id);  // #184 part 4: cover (and the spells' lasting masks) drop it on the next frame
 }
 
 std::string Cell(const std::vector<std::string>& column, size_t row) { return row < column.size() ? column[row] : ""; }
