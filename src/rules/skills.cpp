@@ -604,6 +604,10 @@ int HiderLightTerm(int light_level, bool darkvision_reaches, bool inside_light_c
   return darkvision_reaches || inside_light_cone ? -5 : kLightUnseen;
 }
 
+bool HiderSeen(bool in_cone, bool engine_saw, bool lit_enough, bool up_close) {
+  return in_cone && ((engine_saw && lit_enough) || up_close);
+}
+
 bool WithinVisionCone(float dx, float dy, float fx, float fy, float degrees) {
   if (degrees >= 360.0f) return true;
   if (degrees <= 0.0f) return false;

@@ -199,6 +199,13 @@ bool WithinVisionCone(float dx, float dy, float fx, float fy, float degrees);
 constexpr int kLightUnseen = -1000;
 int HiderLightTerm(int light_level, bool darkvision_reaches, bool inside_light_cone);
 
+// #9 (owner, 2026-11-22: "and if the player is outside the cone of vision they cannot be seen"): whether a sight check
+// finds a hider - only inside the observer's cone as drawn (`in_cone`: cut at walls, shortened by light; true with no
+// cones at all), and there when the engine's check saw it in light it can see by (`engine_saw`, `lit_enough`) or it is
+// up close (in front within 2 m, a clear line). Outside the cone never - up close, calm or searching, in combat or
+// not. Mind Spike's caster (the spell's own rule) is decided before; hearing never finds a hider.
+bool HiderSeen(bool in_cone, bool engine_saw, bool lit_enough, bool up_close);
+
 // Reliable Talent (SRD 5.2 Rogue 7; owner, 2026-10-25: "go with all your
 // recommendations" - RB2, for the Stealth roll): a rogue of level 7 or more
 // proficient in the skill treats a d20 of 9 or lower as a 10.

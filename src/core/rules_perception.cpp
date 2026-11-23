@@ -817,7 +817,7 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
   const int drawn = spot && g_config.hiders_need_search && (!searching || sweeping)
                         ? DrawnConeSees(observer, target, &cut_metres, &cut_reach)
                         : -1;
-  bool in_cone = false;
+  bool in_cone = !g_config.hiders_need_search;  // no cones at all: all round, as before
   if (g_config.hiders_need_search) {
     if (drawn >= 0) {
       in_cone = drawn == 1;
@@ -827,8 +827,12 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
       in_cone = searching || InVisionCone(observer, target, g_config.vision_cone);
     }
   }
-  if (spot && result && g_config.hiders_need_search && !in_cone) {
-    result = 0;
+  // #9 (owner, 2026-11-22: "and if the player is outside the cone of vision they cannot be seen"): every sight check
+  // of a hider - the 6 s pass, #129's at once, a search's d20, alert in combat - finds it only inside the cone as
+  // drawn, and up close too (rules::HiderSeen).
+  const bool engine_saw = result != 0;
+  const bool lit_enough = !spot || LightTerm(observer, target) != kUnseen;
+  if (spot && result && !in_cone) {
     if (drawn == 0) {
       sprintf_s(up_close, "; %s, outside its drawn cone or past where it is cut (%.1f m away, that slice %.0f m): unseen",
                 searching ? "searching" : "calm", cut_metres, cut_reach);
@@ -838,16 +842,14 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
       sprintf_s(up_close, "; calm, outside its %d-degree cone: unseen", g_config.vision_cone);
     }
   }
-  if (spot && result && LightTerm(observer, target) == kUnseen) {  // G: darkness, no darkvision
-    result = 0;
-    sprintf_s(up_close, "; in darkness: unseen");
-  }
+  if (spot && result && in_cone && !lit_enough) sprintf_s(up_close, "; in darkness: unseen");  // G: no darkvision
   bool close = false;
-  if (spot && !result && scored && g_config.found_up_close && FoundUpClose(observer, target, &metres)) {
-    result = 1;
+  if (spot && in_cone && !(engine_saw && lit_enough) && scored && g_config.found_up_close &&
+      FoundUpClose(observer, target, &metres)) {
     close = true;
-    sprintf_s(up_close, "; found up close: %.1f m in front, clear line", metres);
+    sprintf_s(up_close, "; found up close: %.1f m in front, clear line, inside its cone", metres);
   }
+  if (spot) result = rules::HiderSeen(in_cone, engine_saw, lit_enough, close) ? 1 : 0;
   if (spot && g_config.hiders_need_search && (in_cone || result) && PartyHider(target)) {
     TellCheck(observer, target, result, searching, close);
   }

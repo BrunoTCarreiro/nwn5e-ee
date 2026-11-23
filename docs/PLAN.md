@@ -5991,7 +5991,8 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   *Decided (owner, 2026-11-22):* "1.A 2. Mostly A, but if there's an illuminated patch further out, there should not
   be an island of vision, it should form a contiguous slice of detectability" - 1: glances replace the sweep (a
   searching enemy's cone on its real facing, moved only when it turns to look); 2: light shortens each slice to the
-  farthest point it could spot a hider, contiguous out to a lit patch.
+  farthest point it could spot a hider, contiguous out to a lit patch. Then (owner, 2026-11-22): "and if the player
+  is outside the cone of vision they cannot be seen" - strict: no sight check finds a hider outside the drawn cone.
   *Built (#9, glances):* the sweep is retired (search_sweep_* gone; SearchSweep / SweepAngle out of
   rules/cone_slices). A searching enemy keeps `search_cone` (now 90, the calm width) on its real facing, drawn and
   cut as the calm one, and glances while it stands still (300 ms): SetFacing at once, outside its action queue, by
@@ -6024,6 +6025,18 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   detectability"); outside it, safe. A guard not drawn (beyond the nearest stealth_rings) keeps the old light rule
   (darkness unseen but for darkvision). Logged: "lights for the cones - n within 60 m, the area's own light l"
   when they change (20 lines), and the launch line.
+  *Built (#9, outside the cone never seen):* every sight check of a hider finds it only inside the observer's cone
+  as drawn - cut at walls, shortened by light; for a guard not drawn, its cone's angle (vision_cone, or search_cone
+  for a searching one) on its facing - calm or searching, in combat or not (rules::HiderSeen, tested: no input
+  outside the cone finds). Up close (B: in front within 2 m, a clear line) finds only where that spot is inside the
+  cone too: beside or behind a guard a hider stays unseen. The paths that can find a hider by sight, all through
+  the one hook on the engine's DoSpotDetection (rules_perception.cpp Detection): the 6 s detection pass; #129's
+  check at once when you hide (and Hide in Plain Sight's); every search's d20 - detect mode, the watch's
+  investigation, a light put out (light_sources.cpp), #133's search for a hider it heard or was hit by, #136's move
+  turned into that search, Minor Illusion's search for its caster, alert_creatures_search in combat. #133 and #136
+  themselves only send a creature to search; they find nothing. Exceptions kept: Mind Spike (its caster can't be
+  hidden from - the spell's own rule, decided before the cone) and hearing, which never reveals a hider - it only
+  sends the creature to investigate. The cone means nothing with hiders_need_search off (no cones: all round).
 - **Light where you hide** (0.32.0; owner: "do the sensible distances, I'll add
   light queries down the line"). The !light readings (Training Halls, night,
   interior): moon ambient 58 (dim), braziers / torch brackets found lit by

@@ -168,6 +168,25 @@ TEST(VisionConeIsCentredOnTheFacing) {
   CHECK_EQ(WithinVisionCone(0.0f, 0.0f, 1.0f, 0.0f, 120.0f), true);  // on top of it
 }
 
+// #9 (owner, 2026-11-22: "and if the player is outside the cone of vision they cannot be seen"). Breaks caught: any
+// way out of the cone that still finds a hider (the engine's look, up close, both), a look in the dark found, up
+// close not finding inside the cone, the engine's look in light not finding.
+TEST(AHiderOutsideTheConeIsNeverSeen) {
+  int seen_outside = 0;
+  for (int saw = 0; saw < 2; ++saw) {
+    for (int lit = 0; lit < 2; ++lit) {
+      for (int close = 0; close < 2; ++close) seen_outside += HiderSeen(false, saw != 0, lit != 0, close != 0);
+    }
+  }
+  CHECK_EQ(seen_outside, 0);
+  CHECK_EQ(HiderSeen(true, true, true, false), true);    // its look, in light it sees by
+  CHECK_EQ(HiderSeen(true, true, false, false), false);  // in darkness it can't see
+  CHECK_EQ(HiderSeen(true, false, true, false), false);  // its look missed
+  CHECK_EQ(HiderSeen(true, false, false, true), true);   // up close, inside the cone
+  CHECK_EQ(HiderSeen(true, true, false, true), true);
+  CHECK_EQ(HiderSeen(true, false, false, false), false);
+}
+
 // SK5 G and #9 (2026-11-22, light-drawn cones). Breaks caught: bright or dim off their terms, darkness seen without
 // darkvision or the light-drawn cone, darkvision or the cone not seeing darkness (at -5).
 TEST(HiderLightTermInsideTheLightCone) {
