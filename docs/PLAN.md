@@ -7119,6 +7119,33 @@ and particles don't collide, so they're measured as the vision cones' are.
   masks: on ...", each mask's set ("spell mask: set for Fireball (58) from 0x..., as it took effect - origin ..., reach
   ...; walls in n of 32 directions ...; n box(es) ..."), its clear, a script's swap and a re-send.
 
+*Installed 0.99.131; SM-4 (Fog Cloud by the bookcase).* *Decided (owner, 2026-11-23):* "inside the fog there should not
+be "shaded" areas as these are an area affect and not projected from a point. There doesn't seem to be an area without
+fog"; then, read SRD 5.2.1's Areas of Effect (a location every line from the point of origin to which is blocked isn't
+in the area), "come on, I think it makes sense it would go around corners. I know 5e explicitly said it and 2024
+doesn't, but come on"; then "bursts stay as 2024".
+*Built (branch `areafill`): the house rule `areas_fill_around` ([house_rules], 1 by default at the owner's word; 0 is
+the 2024 rule as built).* A lasting area - a cloud or a zone that stays where it's made - fills in round the placeables
+in it:
+- **What is lasting** (`rules/area_origin.h`, tested): an area-of-effect object's own area, any of them (its scripts
+  run as it: every save a cloud or a zone asks), and, as they appear (the save as the area is made, run by its
+  caster's spell), the spells that make one - nwn5e's Entangle, Grease and Fog Cloud, NWN's Web, Cloudkill, Stinking
+  Cloud and Incendiary Cloud. Not the shape: Fog Cloud and Shatter are both spheres, Entangle and Faerie Fire both
+  squares (Faerie Fire is cast once: instant). The spell masks' lasting entries are the same seven (tested).
+- **The rule:** a lasting area's lines from its origin count only the engine's - the tileset's walls and shut doors
+  (a cloud doesn't pass a solid wall into the next room) - so no placeable leaves a creature out of it (Total Cover) or
+  gives it +2 / +5 against its Dexterity saves (`object_cover.cpp` LeftOutOfArea, SaveCoverBonus).
+- **The look:** its mask carries the walls only, no boxes - no fog-free pocket behind a bookcase, nothing re-sent when
+  one breaks.
+- **Unchanged, the 2024 rule, look and rule:** instant cones, lines and bursts - Burning Hands, Color Spray, the
+  exhales, Thunderwave, Shatter, Ice Knife's burst, NWN's Cone of Cold, Fireball and the rest.
+- Logged once at launch ("cover objects: areas_fill_around=1 (a house rule) - lasting areas ... fill in round
+  placeables ..."); a creature a Fog Cloud takes in is logged ("spells2024: 0x... is in Fog Cloud 0x... - darkness on
+  it while inside (the cloud fills in round placeables: areas_fill_around)").
+- *Possible follow-up, not built:* following walls round a corner - a cloud flowing round the end of a wall into a
+  side corridor, along the walking paths from its centre (the area's walkmesh, as far as its radius) - in place of the
+  straight lines from the centre that the tileset's walls still cut.
+
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms
 for a blind, stunned or prone target, an invisible attacker and an unseen
