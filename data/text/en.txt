@@ -730,6 +730,20 @@ concentration.why_rest | generated | the rest outlasts it
 # --- src/core/test_commands.cpp (by hand) ---------------------------------------------------------------------
 # #170: the usage line (moved from the code, "[away]" and its note new) and the spawned line's note for away.
 test_commands.spawn_usage | generated | nwn5e: !spawn <creature blueprint> [ally | neutral] [dr] [away] - e.g. !spawn nw_gntfrost (Frost Giant, Huge), nw_gnthill (Hill Giant, Large), nw_orcb (Orc); ally: as your henchman; neutral: not hostile (the commoners' faction); dr: damage reduction 10/+5; away: with its back to you (for stealth tests).
+test_commands.los_usage | generated | nwn5e: !los [tag] - the sight line from the nearest enemy (or the creature with that tag) to your feet, waist, chest, head and shoulders; the detail is in nwn5e.log.
+test_commands.los_none | generated | nwn5e: !los - no {tag} in this area.
+test_commands.los_an_enemy | generated | enemy
+test_commands.los_no_engine | generated | nwn5e: !los - the engine's sight line wasn't found (see nwn5e.log).
+test_commands.los_summary | generated | nwn5e: los from {observer}: {points}
+test_commands.los_clear | generated | {points} clear
+test_commands.los_blocked | generated | {points} blocked by {blocker}
+test_commands.los_tileset | generated | the tileset
+test_commands.los_feet | generated | feet
+test_commands.los_waist | generated | waist
+test_commands.los_chest | generated | chest
+test_commands.los_head | generated | head
+test_commands.los_left_shoulder | generated | left shoulder
+test_commands.los_right_shoulder | generated | right shoulder
 test_commands.spawn_away | generated | , its back to you
 # #39 Part 2, level 2, build 1a: Prayer of Healing's 10 minutes and its creatures; Mind Spike's knowledge.
 spells2024.takes_minutes_to_cast | generated | nwn5e: {spell_name} takes {minutes} minutes to cast - not in a fight.

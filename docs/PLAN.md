@@ -6800,6 +6800,34 @@ Faithful (the master mode). Tests CoverDegrees, CoverCreatureInTheWay, CoverSize
 shot the neutral goblin (a neutral blocker is its enemy) - so CV-3, two orc archers, passed by the log. The chat's
 "Versus AC" is the engine's display number (it never shows nwn5e's AC: the CR AC, cover); the decision uses the
 hooked AC. Part 1 done; part 2 with #9.
+*Part 2's research step (owner, 2026-11-23):* "How do vision cones interact with objects? Placeables, meshes that
+are part of the tileset, half cover...", then "Start the research and fix the hall map to have more obstacles that
+will allow the testing of the cones with different covers".
+*Read from nwmain (89.8193.37):* the cones' slices and perception draw the same line, CNWSArea::ClearLineOfSight
+(rva 0x35c590-0x35cd0f; DoPerceptionUpdateOnCreature calls it from the observer's position + 1 m to the target's + 1
+m, the two creatures' ids, last 1). It weighs two things. (1) The tiles: for each tile the line crosses
+(CNWSTile::ComputeClippedLineSegment), CNWSTile::ClearLineOfSight - the tile's own surface mesh (its walls; which
+faces block - surfacemat.2da's line-of-sight column, a low wall's height - isn't read yet). (2) The area's static
+objects: CNWArea::NoNonWalkPolysDetailed over the line's 2D segment, its height range from the lower end to the
+higher, radius 0, the two creatures excluded - any walkmesh box in the way blocks; the object is given back
+(hit_object). A door among them is intersected with its own line (IntersectLineSegments) for the hit point, at the
+door's height + 1 m; for a placeable no hit point is written (it stays zeroed). So placeables with a walkmesh do
+block sight, and the line's height matters: the sight line from eyes (+1 m) to a target's +1 m spans only ~1 m, so a
+box lower than that may not block it - a knee-high bench, maybe a waist-high table - while a line to the feet (0.2
+m) spans 0.2-1 m. genericdoors.2da has a BlockSight column (the portcullises 0, the wooden and stone doors 1); what
+reads it isn't found yet. Only the test session can settle: how a placeable's box height is weighed against the
+line (the table, the bench, the rubble, the crate, the barrel), whether an open door's walkmesh leaves the list,
+whether a shut portcullis blocks, and which tile meshes block.
+*Built (#166 part 2's probe):* `!los [tag]` ([debug] test_commands; los_command.cpp, rules/los_probe.h, tested):
+from the nearest enemy (or the creature tagged so) to the speaker, ClearLineOfSight as perception calls it to six
+points of the speaker's body - feet 0.2 m, waist 1.0, chest 1.3, head 1.7, the shoulders 0.3 m to either side of
+the line at 1.4 - each clear or blocked, its blocker (type, resref, tag; the tileset with none) and the hit point;
+and for the same line the walk-blocking boxes (CNWArea::NoNonWalkPolysInDoors, radius 0.05 m), so a placeable the
+sight line ignores shows. A chat line ("los from Orc: feet, waist blocked by plc_table; chest, head, left
+shoulder, right shoulder clear"; the catalogue's test_commands.los_*, generated) and the detail in nwn5e.log
+("los: ..."). And the cones' log says what cut a slice: "stealth watch: 0x... slice n (+d degrees) cut at L m by
+placeable plc_bookshelf 'Bookshelf' - no hit point" or "by the tileset - hit x m out, h m over its feet", when it
+changes for a creature's slice (80 lines at most).
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms

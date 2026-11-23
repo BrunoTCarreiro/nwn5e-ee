@@ -257,6 +257,7 @@ struct ConeState {
   int length[rules::kConeSlicePositions];    // each position's measured length (an index; -1 blocked at its feet)
   int epoch_of[rules::kConeSlicePositions];  // the anchor it was measured from (-1 never)
   int light_of[rules::kConeSlicePositions];  // the light map it was measured with
+  uint32_t cut_by[rules::kConeSlicePositions];  // #166: what cut it, as last logged (0 none logged yet)
   uint64_t at[rules::kConeSlicePositions];   // when
   int epoch = 0;
   bool anchored = false;
@@ -271,6 +272,7 @@ struct ConeState {
       length[k] = 0;
       epoch_of[k] = -1;
       light_of[k] = -1;
+      cut_by[k] = 0;
       at[k] = 0;
       drawn[k] = 0;
     }
@@ -410,7 +412,10 @@ std::string Num(int value) { return std::to_string(value); }
 
 // #9 c: how far one position's slice reaches, measured now from where the creature stands and faces (`facing` in
 // radians): a length's index, -1 blocked at its feet. `tests` counts the sight lines.
-int MeasurePosition(void* creature, uint32_t id, void* area, int position, int top, int* tests) {
+// #166 (the research step): `cut_by` the object its first sight line was blocked by (kObjectInvalid: the tileset,
+// or not blocked), `cut_at` where (zeroed by the engine when a placeable blocks), `walls` the length the walls left.
+int MeasurePosition(void* creature, uint32_t id, void* area, int position, int top, int* tests, uint32_t* cut_by,
+                    Vec3* cut_at, int* walls) {
   const float x = Field<float>(creature, ee::kObjectPositionX);
   const float y = Field<float>(creature, ee::kObjectPositionY);
   const float z = Field<float>(creature, ee::kObjectPositionZ);
@@ -434,11 +439,17 @@ int MeasurePosition(void* creature, uint32_t id, void* area, int position, int t
     Vec3 at = to;
     uint32_t object = ee::kObjectInvalid;
     const bool open = g_clear_line_of_sight(area, eye, to, &at, &object, id, ee::kObjectInvalid, 1) == 1;
-    if (blocked_at) *blocked_at = at;
+    if (blocked_at) {
+      *blocked_at = at;
+      *cut_by = open ? ee::kObjectInvalid : object;
+    }
     return open;
   };
   int cut = top;
-  if (!clear(top, &hit)) {
+  *cut_by = ee::kObjectInvalid;
+  const bool whole = clear(top, &hit);
+  *cut_at = hit;
+  if (!whole) {
     // Where the engine found it blocked, if that is on the line short of its end: the length just short of it.
     const float along = (hit.x - x) * cx + (hit.y - y) * cy;
     const float across = fabsf((hit.y - y) * cx - (hit.x - x) * cy);
@@ -447,6 +458,7 @@ int MeasurePosition(void* creature, uint32_t id, void* area, int position, int t
                          : -1;
     cut = rules::ConeSliceReach(top - 1, hint, [&](int i) { return clear(i, nullptr); });
   }
+  *walls = cut;
   if (cut < 0 || !LightConesOn() || !g_lights.known || g_lights.area_lit || g_lights.hider_lit) return cut;
   // #9: how far along it this creature could spot a hider - lit (dim or brighter) or within its darkvision.
   const auto lit = [&](float d) {
@@ -475,6 +487,38 @@ int MeasurePosition(void* creature, uint32_t id, void* area, int position, int t
   };
   const float reach = rules::SeeableReach(rules::kConeSliceLengths[cut], 1.0f, DarkvisionReach(creature), lit);
   return rules::ConeSliceLengthAtMost(reach);
+}
+
+// #166 (owner, 2026-11-23: "How do vision cones interact with objects? Placeables, meshes that are part of the
+// tileset, half cover..."): what cut a slice - the object its sight line was blocked by (type, resref, tag; the tileset
+// with none) and where - logged when it changes for that creature's position, 80 lines at most.
+void LogCut(void* creature, uint32_t id, ConeState& s, int position, int walls, uint32_t cut_by, const Vec3& at) {
+  static int logged = 0;
+  if (logged >= 80 || s.cut_by[position] == cut_by) return;
+  s.cut_by[position] = cut_by;
+  ++logged;
+  std::string what = "the tileset";
+  if (cut_by != ee::kObjectInvalid) {
+    char code[600];
+    sprintf_s(code,
+              "object b = StringToObject(\"%x\"); int t = GetObjectType(b);"
+              "SetLocalString(OBJECT_SELF, \"nwn5e_cut_by\", !GetIsObjectValid(b) ? \"\" : (t == OBJECT_TYPE_PLACEABLE ?"
+              " \"placeable\" : (t == OBJECT_TYPE_DOOR ? \"door\" : \"object \" + IntToString(t))) + \" \" + GetResRef(b)"
+              " + \" '\" + GetTag(b) + \"'\");",
+              cut_by);
+    Run(code, id, "cut");
+    what = engine::GetLocalString(creature, "nwn5e_cut_by");
+    if (what.empty()) what = "an object gone";
+  }
+  const float x = Field<float>(creature, ee::kObjectPositionX), y = Field<float>(creature, ee::kObjectPositionY);
+  char where[96] = "no hit point (a placeable's block)";
+  if (!(at.x == 0.0f && at.y == 0.0f && at.z == 0.0f)) {
+    sprintf_s(where, "hit %.1f m out, %.2f m over its feet", sqrtf((at.x - x) * (at.x - x) + (at.y - y) * (at.y - y)),
+              at.z - Field<float>(creature, ee::kObjectPositionZ));
+  }
+  Log("stealth watch: 0x%08X slice %d (%+.0f degrees) cut at %g m by %s - %s%s", id, position,
+      rules::ConeSliceMiddle(position), walls >= 0 ? rules::kConeSliceLengths[walls] : 0.0f, what.c_str(), where,
+      logged == 80 ? " (further cuts not logged)" : "");
 }
 
 // #9 c: measure the stalest of `range`'s positions - those shown first - up to kPositionsPerUpdate, inside the second's
@@ -531,7 +575,11 @@ void Measure(void* creature, uint32_t id, ConeState& s, const rules::SliceSpan& 
     if (pick < 0) break;
     LARGE_INTEGER start, stop, frequency;
     QueryPerformanceCounter(&start);
-    s.length[pick] = MeasurePosition(creature, id, area, pick, top, &g_cost.tests);
+    uint32_t cut_by = ee::kObjectInvalid;
+    Vec3 cut_at{0.0f, 0.0f, 0.0f};
+    int walls = top;
+    s.length[pick] = MeasurePosition(creature, id, area, pick, top, &g_cost.tests, &cut_by, &cut_at, &walls);
+    if (walls < top) LogCut(creature, id, s, pick, walls, cut_by, cut_at);
     QueryPerformanceCounter(&stop);
     QueryPerformanceFrequency(&frequency);
     g_cost.ms += 1000.0 * (stop.QuadPart - start.QuadPart) / frequency.QuadPart;
