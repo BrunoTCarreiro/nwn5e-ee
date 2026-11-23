@@ -600,6 +600,35 @@ try {
     assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
   });
 
+  // TX (#39; the owner, 2026-11-23: "cas we just use the mesh, change the texture to something white and tint that?"): a
+  // Greyscale part on the disk - its texture's grey copy (its decoded pixels, each its luminance, its alpha kept) beside the
+  // models and the drafts; a White one the plain white.
+  check("TX: a Greyscale sword part names w_metal_tex's grey copy, a White one the plain white - beside the models and the drafts, the copy w_metal_tex in grey; again unchanged", () => {
+    const core = (global.window = global.window || {}, require(path.join(TOOLS, "vfx_bench", "public", "core.js")));
+    const rd = R.create({ game: GAME, core, gameData: require(path.join(TOOLS, "spell_bench", "game_data.js")), reader: null });
+    const METAL = "w_metal_tex", metal = rd.image(METAL, []), G = F.copyName(METAL, 0, F.copyKey(metal.txi, metal.dds || metal.tga), { look: "greyscale" }), WN = F.whiteName();
+    const SWORD = ["wswss_b_012", "wswss_m_012", "wswss_t_012"];
+    const file = withComposition("tx.json", (c) => {
+      c.stages.small = [{ model: SWORD, at: [0, 0, 0], scale: 0.3, tint: [0.72, 0.86, 1], texture: "greyscale" }];
+      c.stages.medium = [{ model: SWORD, at: [0, 0, 0], scale: 0.3, texture: "white" }];
+    });
+    const drafts = path.join(root, "build", "saved"), library = path.join(root, "build", "textures");
+    const args = ["--composition", file, "--drafts", "--out", drafts, "--textures", library];
+    const r = build([...args, "--json"]);
+    assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
+    const j = json(r);
+    assert.deepStrictEqual(j.copies, [{ copy: G, texture: METAL, clamp: 0, look: "greyscale" }, { copy: WN, white: true }]);
+    for (const dir of [FILES, drafts]) {
+      assert.ok(fs.readFileSync(path.join(dir, G + ".tga")).equals(F.lookTga("greyscale", core.decodeTga(metal.tga))), dir + ": the copy isn't w_metal_tex in grey");
+      assert.strictEqual(fs.readFileSync(path.join(dir, G + ".txi"), "latin1"), F.copiedTxi(metal.txi, 0), dir);
+      assert.ok(fs.readFileSync(path.join(dir, WN + ".tga")).equals(F.tgaBytes(F.whiteTexture())), dir + ": not the plain white");
+    }
+    const small = fs.readFileSync(path.join(FILES, F.creatureModel("small") + ".mdl"), "latin1"), medium = fs.readFileSync(path.join(FILES, F.creatureModel("medium") + ".mdl"), "latin1");
+    assert.deepStrictEqual([small.split(`\r\n  bitmap ${G}\r\n`).length - 1, medium.split(`\r\n  bitmap ${WN}\r\n`).length - 1], [3, 3]);
+    const again = json(build([...args, "--json"]));
+    assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
+  });
+
   check("the real worktree's data\\files and the real build's vfxedit\\saved\\ are as they were", () => {
     assert.deepStrictEqual(realState(), REAL);
   });

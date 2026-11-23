@@ -44,7 +44,7 @@ made of the game's parts) and the textures it generates (`n5p_*`, `n5s_*`), whic
   - A variant with no parts can be in the file (New project writes one), but `build.js` refuses the whole build
     while one has none (`variants[k].parts: at least one part`): add a part before the first Save and build.
 - **The parts** are composition.json's: `note`, `model` (a game model, or a list of them for a weapon's pieces),
-  `file` or `shape` (Shapes, below), `at`, `turn`, `scale`, `tilt`, a dyed part's `colours`, a `tint`, a `blend`
+  `file` or `shape` (Shapes, below), `at`, `turn`, `scale`, `tilt`, a dyed part's `colours`, a `tint`, a `texture`, a `blend`
   (below) and a `motion` (Moving textures, below).
   - A `file` is your own `.mdl`, relative to this folder, so `parts/my_crate.mdl` is `tools\data\composer\parts\my_crate.mdl`.
   - The rules for your own files (units, axes, textures) are the Floating Disk's (`tools\data\floatdisk\README.md`).
@@ -69,6 +69,16 @@ made of the game's parts) and the textures it generates (`n5p_*`, `n5s_*`), whic
     mesh's drafts in `--saved`, a placeable's models in `data\files` (git-ignored). A dyed part can't be Additive (its
     texture is baked from the game's PLT): `build.js` refuses it. `floatdisk.js`'s `addedLight` and `addedTextures`.
     `{ "model": ["wswss_b_012", "wswss_m_012", "wswss_t_012"], "at": [0, 0, 0], "tint": [0.72, 0.86, 1], "blend": "additive" }`
+  - A `texture` (TX; the owner, 2026-11-23, of a brass sword times a blue tint reading blue-green: "cas we just use the
+    mesh, change the texture to something white and tint that?"): `"greyscale"` or `"white"` on any part but a shape (a
+    shape's texture is on its shape); Own, the default, isn't written. Greyscale gives the game a grey copy of each of its
+    textures (`n5l_`: each pixel its luminance, Rec. 601's 0.299 R + 0.587 G + 0.114 B, its alpha kept; a DDS decoded and
+    written as a TGA; its TXI's lines minus `decal`), so the detail stays and its `tint` is its colour exactly. White gives
+    it the plain white (`n5s_`, 8 x 8, ours) - or, where its texture's alpha cuts the mesh out (and isn't an environment
+    map's shine, as a weapon's is), a white copy keeping that alpha (`n5l_`). With `"blend": "additive"` too the copy's TXI
+    says `blending additive` (the spectral look). Written beside what names it, as the copies above. A dyed part can be
+    White, not Greyscale. `floatdisk.js`'s `partTextures`.
+    `{ "model": ["wswss_b_012", "wswss_m_012", "wswss_t_012"], "at": [0, 0, 0], "tint": [0.72, 0.86, 1], "texture": "greyscale", "blend": "additive" }`
 
 ## Shapes
 

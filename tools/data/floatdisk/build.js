@@ -28,7 +28,10 @@
 //   texture's blending and map lines - the engine takes a mesh's blend only from its bitmap's TXI (files.js motionMaterials).
 //   AB: an Additive part ("blend": "additive" - not a shape's: its own Blend) lit by itself at its tint, its textures
 //   copied for added light, n5l_<12 hex digits> with a TXI of their lines minus decal and blending + blending additive
-//   (floatdisk.js addedLight, addedTextures; files.js copyTextures) - git-ignored as DC's copies.
+//   (floatdisk.js addedLight, addedTextures; files.js copyTextures) - git-ignored as DC's copies. TX: a part's Texture
+//   ("texture": "greyscale" | "white", not a shape's): Greyscale its textures' grey copies (n5l_: their pixels decoded by
+//   the bench's core.js, each its Rec. 601 luminance, alpha kept - TGAs), White the plain white (n5s_, ours) or a white copy
+//   keeping an alpha that cuts the mesh out (floatdisk.js partTextures) - git-ignored likewise.
 // - data\rows: appearance.floatdisk.txt (rows 14000-14003, each appearance 298's) and placeables.floatdisk.txt (14001-
 //   14003, each 189 TreasureSml's), floatdisk.js's ROWS.
 //
@@ -156,7 +159,7 @@ function main() {
   const copied = new Map();  // a copy's name -> { texture, clamp, decal, ext, bytes, txi, label }
   for (const stage of F.STAGES) {
     const parts = placed[stage];
-    W.copyTextures(parts, copied, { rd, shaped, baked, ship });
+    W.copyTextures(parts, copied, { rd, shaped, baked, ship, decode: W.decoder(core) });  // (TX: a Texture part's pixels)
     W.motionMaterials(parts, moved, { sources: { rd, shaped, baked, ship }, copies: copied });
     const junk = [].concat(...parts.map((x) => x.meshes));
     const creature = F.uniqueNames([...junk, diskMesh], taken);

@@ -1064,6 +1064,87 @@ try {
     assert.deepStrictEqual(snapshot(), before);
   });
 
+  // TX (#39; the owner, 2026-11-23, of the brass sword times the blue tint reading blue-green: "cas we just use the mesh,
+  // change the texture to something white and tint that?"): a part's Texture. Greyscale - each texture a grey copy, its
+  // pixels decoded (the bench's core.js) and each its luminance (Rec. 601), its alpha kept; White - the plain white of our
+  // own (w_metal_tex's alpha is its environment map's shine: no white copy of it).
+  const lookOf = (t, look, additive) => { const i = rd.image(t, []); return F.copyName(t, 0, F.copyKey(i.txi, i.dds || i.tga), { additive, look }); };
+  const whiteFiles = (dir) => fs.readdirSync(dir).filter((f) => [F.whiteName(), F.whiteName({ additive: true })].includes(f.replace(/\.(tga|txi)$/i, ""))).sort();
+  const clearWhites = () => { for (const dir of [FILES, SAVED]) for (const f of whiteFiles(dir)) fs.rmSync(path.join(dir, f)); };
+  check("TX: a spell mesh's sword Greyscale and Additive - its planes name w_metal_tex's grey copy (both marks), lit by itself at the tint; the copy its decoded pixels in grey (Rec. 601, its alpha kept: a 32-bit TGA) with its TXI additiveTxi's, beside the draft in --saved; White - the plain white, no TXI, the model's material times the tint; again unchanged", () => {
+    clearCopies();
+    clearWhites();
+    const files = snapshot(), kept = madeTxt(), G = lookOf(METAL, "greyscale", true), WN = F.whiteName();
+    const file = project("chkswt", { kind: "spellmesh", guide: { shape: "circle", diameter: 0.5, height: 0 }, variants: [
+      { name: "1", parts: [{ model: SWORD, at: [0, 0, 0], scale: 1.2, tilt: [90, 0], tint: TINT, texture: "greyscale", blend: "additive" }] },
+      { name: "2", parts: [{ model: SWORD, at: [0, 0, 0], scale: 1.2, tilt: [90, 0], tint: TINT, texture: "white" }] }] });
+    assert.ok(fs.readFileSync(file, "utf8").includes('"tint": [0.72, 0.86, 1], "texture": "greyscale", "blend": "additive" }'), "the project's file: its texture after its tint");
+    const said = build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/);
+    for (const line of [`  texture ${G}: ${METAL} in grey (its luminance), a Greyscale part's, for added light (${G}.tga, ${G}.txi: its TXI without blending, ` +
+      `and blending additive) - written into ${SAVED}`, `  texture ${WN}: the plain white (8 x 8, ours), a White part's - written into ${SAVED}`]) {
+      assert.ok(said.includes(line), "no line: " + line + "\n" + said.join("\n"));
+    }
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(j.copies, [{ copy: G, texture: METAL, clamp: 0, additive: true, look: "greyscale" }, { copy: WN, white: true }]);
+    const [grey, white] = j.variants.map((v) => draftPlanes(path.join(SAVED, v.model + ".vfx")));
+    assert.deepStrictEqual([grey.map((p) => p.bitmap), white.map((p) => p.bitmap)], [[G, G, G], [WN, WN, WN]]);
+    assert.deepStrictEqual(grey.map((p) => [p.selfillum, p.ambient, p.diffuse]), grey.map(() => [TINT.map(Math.fround), [0, 0, 0], [0, 0, 0]]));
+    assert.deepStrictEqual(white.map((p) => [p.selfillum, p.diffuse]), white.map(() => [[0, 0, 0], TINT.map(Math.fround)]));
+    // The grey copy: w_metal_tex's TGA decoded as the stage decodes it, each pixel its luminance, its alpha (its shine) kept.
+    const metal = rd.image(METAL, []), pixels = core.decodeTga(metal.tga), tga = fs.readFileSync(path.join(SAVED, G + ".tga"));
+    assert.ok(F.hasAlpha(pixels) && !F.whiteKeepsAlpha(metal.txi, pixels), "w_metal_tex: its alpha used, as its environment map's shine");
+    assert.ok(tga.equals(F.lookTga("greyscale", pixels)), G + ".tga isn't w_metal_tex in grey");
+    assert.deepStrictEqual([tga[16], tga[17], tga.length], [32, 8, 18 + pixels.width * pixels.height * 4]);
+    const back = core.decodeTga(tga);
+    let grey3 = true, luma = true, alpha = true;
+    for (let i = 0; i < back.data.length; i += 4) {
+      const s = pixels.data, y = Math.round(0.299 * s[i] + 0.587 * s[i + 1] + 0.114 * s[i + 2]);
+      if (back.data[i] !== back.data[i + 1] || back.data[i] !== back.data[i + 2]) grey3 = false;
+      if (back.data[i] !== y) luma = false;
+      if (back.data[i + 3] !== s[i + 3]) alpha = false;
+    }
+    assert.deepStrictEqual([grey3, luma, alpha], [true, true, true], "the copy read back: grey, its luminance, its alpha");
+    assert.strictEqual(fs.readFileSync(path.join(SAVED, G + ".txi"), "latin1"), F.additiveTxi(metal.txi));
+    // The plain white: 8 x 8, 24-bit, white; no TXI (Normal).
+    assert.ok(fs.readFileSync(path.join(SAVED, WN + ".tga")).equals(F.tgaBytes(F.whiteTexture())), WN + ".tga isn't the plain white");
+    assert.deepStrictEqual([copyFiles(SAVED), whiteFiles(SAVED)], [[G + ".tga", G + ".txi"], [WN + ".tga"]]);
+    // Nothing in data\, nothing in made.txt; built again: unchanged.
+    const after = snapshot();
+    for (const f of Object.keys(after)) if (!f.startsWith(SAVED)) assert.strictEqual(after[f], files[f], f);
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+    assert.ok(ok(build(file, ["--json", "--saved", SAVED])).files.every((x) => x.state === "unchanged"));
+  });
+  check("TX: a placeable's White Additive sword - the Additive plain white and its TXI (blending additive) in data\\files, git-ignored, owned by its name; a dyed part White - the plain white; Greyscale refused, nothing written", () => {
+    clearCopies();
+    clearWhites();
+    const kept = madeTxt(), WA = F.whiteName({ additive: true });
+    const file = project("chkswtp", { kind: "placeable", guide: { shape: "circle", diameter: 1, height: 0 }, placeable: THROUGH, variants: [{ name: "1", row: 14164, parts: [
+      { model: SWORD, at: [0, 0, 0], texture: "white", blend: "additive" }] }] });
+    const j = ok(build(file, ["--json"]));
+    assert.deepStrictEqual(j.copies, [{ copy: WA, white: true, additive: true }]);
+    const mdl = fs.readFileSync(path.join(FILES, j.variants[0].model + ".mdl"), "latin1");
+    assert.deepStrictEqual([...mdl.matchAll(/\r\n {2}bitmap (\S+)\r\n/g)].map((m) => m[1]), [WA, WA, WA]);
+    assert.deepStrictEqual([copyFiles(FILES), whiteFiles(FILES)], [[], [WA + ".tga", WA + ".txi"]]);
+    assert.strictEqual(fs.readFileSync(path.join(FILES, WA + ".txi"), "latin1"), "blending additive\n");
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+    const ignored = (f) => spawnSync("git", ["check-ignore", "-q", "--no-index", "data/files/" + f], { cwd: REPO, windowsHide: true }).status === 0;
+    for (const f of [WA + ".tga", WA + ".txi"]) assert.ok(ignored(f), f + " isn't git-ignored");
+    // Its file in the way is the generator's (the name fixes its bytes): rewritten.
+    fs.writeFileSync(path.join(FILES, WA + ".txi"), "decal 1\r\n");
+    assert.strictEqual(byName(ok(build(file, ["--json"])))[WA + ".txi"], "rebuilt");
+    // A dyed part: White the plain white (nothing of its bake needed); Greyscale refused, saying why, nothing written.
+    const helmW = project("chkhelmw", { kind: "spellmesh", guide: { shape: "circle", diameter: 0.5, height: 0 }, variants: [{ name: "1", parts: [
+      { model: "helm_001", at: [0, 0, 0], texture: "white" }] }] });
+    const jw = ok(build(helmW, ["--json", "--saved", SAVED]));
+    assert.ok(draftPlanes(path.join(SAVED, jw.variants[0].model + ".vfx")).every((p) => p.bitmap === F.whiteName()), "the dyed helmet's planes name the plain white");
+    const before = snapshot();
+    const helmG = project("chkhelmg", { kind: "spellmesh", guide: { shape: "circle", diameter: 0.5, height: 0 }, variants: [{ name: "1", parts: [
+      { model: "helm_001", at: [0, 0, 0], texture: "greyscale" }] }] });
+    refused(build(helmG, ["--json", "--saved", SAVED]),
+      new RegExp(`^helm_001: ${DEF}: a dyed texture \\(the game's PLT baked in the part's colours\\) - a dyed part can't be Greyscale: set its Texture to White or Own$`));
+    assert.deepStrictEqual(snapshot(), before);
+  });
+
   // The probe (TMO-1's): tools\data\composer\uvprobe.js writes n5m_uvprobe - seven domes in a row, three moving by the
   // texture0 route (the material names the texture), three by the copy route (the texture copied under the material's
   // name, its TXI with it) and a seventh by the texture0 route with the texture's TXI beside the material under its n5u_

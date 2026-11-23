@@ -547,6 +547,34 @@ check("projectText writes blend after tint, Additive only - never Normal; readPr
     [["plc_x", [0.72, 0.86, 1], [0, 0, 0], [0, 0, 0]], ["null", [0.36, 0.215, 1], [0, 0, 0], [0, 0, 0]]].map(([b, s, a, d]) => [b, s.map(Math.fround), a, d]));
   assert.strictEqual(P.draftText(core, "n5m_swords", placed({ blend: "normal" })), P.draftText(core, "n5m_swords", placed({})));
 });
+// TX (#39; the owner, 2026-11-23: "cas we just use the mesh, change the texture to something white and tint that?"): a
+// part's texture is written after its tint and before its blend, "greyscale" or "white" only - Own, the default, never
+// (every project keeps its bytes) - and read back; a shape's is on its shape.
+check("projectText writes texture after tint and before blend, Greyscale or White only - never Own; readProject reads it back, each error naming its part", () => {
+  const json = { kind: "spellmesh", name: "swords", guide: CIRCLE, variants: [{ name: "1", parts: [
+    { blend: "additive", texture: "greyscale", extra: 1, tint: [0.72, 0.86, 1], model: ["wswss_b_012", "wswss_m_012", "wswss_t_012"], at: [0, 0, 0], scale: 1.2, tilt: [90, 0] },
+    { texture: "own", model: "plc_a03", at: [0, 0, 0] },
+    { texture: "white", model: "plc_b04", at: [0, 0, 0] },
+    { texture: null, model: "plc_b05", at: [0, 0, 0] }] }] };
+  const text = P.projectText(json), l = lines(text);
+  assert.ok(l.includes('      { "model": ["wswss_b_012", "wswss_m_012", "wswss_t_012"], "at": [0, 0, 0], "scale": 1.2, "tilt": [90, 0], "tint": [0.72, 0.86, 1], ' +
+    '"texture": "greyscale", "blend": "additive", "extra": 1 },'), text);
+  assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0] },') && l.includes('      { "model": "plc_b04", "at": [0, 0, 0], "texture": "white" },') &&
+    l.includes('      { "model": "plc_b05", "at": [0, 0, 0] }'), text);
+  assert.ok(!/"texture": "own"|"texture": null/.test(text), text);
+  const read = P.readProject(JSON.parse(text), BASE, F).variants[0].parts;
+  assert.deepStrictEqual(read.map((p) => p.texture), ["greyscale", "own", "white", "own"]);
+  assert.strictEqual(P.projectText(JSON.parse(text)), text);
+  // A project without a texture keeps its bytes (the sword's as it is on main: tint, then blend).
+  const sword = { kind: "spellmesh", name: "swpsword", guide: { shape: "circle", diameter: 0.5, height: 0 }, variants: [{ name: "1", parts: [
+    { note: "shortsword 012", model: ["wswss_b_012", "wswss_m_012", "wswss_t_012"], at: [0, 0, 0], scale: 1.2, tilt: [90, 0], tint: [0.72, 0.86, 1], blend: "additive" }] }] };
+  assert.ok(P.projectText(sword).includes('"tint": [0.72, 0.86, 1], "blend": "additive" }'), P.projectText(sword));
+  const bad = copy(json);
+  bad.variants[0].parts[1].texture = "grey";
+  assert.throws(() => P.readProject(bad, BASE, F), says("variants[0].parts[1].texture: own, greyscale or white"));
+  bad.variants[0].parts[1] = { shape: { type: "dome", radius: 1 }, at: [0, 0, 0], texture: "white" };
+  assert.throws(() => P.readProject(bad, BASE, F), says("variants[0].parts[1].texture: a shape's texture is on its shape (its own Texture: shape.texture)"));
+});
 check("projectText: a part a line, and a round trip", () => {
   const json = copy(CRATES);
   json.variants[1] = { parts: [], name: "2" };

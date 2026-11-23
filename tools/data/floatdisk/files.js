@@ -233,31 +233,59 @@ const motionJson = (materials) => [...materials].map(([material, m]) => Object.a
 // file: `ship`) and its TXI floatdisk.js additiveTxi's: its lines minus decal and blending, + "blending additive". A dyed
 // part's bake (n5p_) stops the build, naming the part (addedTextures refuses it). A moving one's material then names the
 // copy as texture0 (motionMaterials: its own TXI the copy's blending line).
+// TX (the owner, 2026-11-23: "cas we just use the mesh, change the texture to something white and tint that?"): a part's
+// Texture, Greyscale or White, through the same rule (floatdisk.js partTextures) - each textured mesh renamed in place:
+// - Greyscale: its grey copy, n5l_<12 hex digits> (the look hashed in), its picture decoded (`sources.decode`: the bench's
+//   core.js, decodeDds / decodeTga - a DDS's pixels, written again as a TGA) and made grey (floatdisk.js lookTga: Rec. 601
+//   luminance, its alpha kept; 32-bit when its alpha is used, else 24-bit), its TXI floatdisk.js partCopyTxi's (its lines
+//   minus decal - and blending, + blending additive, when Additive too);
+// - White: the plain white (floatdisk.js whiteTexture: 8 x 8, ours - whiteName, n5s_: one a blend, an Additive one's TXI
+//   "blending additive") when its alpha isn't used or is its environment map's shine (floatdisk.js whiteKeepsAlpha) -
+//   entered as `white: true`, written kind "shape" (owned by its n5s_ name as a soft texture is) - else its white copy
+//   keeping its alpha (n5l_, look "white": lookTga, partCopyTxi).
+// A dyed part's bake can be White (the plain white), not Greyscale (refused, naming the part). -> `copies` entries also
+// carry look: "greyscale" | "white" (a Texture copy's) or white: true (the plain white: no texture of its own).
 function copyTextures(placed, copies = new Map(), sources = {}) {
-  const pictures = new Map();
+  const pictures = new Map(), decoded = new Map();
   const picture = (t) => {
     if (!pictures.has(t)) pictures.set(t, sources.rd ? motionPicture(t, sources) : null);
     return pictures.get(t);
   };
+  // (A texture's picture decoded once - a Texture part's needs its pixels: its grey copy, whether White keeps its alpha.)
+  const pixels = (t, pic) => {
+    if (typeof sources.decode !== "function") throw new Error(`texture ${t}: a part's Texture needs its picture decoded (the generators pass the bench's core.js)`);
+    if (!decoded.has(t)) decoded.set(t, sources.decode(pic));
+    return decoded.get(t);
+  };
   for (const x of placed) {
     if (!x.meshes) continue;
     if (x.part.source.kind !== "shape") {
-      if (!F.isAdditivePart(x.part)) continue;
-      let added;
+      const look = F.partLook(x.part), label = F.partLabel(x.part);
+      if (!F.isAdditivePart(x.part) && look === "own") continue;
+      let r;
+      const made = new Map();  // (each copy's entry, made before any is kept: one that fails names the part, nothing half-done)
       try {
-        added = F.addedTextures(x.part, x.meshes, (t) => {
+        r = F.partTextures(x.part, x.meshes, (t) => {
           const pic = picture(t);  // (its key - its TXI's text and its picture's bytes - names the copy, as DC's: floatdisk.js copyKey)
-          return pic ? { key: F.copyKey(pic.txi, pic.bytes) } : null;
+          return pic ? Object.assign({ key: F.copyKey(pic.txi, pic.bytes) }, look === "white" ? { alpha: F.whiteKeepsAlpha(pic.txi, pixels(t, pic)) } : {}) : null;
         });
+        for (const c of r.copies) {
+          if (copies.has(c.name) || made.has(c.name)) continue;
+          const pic = picture(c.texture);
+          made.set(c.name, Object.assign({ texture: c.texture, clamp: 0, decal: F.txiDecal(pic.txi) }, c.additive ? { additive: true } : {}, c.look ? { look: c.look } : {},
+            c.look ? { ext: ".tga", bytes: F.lookTga(c.look, pixels(c.texture, pic)) } : { ext: pic.ext, bytes: pic.bytes },
+            { txi: Buffer.from(F.partCopyTxi(pic.txi, { additive: !!c.additive }), "latin1"), label }));
+        }
       } catch (e) {
-        throw new Error(`${F.partLabel(x.part)}: ${e.message}`);
+        throw new Error(`${label}: ${e.message}`);
       }
-      x.meshes = added.meshes;
-      for (const c of added.copies) {
-        if (copies.has(c.name)) continue;
-        const pic = picture(c.texture);
-        copies.set(c.name, { texture: c.texture, clamp: 0, decal: F.txiDecal(pic.txi), additive: true, ext: pic.ext, bytes: pic.bytes,
-          txi: Buffer.from(F.additiveTxi(pic.txi), "latin1"), label: F.partLabel(x.part) });
+      x.meshes = r.meshes;
+      for (const [name, c] of made) copies.set(name, c);
+      for (const w of r.whites) {
+        if (copies.has(w.name)) continue;
+        const txi = F.whiteTxi(w);
+        copies.set(w.name, Object.assign({ white: true }, w.additive ? { additive: true } : {}, { ext: ".tga", bytes: F.tgaBytes(F.whiteTexture()),
+          txi: txi ? Buffer.from(txi, "latin1") : null, label }));
       }
       continue;
     }
@@ -277,20 +305,34 @@ function copyTextures(placed, copies = new Map(), sources = {}) {
   }
   return copies;
 }
+// TX: copyTextures' `decode` from the bench's core.js (`core`, loadTools'): a picture as motionPicture gives it ({ ext, bytes
+// }) -> its pixels (core.decodeDds for a DDS - DXT1, DXT5, Bioware's header - else core.decodeTga), as the bench's stage
+// decodes it.
+const decoder = (core) => (pic) => (pic.ext === ".dds" ? core.decodeDds(pic.bytes) : core.decodeTga(pic.bytes));
 // The copies as writes into `dir` (beside what names them: the models' folder, or a spell mesh's drafts'): <dir>\<name>
 // .tga or .dds and <dir>\<name>.txi, each kind "copy" (ours by its n5l_ name: only the generator makes them, and the name
 // fixes the bytes) - git-ignored in data\files (/data/files/n5l_*: a copy is the game's art), never noted in made.txt.
-const copyWrites = (copies, dir) => [].concat(...[...copies].map(([name, c]) => [{ file: path.join(dir, name + c.ext), bytes: c.bytes, kind: "copy" },
-  { file: path.join(dir, name + ".txi"), bytes: c.txi, kind: "copy" }]));
+// TX: the plain white (`white`) kind "shape" - ours by its n5s_ name, git-ignored as the soft textures are - its TXI only
+// when it has one (an Additive part's).
+const copyWrites = (copies, dir) => [].concat(...[...copies].map(([name, c]) => [{ file: path.join(dir, name + c.ext), bytes: c.bytes, kind: c.white ? "shape" : "copy" },
+  ...(c.txi ? [{ file: path.join(dir, name + ".txi"), bytes: c.txi, kind: c.white ? "shape" : "copy" }] : [])]));
 // The summary's line a copy: its texture, what's changed in it, and where it goes (AB: an Additive part's, made for added
 // light - its TXI without decal or blending, then blending additive).
-const copyLines = (copies, where) => [...copies].map(([name, c]) => (c.additive
+const copyLines = (copies, where) => [...copies].map(([name, c]) => (c.white
+  ? `  texture ${name}: the plain white (${F.WHITE_SIZE} x ${F.WHITE_SIZE}, ours), a White part's${c.additive ? `, additive (${name}.txi: blending additive)` : ""} - written into ${where}`
+  : c.look
+  ? `  texture ${name}: ${c.texture} ${c.look === "greyscale" ? "in grey (its luminance)" : "in white, its alpha kept"}, a ${c.look === "greyscale" ? "Greyscale" : "White"} ` +
+    `part's${c.additive ? ", for added light" : ""} (${name}.tga, ${name}.txi: its TXI${c.decal || c.additive ? " without " + [c.decal ? "decal" : "", c.additive ? "blending" : ""]
+      .filter(Boolean).join(" or ") : ""}${c.additive ? ", and blending additive" : ""}) - written into ${where}`
+  : c.additive
   ? `  texture ${name}: ${c.texture} copied for added light, an Additive part's (${name}${c.ext}, ${name}.txi: its TXI without ${c.decal ? "decal or " : ""}` +
     `blending, and blending additive) - written into ${where}`
   : `  texture ${name}: ${c.texture} copied${c.decal ? " without its decal mark" : ""}` +
     `${c.clamp ? ", clamped in v" : ""} (${name}${c.ext}, ${name}.txi: its TXI${c.decal ? " without decal" : ""}${c.clamp ? `, and clamp ${c.clamp}` : ""}) - written into ${where}`));
-// --json's: [{ copy, texture, clamp (0 or 2), additive (AB: only true, an Additive part's copy) }].
-const copyJson = (copies) => [...copies].map(([copy, c]) => Object.assign({ copy, texture: c.texture, clamp: c.clamp }, c.additive ? { additive: true } : {}));
+// --json's: [{ copy, texture, clamp (0 or 2), additive (AB: only true, an Additive part's copy), look (TX: a Texture copy's,
+// greyscale | white) }] - the plain white { copy, white: true, additive? } (no texture of its own).
+const copyJson = (copies) => [...copies].map(([copy, c]) => (c.white ? Object.assign({ copy, white: true }, c.additive ? { additive: true } : {})
+  : Object.assign({ copy, texture: c.texture, clamp: c.clamp }, c.additive ? { additive: true } : {}, c.look ? { look: c.look } : {})));
 
 // --- textures ---------------------------------------------------------------------------------------------------------
 // The textures that the placed parts' own files bring and the game doesn't have: each mesh's, looked up in the game,
@@ -376,6 +418,6 @@ function writeAll(writes, owned, { repo, manifest, dry = false }) {
   return results;
 }
 
-module.exports = { option, loadTools, repoPath, shown, bakeParts, bakedWrites, bakedLines, bakedJson, shapeTextures, shapeWrites, shapeLines,
+module.exports = { option, loadTools, decoder, repoPath, shown, bakeParts, bakedWrites, bakedLines, bakedJson, shapeTextures, shapeWrites, shapeLines,
   shapeJson, motionMaterials, motionPicture, motionCopies, motionWrites, motionLines, motionJson, copyTextures, copyWrites, copyLines, copyJson,
   shipTextures, readManifest, writeManifest, ownership, writeAll };

@@ -206,10 +206,10 @@ function newProject(name, kind) {
 
 // A project's text in composition.json's layout: two-space indents, _about a string a line, each variant a line opening
 // its parts and each part a line (note, model | file | shape, at, turn, scale, tilt, colours, tint - never white, which
-// is no tint: floatdisk.js's isWhite - blend - AB: "additive" only, never Normal, the default, so every project keeps its
-// bytes - motion - M2: its non-zero keys, floatdisk.js's cleanMotion, never a still one - then any other key), the rest
-// inline; LF, a final newline.
-const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours", "tint", "blend", "motion"];
+// is no tint: floatdisk.js's isWhite - texture - TX: "greyscale" or "white" only, never Own, the default - blend - AB:
+// "additive" only, never Normal, the default, so every project keeps its bytes - motion - M2: its non-zero keys,
+// floatdisk.js's cleanMotion, never a still one - then any other key), the rest inline; LF, a final newline.
+const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours", "tint", "texture", "blend", "motion"];
 const VARIANT_KEYS = ["name", "model", "row"];
 const ordered = (o, first) => first.filter((k) => o[k] !== undefined).concat(Object.keys(o).filter((k) => !first.includes(k) && o[k] !== undefined));
 // A value on one line: floatdisk.js's inline ({} when empty, an undefined key left out), the page's or Node's.
@@ -222,8 +222,8 @@ const inline = (v) => floatDisk().inline(v);
 function projectText(json) {
   const pair = (k, v) => JSON.stringify(k) + ": " + v;
   const F = floatDisk();
-  const part = (p) => "{ " + ordered(p, PART_KEYS).filter((k) => !(k === "tint" && F.isWhite(p[k])) && !(k === "blend" && (p[k] === "normal" || p[k] === null)) &&
-    !(k === "motion" && !F.hasMotion(p[k])))
+  const part = (p) => "{ " + ordered(p, PART_KEYS).filter((k) => !(k === "tint" && F.isWhite(p[k])) && !(k === "texture" && (p[k] === "own" || p[k] === null)) &&
+    !(k === "blend" && (p[k] === "normal" || p[k] === null)) && !(k === "motion" && !F.hasMotion(p[k])))
     .map((k) => pair(k, inline(k === "motion" ? F.cleanMotion(p[k]) : p[k]))).join(", ") + " }";
   const variant = (v, last) => {
     const head = ordered(v, VARIANT_KEYS).filter((k) => k !== "parts").map((k) => pair(k, inline(v[k])));

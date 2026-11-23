@@ -185,14 +185,41 @@ function readPartBlend(b, where) {
 // blend says so and it isn't a shape (a shape's blend is on its shape).
 const isAdditivePart = (p) => !!p && p.blend === "additive" && !(p.source ? p.source.kind === "shape" : p.shape !== undefined);
 
+// A part's Texture (TX, #39; the owner, 2026-11-23, of the shortsword's brass texture times the blue tint reading
+// blue-green: "cas we just use the mesh, change the texture to something white and tint that?" - the coordinator's answer, a
+// per-part Texture choice, Greyscale the sword's, keeping the detail): Own, as its model has it; Greyscale - a copy of each
+// of its textures with the colour taken out (greyPicture: its luminance, Rec. 601), so its shading and detail stay and its
+// Tint gives exactly the tint's hue; White - flat white (whitePicture, WHITE_TEXTURE), so it's the flat tint colour. A
+// part's file carries "texture": "greyscale" | "white" only (Own is the default, never written: every project keeps its
+// bytes). A shape's texture is its shape's own (SHAPE_INFO.texture) - never the part's. With Blend Additive too, the copy's
+// TXI says blending additive (partTextures: Additive + Greyscale, the spectral look).
+const PART_TEXTURES = ["own", "greyscale", "white"];
+// The card's Texture (the bench's part card, for any part but a shape): its label, choices and title.
+const PART_TEXTURE_INFO = { label: "Texture",
+  choices: [["own", "Own: as its model has it"], ["greyscale", "Greyscale: its own, the colour taken out"], ["white", "White: flat, the tint's colour"]],
+  title: "Greyscale: the game is given a copy of each of its textures in grey (its brightness, the detail kept), so its Tint is its colour exactly. " +
+    "White: a plain white texture (its own alpha kept where its alpha cuts the mesh out), so the part is its Tint, flat. Own: as its model has it. " +
+    "A dyed part (a helmet's PLT) can be White, not Greyscale." };
+// A part's texture as given (`t`; absent - undefined or null - Own) -> "own" | "greyscale" | "white". `where` names it.
+function readPartTexture(t, where) {
+  if (t === undefined || t === null) return "own";
+  if (!PART_TEXTURES.includes(t)) throw new Error(`${where}.texture: own, greyscale or white`);
+  return t;
+}
+// A part's look - read or as its file has it: "greyscale" or "white" when its texture says so and it isn't a shape (a
+// shape's texture is on its shape), else "own".
+const partLook = (p) => (!!p && (p.texture === "greyscale" || p.texture === "white") && !(p.source ? p.source.kind === "shape" : p.shape !== undefined)
+  ? p.texture : "own");
+
 // One part of a composition (or of a Composer project: tools\data\composer\project.js) read and checked -> { source:
 // { kind: "model", model } | { kind: "models", models } (a weapon's pieces) | { kind: "file", file (absolute), given }
 // | { kind: "shape", shape (readShape's: every key) }, at, turn, scale, tilt, note, colours (the ten layers'), tint
-// (readTint's: white without one), blend (AB: readPartBlend's, "normal" without one), motion (readMotion's, M2: still
-// without one) }. `where` names it in an error (stages.small[0]); `baseDir` resolves its file. A shape has no scale (its
-// radius and height size it), no dyes, no tint (its colour is on the shape) and no blend of the part's (its Blend is on
-// the shape): its colours are the defaults, its tint white, its blend "normal". Any part may carry a motion, a shape too:
-// it moves the part's textured meshes.
+// (readTint's: white without one), texture (TX: readPartTexture's, "own" without one), blend (AB: readPartBlend's,
+// "normal" without one), motion (readMotion's, M2: still without one) }. `where` names it in an error (stages.small[0]);
+// `baseDir` resolves its file. A shape has no scale (its radius and height size it), no dyes, no tint (its colour is on
+// the shape) and no texture or blend of the part's (its Texture and Blend are on the shape): its colours are the defaults,
+// its tint white, its texture "own", its blend "normal". Any part may carry a motion, a shape too: it moves the part's
+// textured meshes.
 function readPart(p, where, baseDir) {
   if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error(`${where}: a part ({ "model": ..., "at": [x, y, z] })`);
   const hasModel = p.model !== undefined, hasFile = p.file !== undefined, hasShape = p.shape !== undefined;
@@ -215,6 +242,7 @@ function readPart(p, where, baseDir) {
     if (p.colours !== undefined) throw new Error(`${where}.colours: a shape has no dyes - its colour is on the shape`);
     if (p.tint !== undefined && p.tint !== null) throw new Error(`${where}.tint: a shape has no tint - its Colour is its colour`);
     if (p.blend !== undefined && p.blend !== null) throw new Error(`${where}.blend: a shape's blend is on its shape (its own Blend: shape.blend)`);
+    if (p.texture !== undefined && p.texture !== null) throw new Error(`${where}.texture: a shape's texture is on its shape (its own Texture: shape.texture)`);
   }
   if (!Array.isArray(p.at) || p.at.length !== 3 || !p.at.every(isNum)) throw new Error(`${where}.at: [x, y, z] in metres`);
   const turn = p.turn === undefined ? 0 : p.turn, scale = p.scale === undefined ? 1 : p.scale;
@@ -223,7 +251,7 @@ function readPart(p, where, baseDir) {
   if (!isNum(scale) || scale <= 0) throw new Error(`${where}.scale: a number above 0`);
   if (!Array.isArray(tilt) || tilt.length !== 2 || !tilt.every(isNum)) throw new Error(`${where}.tilt: [degrees about x, degrees about y]`);
   return { source, at: p.at, turn, scale, tilt, note: p.note || "", colours: readColours(p.colours, `${where}.colours`), tint: readTint(p.tint, where),
-    blend: readPartBlend(p.blend, where), motion: readMotion(p.motion, where) };
+    texture: readPartTexture(p.texture, where), blend: readPartBlend(p.blend, where), motion: readMotion(p.motion, where) };
 }
 
 // composition.json's object -> { disk, stages: { empty: [], small: [part], ... } }, each part as readPart gives it.
@@ -277,13 +305,14 @@ function inline(v) {
 }
 // composition.json's text in its own layout (the Composer saves it): two-space indents, _about a string a line, the disk
 // a key a line, each stage a part a line (note, model | file | shape, at, turn, scale, tilt, colours, tint - never white,
-// which is no tint - blend - AB: only Additive, never Normal, the default - motion - its non-zero keys, cleanMotion's,
-// never a still one - then any other key); arrays and a shape inline.
+// which is no tint - texture - TX: only Greyscale or White, never Own, the default - blend - AB: only Additive, never
+// Normal, the default - motion - its non-zero keys, cleanMotion's, never a still one - then any other key); arrays and a
+// shape inline.
 function compositionText(c) {
-  const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours", "tint", "blend", "motion"];
+  const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours", "tint", "texture", "blend", "motion"];
   const part = (p) => {
-    const written = (k) => p[k] !== undefined && !(k === "tint" && isWhite(p[k])) && !(k === "blend" && (p[k] === "normal" || p[k] === null)) &&
-      !(k === "motion" && !hasMotion(p[k]));
+    const written = (k) => p[k] !== undefined && !(k === "tint" && isWhite(p[k])) && !(k === "texture" && (p[k] === "own" || p[k] === null)) &&
+      !(k === "blend" && (p[k] === "normal" || p[k] === null)) && !(k === "motion" && !hasMotion(p[k]));
     const keys = PART_KEYS.filter(written).concat(Object.keys(p).filter((k) => !PART_KEYS.includes(k) && written(k)));
     return "{ " + keys.map((k) => JSON.stringify(k) + ": " + inline(k === "motion" ? cleanMotion(p[k]) : p[k])).join(", ") + " }";
   };
@@ -1179,9 +1208,14 @@ function copyKey(txi, bytes) {
 // AB: `additive` (an Additive part's copy, addedTextures: its TXI additiveTxi's) hashes ":additive" after its key - its own
 // name, never one of DC's (whose TXI keeps the source's blending), so neither copy's TXI is ever written over the other's;
 // without it every name is as before AB.
-function copyName(texture, clamp, key, additive = false) {
+// TX: `more` may be { additive, look } instead - a Texture copy's look ("greyscale" or "white": partTextures) hashed as
+// ":greyscale" / ":white" after the additive mark, so a look's copy never shares a name with DC's, the additive-only copy
+// or the other look's (each has other bytes); "own" (or none) hashes nothing - the names before TX as they were.
+function copyName(texture, clamp, key, more = false) {
   if (typeof key !== "string" || !key) throw new Error(`copyName: ${String(texture).toLowerCase()} - a copy's key (copyKey of its TXI and picture), none given`);
-  return "n5l_" + cyrb53(`copy:${String(texture).toLowerCase()}:${clamp ? clamp : 0}:${key}${additive ? ":additive" : ""}`).toString(16).padStart(14, "0").slice(-12);
+  const { additive = false, look = "own" } = more && typeof more === "object" ? more : { additive: !!more };
+  const marks = (additive ? ":additive" : "") + (look === "greyscale" || look === "white" ? ":" + look : "");
+  return "n5l_" + cyrb53(`copy:${String(texture).toLowerCase()}:${clamp ? clamp : 0}:${key}${marks}`).toString(16).padStart(14, "0").slice(-12);
 }
 // Whether the game must have a library texture copied: its TXI (`info`: { decal, cycle } - txiDecal, txiCycle - of it;
 // null when not known) says decal, or it's a flipbook on a mesh whose v stays within one repeat (`clampV`).
@@ -1285,21 +1319,115 @@ function gameTextures(shape, motion, meshes, info) {
 // wherever it's drawn (the page's own for its stage and Play, reader.js's for Save), so the key of its copy (its picture's
 // bytes) isn't one the page can name Play's copy by; set its Blend to Normal (or pick a part with a TGA or DDS texture).
 // A part that isn't Additive (Normal, or a shape: its own Blend, its soft texture's TXI) as it is.
-function addedTextures(part, meshes, info) {
-  const copies = [], seen = new Set();
-  if (!isAdditivePart(part)) return { meshes, copies };
+// TX: the rule is partTextures (below) - an Additive part's and a Texture part's alike; addedTextures is its name before TX.
+
+// --- TX: a part's Texture - Greyscale or White (#39; the owner, 2026-11-23: "cas we just use the mesh, change the texture
+// to something white and tint that?") ----------------------------------------------------------------------------------
+// The pictures, made from the player's own game wherever they're needed (the generators at build time, the bench's stage
+// and its Play in game) - never committed: a Greyscale copy is the game's picture in grey, a White one with its own alpha the
+// game's alpha. Only the plain white (WHITE_TEXTURE) is ours alone: generated, original.
+// Greyscale: each pixel its luminance, Rec. 601's weights (0.299 R + 0.587 G + 0.114 B, rounded: they sum to 1, so white
+// stays white and black black), its alpha kept - the shading and the detail stay, and a Tint gives exactly its hue.
+const LUMA = [0.299, 0.587, 0.114];
+// A picture ({ width, height, data: RGBA, rows top-down: core.decodeTga / decodeDds's, bakePlt's}) -> its grey copy, the same
+// shape, alpha kept.
+function greyPicture(picture) {
+  const src = picture.data, data = new Uint8ClampedArray(src.length);
+  for (let i = 0; i + 3 < src.length; i += 4) {
+    const y = Math.round(LUMA[0] * src[i] + LUMA[1] * src[i + 1] + LUMA[2] * src[i + 2]);
+    data[i] = y; data[i + 1] = y; data[i + 2] = y; data[i + 3] = src[i + 3];
+  }
+  return { width: picture.width, height: picture.height, data };
+}
+// A picture -> white, its alpha kept (White, where its alpha cuts the mesh out: whiteKeepsAlpha).
+function whitePicture(picture) {
+  const src = picture.data, data = new Uint8ClampedArray(src.length).fill(255);
+  for (let i = 3; i < src.length; i += 4) data[i] = src[i];
+  return { width: picture.width, height: picture.height, data };
+}
+// Whether a picture's alpha is used anywhere: a pixel below 255. A copy of one without (a 24-bit TGA, DXT1, a bake) is
+// written 24-bit, one with 32-bit (8 alpha bits): as the source has it.
+function hasAlpha(picture) {
+  const d = picture.data;
+  for (let i = 3; i < d.length; i += 4) if (d[i] < 255) return true;
+  return false;
+}
+// Whether White keeps a texture's alpha (its copy, n5l_, white with the source's alpha) rather than the plain white: its
+// picture's alpha is used (hasAlpha) and its TXI (a string or bytes - its X-Motion-Txi lines do too) names no environment
+// map - with one ("envmaptexture", as the game's weapons: w_metal_tex's alpha 13 to 255, alphamean 0.364) its alpha is
+// the map's shine and the game draws the mesh solid (the bench's stage likewise: "shine", drawn opaque), so its White is
+// the plain white. Otherwise its alpha cuts the mesh out or shows through it, and White keeps that shape.
+const ENVMAP_LINE = /^[ \t]*envmaptexture[ \t]+\S/im;
+const whiteKeepsAlpha = (txi, picture) => hasAlpha(picture) && !ENVMAP_LINE.test(latin1(txi));
+// The plain white: 8 x 8, opaque, 24-bit - original, ours. One name a blend, in the soft textures' namespace (n5s_: the
+// generators' own pictures - owned by its name, git-ignored in data\files, found by the bench where they're built):
+// whiteName - n5s_ and 12 hex digits of "white" (":additive" after it for an Additive part's, its TXI "blending additive",
+// SOFT_TXI; a Normal one has none).
+const WHITE_SIZE = 8;
+const whiteTexture = () => ({ width: WHITE_SIZE, height: WHITE_SIZE, data: new Uint8ClampedArray(WHITE_SIZE * WHITE_SIZE * 4).fill(255) });
+const whiteName = ({ additive = false } = {}) => "n5s_" + cyrb53("white" + (additive ? ":additive" : "")).toString(16).padStart(14, "0").slice(-12);
+const whiteTxi = ({ additive = false } = {}) => (additive ? SOFT_TXI : null);
+// A Texture copy's picture as the game is given it (`look` greyscale or white; `picture` its source decoded): a TGA (Node's
+// Buffer, a page's Uint8Array) - tgaBytes, rows bottom-up, 32-bit when the source's alpha is used, else 24-bit. A DDS source
+// is written as a TGA: the decoded pixels, nothing compressed again.
+const lookTga = (look, picture) => tgaBytes(look === "white" ? whitePicture(picture) : greyPicture(picture), { alpha: hasAlpha(picture) });
+// A copy's TXI by its part's blend (`source` its texture's TXI): Additive - additiveTxi (its lines minus decal and blending,
+// + blending additive); Normal - copiedTxi's (its lines minus decal - the copy is drawn lit, so its Tint shows - its
+// blending kept: it blends as its model's texture does).
+const partCopyTxi = (source, { additive = false } = {}) => (additive ? additiveTxi(source) : copiedTxi(source, 0));
+
+// The part rule, one place (AB's and TX's: the generators' files.js copyTextures, the bench's Play in game - composer.js
+// played - and its bake route, which makes what it's sent by the same names): a part's (`part`: read, or as its file has it)
+// placed meshes as the game must be given them, when it's Additive (isAdditivePart) or its Texture isn't Own (partLook).
+// `info(texture)` -> { key, alpha } | null: its copy's key (copyKey of its TXI's text and its picture's bytes, as the copy
+// path finds them: files.js motionPicture, the bench's texture route's X-Copy-Key), and - a White part's - whether White
+// keeps its alpha (whiteKeepsAlpha of its TXI and decoded picture; undefined: not known); null (nowhere: the game hasn't it
+// either), or what's needed not known: as it is.
+// -> { meshes (copies - the given ones untouched), copies: [{ name, texture, clamp: 0, key, additive?: true, look?:
+// "greyscale" | "white" }], whites: [{ name, additive?: true }] }, each name once. Each textured mesh names:
+// - Own, Additive: its copy made for added light, n5l_ (copyName additive) - its picture its texture's, its TXI additiveTxi's;
+// - Greyscale: its grey copy, n5l_ (copyName { additive, look: "greyscale" }) - lookTga of its picture, partCopyTxi;
+// - White: the plain white (whiteName: its blend's) when its alpha isn't used or is its shine, else its white copy keeping
+//   its alpha, n5l_ (copyName { additive, look: "white" }) - lookTga, partCopyTxi.
+// U and v repeat as the model's own did (no clamp). An untextured mesh, and one naming a copy already (n5l_: twice is
+// once), the plain white (n5s_) or a moving texture's material (n5u_: the copy comes first), as it is.
+// A dyed part's texture - the game's PLT baked in its colours, n5p_ (P4): White is the plain white (a bake has no alpha:
+// bakePlt's is 255) - nothing of the bake needed; Greyscale and Additive (Own) are refused: the bake is made afresh wherever
+// it's drawn (the page's own for its stage and Play, reader.js's for Save), so the key of its copy (its picture's bytes)
+// isn't one the page can name Play's copy by - set its Texture to White or Own (Greyscale), its Blend to Normal (Additive).
+// A part that's Normal and Own, or a shape (its own Texture and Blend), as it is.
+function partTextures(part, meshes, info) {
+  const copies = [], whites = [], seen = new Set();
+  const additive = isAdditivePart(part), look = partLook(part);
+  if (!additive && look === "own") return { meshes, copies, whites };
+  const plain = (m) => {
+    const name = whiteName({ additive });
+    if (!seen.has(name)) { seen.add(name); whites.push(Object.assign({ name }, additive ? { additive: true } : {})); }
+    return Object.assign({}, m, { bitmap: name });
+  };
   const out = (meshes || []).map((m) => {
     const t = String(m.bitmap || "").toLowerCase();
-    if (!textured(t) || COPY_TEXTURE.test(t) || MOTION_TEXTURE.test(t)) return m;
-    if (BAKED.test(t)) throw new Error(`${t}: a dyed texture (the game's PLT baked in the part's colours) - a dyed part can't be Additive: set its Blend to Normal`);
+    if (!textured(t) || COPY_TEXTURE.test(t) || SHAPE_TEXTURE.test(t) || MOTION_TEXTURE.test(t)) return m;
+    if (BAKED.test(t)) {
+      if (look === "white") return plain(m);
+      throw new Error(look === "greyscale" ? `${t}: a dyed texture (the game's PLT baked in the part's colours) - a dyed part can't be Greyscale: set its Texture to White or Own`
+        : `${t}: a dyed texture (the game's PLT baked in the part's colours) - a dyed part can't be Additive: set its Blend to Normal`);
+    }
     const i = typeof info === "function" ? info(t) : null;
-    if (!i || typeof i.key !== "string" || !i.key) return m;
-    const name = copyName(t, 0, i.key, true);
-    if (!seen.has(name)) { seen.add(name); copies.push({ name, texture: t, clamp: 0, key: i.key, additive: true }); }
+    if (!i) return m;
+    if (look === "white" && i.alpha === false) return plain(m);
+    if (look === "white" && i.alpha !== true) return m;
+    if (typeof i.key !== "string" || !i.key) return m;
+    const name = copyName(t, 0, i.key, { additive, look });
+    if (!seen.has(name)) {
+      seen.add(name);
+      copies.push(Object.assign({ name, texture: t, clamp: 0, key: i.key }, additive ? { additive: true } : {}, look !== "own" ? { look } : {}));
+    }
     return Object.assign({}, m, { bitmap: name });
   });
-  return { meshes: out, copies };
+  return { meshes: out, copies, whites };
 }
+const addedTextures = partTextures;  // (AB's name: an Additive part's rule, now TX's too)
 
 // --- a compiled model's node tree ---------------------------------------------------------------------------------
 // [{ name, parent ("" for the root), position, rotation (quaternion x y z w), flags }], parents before children, in the
@@ -1578,6 +1706,8 @@ const api = {
   CLAMP_V, COPY_TEXTURE, txiDecal, txiClampBits, txiCycle, copiedTxi, softTxi, vClamps, copyKey, copyName, copied, copyKind, stillTextures,
   sidewaysClamps, motionTxi, gameTextures,
   PART_BLENDS, PART_BLEND_INFO, readPartBlend, isAdditivePart, addedLight, additiveTxi, addedTextures,
+  PART_TEXTURES, PART_TEXTURE_INFO, readPartTexture, partLook, LUMA, greyPicture, whitePicture, hasAlpha, whiteKeepsAlpha, WHITE_SIZE, whiteTexture,
+  whiteName, whiteTxi, lookTga, partCopyTxi, partTextures,
 };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.FloatDisk = api;

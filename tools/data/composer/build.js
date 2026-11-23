@@ -61,6 +61,16 @@
 // additiveTxi): beside what names it - a spell mesh's drafts in <saved>, a placeable's models in data\files (git-ignored as
 // DC's copies, owned by the n5l_ name: files.js copyTextures). A dyed part (its PLT baked, n5p_) can't be Additive: refused.
 //
+// TX (the owner, 2026-11-23, of the shortsword's brass times the blue tint reading blue-green: "cas we just use the mesh,
+// change the texture to something white and tint that?"): a part that isn't a shape may carry "texture": "greyscale" or
+// "white" (Own, the default, is never written). Greyscale: each textured mesh names a grey copy of its texture, n5l_<12
+// hex digits> (the look hashed in) - its picture decoded (the bench's core.js: a DDS's too, written as a TGA) and each pixel
+// its luminance (Rec. 601: 0.299 R + 0.587 G + 0.114 B), its alpha kept - with its TXI's lines minus decal (and blending, +
+// blending additive, when Additive too: floatdisk.js partCopyTxi), so its Tint gives exactly its hue and its detail stays.
+// White: the plain white, n5s_<12 hex digits> (ours: 8 x 8, one a blend), or - where its texture's alpha cuts the mesh out
+// (no environment map: floatdisk.js whiteKeepsAlpha) - a white copy keeping that alpha (n5l_). Each beside what names it, as
+// the copies above (floatdisk.js partTextures, files.js copyTextures). A dyed part can be White, not Greyscale: refused.
+//
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
 // own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo. The files are written by its files.js,
 // under the same ownership rule.
@@ -227,7 +237,7 @@ function main() {
   // MV: a moving shape's copy too (floatdisk.js gameTextures: its material names it as texture0), and each moving
   // texture's material a TXI of its own with its texture's blending and map lines (motionMaterials, given where TXIs are read).
   const built = placed.map(({ v, parts }) => {
-    W.copyTextures(parts, copied, { rd, shaped, baked, ship });
+    W.copyTextures(parts, copied, { rd, shaped, baked, ship, decode: W.decoder(core) });  // (TX: a Texture part's pixels)
     W.motionMaterials(parts, moved, { sources: { rd, shaped, baked, ship }, copies: copied });
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
     for (const x of parts) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], x.lo[k]); hi[k] = Math.max(hi[k], x.hi[k]); }

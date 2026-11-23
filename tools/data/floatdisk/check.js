@@ -2534,7 +2534,7 @@ check("AB addedTextures: an Additive part's textured meshes name their copies (i
     assert.deepStrictEqual(r.meshes.map((m) => m.bitmap), [x, "", "null", x, y, "plc_z", "plc_nokey", "n5l_0123456789ab", "n5u_0123456789ab"]);
     assert.deepStrictEqual(r.copies, [{ name: x, texture: "plc_x", clamp: 0, key: "k1", additive: true }, { name: y, texture: "plc_y", clamp: 0, key: "k2", additive: true }]);
     assert.strictEqual(meshes[0].bitmap, "PLC_X", "the given meshes untouched");
-    assert.deepStrictEqual(F.addedTextures(part, r.meshes, info), { meshes: r.meshes, copies: [] }, "twice is once");
+    assert.deepStrictEqual(F.addedTextures(part, r.meshes, info), { meshes: r.meshes, copies: [], whites: [] }, "twice is once");
   }
   // Not known yet (the page's: undefined) or no info at all: as it is.
   assert.deepStrictEqual(F.addedTextures({ model: "m", blend: "additive" }, meshes, () => undefined).meshes.map((m) => m.bitmap), meshes.map((m) => m.bitmap));
@@ -2622,6 +2622,207 @@ check("AB in a page: the same blend, light, TXI, names and rule", () => {
   assert.deepStrictEqual([P.additiveTxi(FLAME_TXI), P.copyName("fxpa_flame02", 0, DC_KEY.fxpa_flame02, true)], [F.additiveTxi(FLAME_TXI), "n5l_5d105670235b"]);
   const info = (t) => (t === "plc_x" ? { key: "k1" } : null);
   assert.deepStrictEqual(P.addedTextures(raw, tinted().meshes, info), F.addedTextures(raw, tinted().meshes, info));
+});
+
+// --- TX (#39; the owner, 2026-11-23, of the shortsword's brass texture times the blue tint reading blue-green: "cas we just
+// use the mesh, change the texture to something white and tint that?"): a part's Texture - Own, Greyscale (a grey copy of
+// each texture: its luminance, Rec. 601, its alpha kept) or White (the plain white of our own, or a white copy keeping an
+// alpha that cuts the mesh out) - so its Tint is its colour; with Blend Additive the copy's TXI says blending additive. ----
+// A 2 x 2 picture (rows top-down): red, green, blue (alpha 128), a dark grey-blue (alpha 0).
+const TX_PIC = () => ({ width: 2, height: 2, data: Uint8ClampedArray.from([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 128, 10, 20, 30, 0]) });
+const TX_OPAQUE = () => ({ width: 2, height: 1, data: Uint8ClampedArray.from([255, 255, 255, 255, 0, 0, 0, 255]) });
+check("TX a part's texture: Own without one, Greyscale, White; anything else refused, a shape's on its shape; partLook; compositionText writes it after the tint and before the blend, never Own", () => {
+  const part = (extra) => F.readPart(Object.assign({ model: "plc_a03", at: [0, 0, 0] }, extra), "stages.small[0]", BASE);
+  assert.deepStrictEqual([part(), part({ texture: null }), part({ texture: "own" }), part({ texture: "greyscale" }), part({ texture: "white" })].map((p) => p.texture),
+    ["own", "own", "own", "greyscale", "white"]);
+  assert.strictEqual(F.readPart({ file: "parts/x.mdl", at: [0, 0, 0], texture: "greyscale" }, "p", BASE).texture, "greyscale");
+  for (const bad of ["Greyscale", "grey", "", 1, true, [], {}]) {
+    assert.throws(() => part({ texture: bad }), (e) => e.message === "stages.small[0].texture: own, greyscale or white", JSON.stringify(bad));
+  }
+  for (const texture of ["greyscale", "white", "own"]) {
+    assert.throws(() => F.readPart({ shape: { type: "dome", radius: 1 }, at: [0, 0, 0], texture }, "stages.small[0]", BASE),
+      (e) => e.message === "stages.small[0].texture: a shape's texture is on its shape (its own Texture: shape.texture)", texture);
+  }
+  assert.strictEqual(F.readPart({ shape: { type: "dome", radius: 1, texture: "none" }, at: [0, 0, 0] }, "p", BASE).texture, "own");
+  assert.deepStrictEqual([part({ texture: "greyscale" }), part({ texture: "white" }), part(), { model: "x", texture: "white" }, { file: "a.mdl", texture: "greyscale" },
+    { model: "x", texture: "own" }, { shape: { type: "dome", radius: 1 }, texture: "white" }, { source: { kind: "shape" }, texture: "greyscale" }, { model: "x", texture: "Grey" }, null]
+    .map(F.partLook), ["greyscale", "white", "own", "white", "greyscale", "own", "own", "own", "own", "own"]);
+  assert.deepStrictEqual([F.PART_TEXTURES, F.PART_TEXTURE_INFO.choices.map((c) => c[0])], [["own", "greyscale", "white"], ["own", "greyscale", "white"]]);
+  const text = F.compositionText({ disk: { diameter: 0.9 }, stages: { small: [{ blend: "additive", texture: "greyscale", model: "plc_a03", at: [0, 0, 0], tint: [0.5, 1, 1] },
+    { model: "plc_b04", at: [0, 0, 0], texture: "own" }, { model: "plc_b06", at: [0, 0, 0], texture: null }, { model: "plc_b05", at: [0, 0, 0], texture: "white" }], medium: [], large: [] } });
+  assert.ok(text.includes('      { "model": "plc_a03", "at": [0, 0, 0], "tint": [0.5, 1, 1], "texture": "greyscale", "blend": "additive" },'), text);
+  assert.ok(text.includes('      { "model": "plc_b04", "at": [0, 0, 0] },') && text.includes('      { "model": "plc_b06", "at": [0, 0, 0] },') &&
+    text.includes('      { "model": "plc_b05", "at": [0, 0, 0], "texture": "white" }'), text);
+});
+check("TX the pictures: greyPicture each pixel its luminance (Rec. 601: 0.299 R + 0.587 G + 0.114 B, rounded), its alpha kept, white white and black black; whitePicture white, its alpha kept; hasAlpha; lookTga 32-bit with alpha, 24-bit without, rows bottom-up; whiteKeepsAlpha", () => {
+  assert.deepStrictEqual(F.LUMA, [0.299, 0.587, 0.114]);
+  const src = TX_PIC(), grey = F.greyPicture(src);
+  assert.deepStrictEqual(Array.from(grey.data), [76, 76, 76, 255, 150, 150, 150, 255, 29, 29, 29, 128, 18, 18, 18, 0]);
+  assert.deepStrictEqual([grey.width, grey.height], [2, 2]);
+  assert.deepStrictEqual(Array.from(src.data.slice(0, 4)), [255, 0, 0, 255], "the source untouched");
+  assert.deepStrictEqual(Array.from(F.greyPicture(TX_OPAQUE()).data), [255, 255, 255, 255, 0, 0, 0, 255]);
+  assert.deepStrictEqual(Array.from(F.whitePicture(src).data), [255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 128, 255, 255, 255, 0]);
+  assert.deepStrictEqual([F.hasAlpha(src), F.hasAlpha(TX_OPAQUE()), F.hasAlpha(F.whiteTexture())], [true, false, false]);
+  // The TGA: 32-bit (8 alpha bits) for a source whose alpha is used - its bottom row first, BGRA; 24-bit, BGR, without.
+  const g = F.lookTga("greyscale", src), w = F.lookTga("white", TX_OPAQUE());
+  assert.deepStrictEqual([g.length, g[2], g[16], g[17]], [18 + 16, 2, 32, 8]);
+  assert.deepStrictEqual(Array.from(g.subarray(18)), [29, 29, 29, 128, 18, 18, 18, 0, 76, 76, 76, 255, 150, 150, 150, 255]);
+  assert.deepStrictEqual([w.length, w[16], w[17], ...w.subarray(18)], [18 + 6, 24, 0, 255, 255, 255, 255, 255, 255]);
+  assert.ok(F.lookTga("white", src).subarray(18).every((v, i) => (i % 4 === 3 ? true : v === 255)));
+  // The plain white: 8 x 8, opaque; its TGA 24-bit, every byte 255.
+  const plain = F.tgaBytes(F.whiteTexture());
+  assert.deepStrictEqual([F.WHITE_SIZE, plain.length, plain[16], plain.subarray(18).every((v) => v === 255)], [8, 18 + 8 * 8 * 3, 24, true]);
+  // White keeps the alpha only where it's used and no environment map makes it shine (w_metal_tex's: envmaptexture).
+  const METAL_TXI = "# Specify an environment map for static geometry.\r\n\r\nenvmaptexture TTR01__ref01\r\nalphamean 0.364\r\n";
+  assert.deepStrictEqual([F.whiteKeepsAlpha("", src), F.whiteKeepsAlpha(METAL_TXI, src), F.whiteKeepsAlpha(Buffer.from(METAL_TXI), src), F.whiteKeepsAlpha("", TX_OPAQUE()),
+    F.whiteKeepsAlpha("blending punchthrough\n", src), F.whiteKeepsAlpha("envmaptexture CM_Baremetal\n", src), F.whiteKeepsAlpha("# envmaptexture x\n", src)],
+  [true, false, false, false, true, false, true]);
+});
+check("TX the names: a look's copy hashes its look after the additive mark - Greyscale, White, Additive + Greyscale all their own, never DC's or AB's; Own as before; the plain white one name a blend (n5s_), its TXI blending additive when Additive", () => {
+  const key = DC_KEY.fxpa_flame02;
+  assert.deepStrictEqual([F.copyName("fxpa_flame02", 0, key, { look: "greyscale" }), F.copyName("fxpa_flame02", 0, key, { look: "white" }),
+    F.copyName("fxpa_flame02", 0, key, { additive: true, look: "greyscale" })], ["n5l_3f7b378fbe34", "n5l_28e0e5add308", "n5l_2995293c1a6a"]);  // pinned
+  assert.deepStrictEqual([F.copyName("fxpa_flame02", 0, key, { additive: true }), F.copyName("fxpa_flame02", 0, key, { additive: true, look: "own" }),
+    F.copyName("fxpa_flame02", 0, key, { look: "own" }), F.copyName("fxpa_flame02", 0, key, {})], ["n5l_5d105670235b", "n5l_5d105670235b", "n5l_457cbc7cb0a0", "n5l_457cbc7cb0a0"]);
+  const names = ["greyscale", "white"].flatMap((look) => [false, true].map((additive) => F.copyName("fxpa_flame02", 0, key, { additive, look })))
+    .concat([F.copyName("fxpa_flame02", 0, key), F.copyName("fxpa_flame02", 0, key, true), F.copyName("fxpa_flame02", 2, key)]);
+  assert.strictEqual(new Set(names).size, names.length, names.join(" "));
+  assert.deepStrictEqual([F.whiteName(), F.whiteName({ additive: true }), F.whiteName({ additive: false })], ["n5s_0cf5986cd86c", "n5s_372d77d112b9", "n5s_0cf5986cd86c"]);
+  assert.ok(F.SHAPE_TEXTURE.test(F.whiteName()) && F.SHAPE_TEXTURE.test(F.whiteName({ additive: true })));
+  assert.deepStrictEqual([F.whiteTxi(), F.whiteTxi({ additive: true })], [null, "blending additive\n"]);
+  // A copy's TXI by its blend: Normal its lines minus decal (its blending kept); Additive additiveTxi's.
+  assert.deepStrictEqual([F.partCopyTxi(SYM_TXI), F.partCopyTxi(SYM_TXI, { additive: true }), F.partCopyTxi("blending punchthrough\r\n")],
+    ["blending additive\r\ndownsamplemax 0\r\ndownsamplemin 0\r\n", "downsamplemax 0\r\ndownsamplemin 0\r\nblending additive\r\n", "blending punchthrough\r\n"]);
+});
+check("TX partTextures: Greyscale names grey copies, White the plain white (its alpha not used, or its shine) or a white copy keeping its alpha, each once; Additive + Greyscale one name with both marks; not known as it is; twice is once; a dyed part White the plain white, Greyscale refused; Own and Normal, a shape as they are", () => {
+  const INFO = { plc_x: { key: "k1", alpha: false }, plc_y: { key: "k2", alpha: true }, plc_z: { key: "k3" }, plc_nokey: { key: "", alpha: true } };
+  const info = (t) => INFO[t] || null;
+  const mesh = (name, bitmap) => ({ name, bitmap, verts: [0, 0, 0], tverts: [0, 0], faces: [0, 0, 0] });
+  const meshes = [mesh("a", "PLC_X"), mesh("b", ""), mesh("c", "plc_y"), mesh("d", "plc_x"), mesh("e", "plc_z"), mesh("f", "plc_q"), mesh("g", "plc_nokey")];
+  const bits = (r) => r.meshes.map((m) => m.bitmap);
+  const grey = F.partTextures({ model: "m", texture: "greyscale" }, meshes, info), gx = F.copyName("plc_x", 0, "k1", { look: "greyscale" });
+  const gy = F.copyName("plc_y", 0, "k2", { look: "greyscale" }), gz = F.copyName("plc_z", 0, "k3", { look: "greyscale" });
+  assert.deepStrictEqual(bits(grey), [gx, "", gy, gx, gz, "plc_q", "plc_nokey"]);
+  assert.deepStrictEqual(grey.copies, [{ name: gx, texture: "plc_x", clamp: 0, key: "k1", look: "greyscale" }, { name: gy, texture: "plc_y", clamp: 0, key: "k2", look: "greyscale" },
+    { name: gz, texture: "plc_z", clamp: 0, key: "k3", look: "greyscale" }]);
+  assert.deepStrictEqual(grey.whites, []);
+  // White: plc_x (alpha not used) the plain white, plc_y (used) its white copy, plc_z (not known) as it is.
+  const white = F.partTextures(F.readPart({ model: "m", at: [0, 0, 0], texture: "white" }, "p", BASE), meshes, info), W = F.whiteName(), wy = F.copyName("plc_y", 0, "k2", { look: "white" });
+  assert.deepStrictEqual(bits(white), [W, "", wy, W, "plc_z", "plc_q", "plc_nokey"]);
+  assert.deepStrictEqual([white.copies, white.whites], [[{ name: wy, texture: "plc_y", clamp: 0, key: "k2", look: "white" }], [{ name: W }]]);
+  // Additive + Greyscale: one copy a texture, both marks; Additive + White: the Additive plain white.
+  const ag = F.partTextures({ model: "m", texture: "greyscale", blend: "additive" }, meshes, info), agx = F.copyName("plc_x", 0, "k1", { additive: true, look: "greyscale" });
+  assert.deepStrictEqual([bits(ag)[0], ag.copies[0]], [agx, { name: agx, texture: "plc_x", clamp: 0, key: "k1", additive: true, look: "greyscale" }]);
+  const aw = F.partTextures({ model: "m", texture: "white", blend: "additive" }, meshes, info);
+  assert.deepStrictEqual([bits(aw)[0], aw.whites], [F.whiteName({ additive: true }), [{ name: F.whiteName({ additive: true }), additive: true }]]);
+  // Twice is once: a copy's name or the plain white's as it is.
+  for (const r of [grey, white, ag, aw]) {
+    const named = r.meshes.filter((m) => /^n5[ls]_/.test(m.bitmap));
+    const again = F.partTextures({ model: "m", texture: "white", blend: "additive" }, named, () => ({ key: "kk", alpha: false }));
+    assert.deepStrictEqual([again.meshes.map((m) => m.bitmap), again.copies, again.whites], [named.map((m) => m.bitmap), [], []]);
+  }
+  // A dyed part: White the plain white (a bake has no alpha: nothing of it needed), Greyscale refused, saying so.
+  const bake = F.bakedName("helm_001", {});
+  assert.deepStrictEqual(bits(F.partTextures({ model: "helm_001", texture: "white" }, [mesh("h", bake)], () => null)), [W]);
+  assert.deepStrictEqual(bits(F.partTextures({ model: "helm_001", texture: "white", blend: "additive" }, [mesh("h", bake)], () => null)), [F.whiteName({ additive: true })]);
+  for (const extra of [{}, { blend: "additive" }]) {
+    assert.throws(() => F.partTextures(Object.assign({ model: "helm_001", texture: "greyscale" }, extra), [mesh("h", bake)], info),
+      (e) => e.message === `${bake}: a dyed texture (the game's PLT baked in the part's colours) - a dyed part can't be Greyscale: set its Texture to White or Own`);
+  }
+  // Own and Normal, a shape's part-level texture, nothing: the meshes given.
+  for (const part of [{ model: "m" }, { model: "m", texture: "own" }, { shape: { type: "dome", radius: 1 }, texture: "greyscale" }, null]) {
+    const r = F.partTextures(part, meshes, info);
+    assert.ok(r.meshes === meshes && !r.copies.length && !r.whites.length, JSON.stringify(part));
+  }
+  assert.strictEqual(F.addedTextures, F.partTextures);
+});
+check("TX files.js: a Greyscale part's grey copies (a DDS decoded, written as a TGA; its alpha kept), its TXI minus decal (Additive: blending additive); White the plain white (kind shape, a TXI only Additive) or a white copy keeping its alpha; once a texture; a breathing White part's W1 copy of the white; no decoder, a dyed Greyscale part refused", () => {
+  const fs = require("fs");
+  const os = require("os");
+  const W = require("./files.js");
+  const tri = (name, bitmap, z) => ({ name, bitmap, verts: [0, 0, z, 1, 0, z, 0, 1, z], tverts: [0, 0, 1, 0, 0, 1], faces: [0, 1, 2], diffuse: [1, 1, 1],
+    ambient: [1, 1, 1], selfillum: [0, 0, 0], alpha: 1, transparencyhint: 0 });
+  const model = () => ({ meshes: [tri("blade", "w_blade", 0), tri("leaf", "w_leaf", 0.1), tri("gem", "", 0.2)], lo: [0, 0, 0], hi: [1, 1, 0.2] });
+  const BLADE_TXI = "envmaptexture cm_metal\r\ndecal 1\r\nblending normal\r\n", LEAF_TXI = "blending punchthrough\r\n";
+  // w_blade: a DDS (its alpha its shine: an environment map); w_leaf: a TGA whose alpha cuts it out. Their pixels, decoded.
+  const IMAGES = { w_blade: { where: "game", tga: Buffer.from("blade-tga"), dds: Buffer.from("blade-dds"), plt: null, txi: BLADE_TXI },
+    w_leaf: { where: "game", tga: Buffer.from("leaf-tga"), dds: null, plt: null, txi: LEAF_TXI } };
+  const PIXELS = { "blade-dds": TX_PIC(), "leaf-tga": TX_PIC() }, decodes = [];
+  const rd = { image: (name) => IMAGES[name] || null }, decode = (pic) => { decodes.push(pic.bytes.toString()); return PIXELS[pic.bytes.toString()]; };
+  const read = (extra) => F.readPart(Object.assign({ model: ["wswss_b_012", "wswss_m_012", "wswss_t_012"], at: [0, 0, 0] }, extra), "p", BASE);
+  const placedOf = (parts) => parts.map((p) => ({ part: p, meshes: F.placePart(p, model(), 0, 0, "j", true).meshes }));
+  const bk = F.copyKey(BLADE_TXI, Buffer.from("blade-dds")), lk = F.copyKey(LEAF_TXI, Buffer.from("leaf-tga"));
+  const LABEL = "wswss_b_012 + wswss_m_012 + wswss_t_012";
+  // Greyscale, Normal and Additive.
+  const placed = placedOf([read({ texture: "greyscale" }), read({ texture: "greyscale", blend: "additive", tint: [0.72, 0.86, 1] }), read({})]);
+  const copies = W.copyTextures(placed, new Map(), { rd, decode });
+  const g = (t, k, additive) => F.copyName(t, 0, k, { additive, look: "greyscale" });
+  assert.deepStrictEqual(placed.map((x) => x.meshes.map((m) => m.bitmap)), [[g("w_blade", bk, false), g("w_leaf", lk, false), ""], [g("w_blade", bk, true), g("w_leaf", lk, true), ""],
+    ["w_blade", "w_leaf", ""]]);
+  assert.deepStrictEqual([...decodes].sort(), ["blade-dds", "leaf-tga"], "each picture decoded once");
+  const greyTga = F.lookTga("greyscale", TX_PIC());
+  assert.deepStrictEqual([...copies].map(([n, c]) => [n, c.texture, c.look, c.additive === true, c.decal, c.ext, c.bytes.equals(greyTga), c.txi.toString("latin1"), c.label]), [
+    [g("w_blade", bk, false), "w_blade", "greyscale", false, true, ".tga", true, "envmaptexture cm_metal\r\nblending normal\r\n", LABEL],
+    [g("w_leaf", lk, false), "w_leaf", "greyscale", false, false, ".tga", true, LEAF_TXI, LABEL],
+    [g("w_blade", bk, true), "w_blade", "greyscale", true, true, ".tga", true, "envmaptexture cm_metal\r\nblending additive\r\n", LABEL],
+    [g("w_leaf", lk, true), "w_leaf", "greyscale", true, false, ".tga", true, "blending additive\r\n", LABEL]]);
+  assert.deepStrictEqual(W.copyJson(copies).slice(0, 1).concat(W.copyJson(copies).slice(2, 3)), [{ copy: g("w_blade", bk, false), texture: "w_blade", clamp: 0, look: "greyscale" },
+    { copy: g("w_blade", bk, true), texture: "w_blade", clamp: 0, additive: true, look: "greyscale" }]);
+  assert.deepStrictEqual(W.copyLines(copies, "saved").slice(0, 2).concat(W.copyLines(copies, "saved").slice(3)), [
+    `  texture ${g("w_blade", bk, false)}: w_blade in grey (its luminance), a Greyscale part's (${g("w_blade", bk, false)}.tga, ${g("w_blade", bk, false)}.txi: its TXI without decal) - written into saved`,
+    `  texture ${g("w_leaf", lk, false)}: w_leaf in grey (its luminance), a Greyscale part's (${g("w_leaf", lk, false)}.tga, ${g("w_leaf", lk, false)}.txi: its TXI) - written into saved`,
+    `  texture ${g("w_leaf", lk, true)}: w_leaf in grey (its luminance), a Greyscale part's, for added light (${g("w_leaf", lk, true)}.tga, ${g("w_leaf", lk, true)}.txi: its TXI ` +
+      "without blending, and blending additive) - written into saved"]);
+  // White: w_blade's alpha its shine (the plain white), w_leaf's cuts it out (its white copy); Additive: the Additive white.
+  const whites = placedOf([read({ texture: "white" }), read({ texture: "white", blend: "additive" })]);
+  const wc = W.copyTextures(whites, new Map(), { rd, decode });
+  const WN = F.whiteName(), WA = F.whiteName({ additive: true }), wl = F.copyName("w_leaf", 0, lk, { look: "white" }), wla = F.copyName("w_leaf", 0, lk, { additive: true, look: "white" });
+  assert.deepStrictEqual(whites.map((x) => x.meshes.map((m) => m.bitmap)), [[WN, wl, ""], [WA, wla, ""]]);
+  const plain = F.tgaBytes(F.whiteTexture());
+  assert.deepStrictEqual([...wc].map(([n, c]) => [n, c.white === true, c.look || null, c.bytes.equals(c.white ? plain : F.lookTga("white", TX_PIC())), c.txi ? c.txi.toString("latin1") : null]), [
+    [wl, false, "white", true, LEAF_TXI], [WN, true, null, true, null], [wla, false, "white", true, "blending additive\r\n"], [WA, true, null, true, "blending additive\n"]]);
+  assert.deepStrictEqual(W.copyJson(wc).filter((j) => j.white), [{ copy: WN, white: true }, { copy: WA, white: true, additive: true }]);
+  assert.deepStrictEqual(W.copyLines(wc, "data/files").filter((l) => l.includes("plain white")), [`  texture ${WN}: the plain white (8 x 8, ours), a White part's - written into data/files`,
+    `  texture ${WA}: the plain white (8 x 8, ours), a White part's, additive (${WA}.txi: blending additive) - written into data/files`]);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "n5_fdtx-"));
+  try {
+    const writes = W.copyWrites(wc, dir);
+    assert.deepStrictEqual(writes.map((w) => [path.basename(w.file), w.kind]), [[wl + ".tga", "copy"], [wl + ".txi", "copy"], [WN + ".tga", "shape"], [wla + ".tga", "copy"],
+      [wla + ".txi", "copy"], [WA + ".tga", "shape"], [WA + ".txi", "shape"]]);
+    const owned = W.ownership({ repo: dir, manifest: new Set(), mark: F.MARK });
+    assert.ok(writes.every((w) => owned(w, Buffer.from("x"))));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  // Breathing within one repeat (W1): the White part's clamped materials' copies are of the plain white, clamp 3.
+  const breathing = placedOf([read({ texture: "white", motion: { breathe: 0.3 } })]);
+  const bc = W.copyTextures(breathing, new Map(), { rd, decode });
+  const bm = W.motionCopies(W.motionMaterials(breathing, new Map(), { sources: { rd }, copies: bc }), { rd, copies: bc });
+  assert.deepStrictEqual([...bm.values()].map((m) => [m.texture, m.clamp, m.copy.bytes.equals(m.texture === WN ? plain : F.lookTga("white", TX_PIC())), m.copy.txi.toString("latin1")]),
+    [[WN, true, true, "clamp 3\n"], [wl, true, true, "blending punchthrough\r\nclamp 3\r\n"]]);
+  // No decoder: a Texture part stops, naming it; a dyed Greyscale part too.
+  assert.throws(() => W.copyTextures(placedOf([read({ texture: "greyscale" })]), new Map(), { rd }), /^Error: wswss_b_012 \+ wswss_m_012 \+ wswss_t_012: texture w_blade: a part's Texture needs its picture decoded/);
+  const dyed = [{ part: read({ texture: "greyscale" }), meshes: [tri("helm", F.bakedName("helm_001", {}), 0)] }];
+  assert.throws(() => W.copyTextures(dyed, new Map(), { rd, decode }), /^Error: wswss_b_012 \+ wswss_m_012 \+ wswss_t_012: n5p_[0-9a-f]{12}: .* can't be Greyscale/);
+  // No reader: nothing copied, the meshes as placed.
+  const bare = placedOf([read({ texture: "greyscale" })]);
+  assert.strictEqual(W.copyTextures(bare, new Map(), { decode }).size, 0);
+  assert.deepStrictEqual(bare[0].meshes.map((m) => m.bitmap), ["w_blade", "w_leaf", ""]);
+  assert.strictEqual(typeof W.decoder({ decodeDds: () => "dds", decodeTga: () => "tga" }), "function");
+  assert.deepStrictEqual([W.decoder({ decodeDds: () => "dds", decodeTga: () => "tga" })({ ext: ".dds", bytes: null }), W.decoder({ decodeDds: () => "dds", decodeTga: () => "tga" })({ ext: ".tga" })], ["dds", "tga"]);
+});
+check("TX in a page: the same texture reading, pictures, names and rule", () => {
+  const P = pageFloatDisk();
+  assert.deepStrictEqual([P.PART_TEXTURES, P.PART_TEXTURE_INFO, P.LUMA], [F.PART_TEXTURES, F.PART_TEXTURE_INFO, F.LUMA]);
+  assert.deepStrictEqual(Array.from(P.greyPicture(TX_PIC()).data), Array.from(F.greyPicture(TX_PIC()).data));
+  assert.deepStrictEqual(Array.from(P.whitePicture(TX_PIC()).data), Array.from(F.whitePicture(TX_PIC()).data));
+  assert.deepStrictEqual(Array.from(P.lookTga("greyscale", TX_PIC())), Array.from(F.lookTga("greyscale", TX_PIC())));
+  assert.deepStrictEqual([P.whiteName(), P.whiteKeepsAlpha("", TX_PIC()), P.copyName("x", 0, "k", { look: "white" }), P.partLook({ model: "m", texture: "white" })],
+    [F.whiteName(), true, F.copyName("x", 0, "k", { look: "white" }), "white"]);
+  const info = (t) => (t === "plc_x" ? { key: "k1", alpha: true } : null);
+  for (const texture of ["greyscale", "white"]) {
+    assert.deepStrictEqual(P.partTextures({ model: "m", texture }, tinted().meshes, info), F.partTextures({ model: "m", texture }, tinted().meshes, info));
+  }
 });
 
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);
