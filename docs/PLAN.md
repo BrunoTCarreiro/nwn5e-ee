@@ -6081,6 +6081,18 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   the script's own attack roll is made hidden first - "nwn5e: you cast <spell> aloud - you are no longer hidden."; a
   cast that never reaches its impact (interrupted) spoke no spell: still hidden (15 s later the mark is dropped).
   Grenades (#132) and non-Verbal casts keep the hide as before. Not modelled: "a sound louder than a whisper".
+  *Built (#9, the emergency search; rules/emergency_search.{h,cpp}, tested; emergency_watch.cpp):* a damage listener
+  (OnApplyDamage): damage to a creature - not a player's character - from a creature in stealth mode that it doesn't
+  see, hostile to it (Heat Metal's Again, a moved Moonbeam or Flaming Sphere, Spiritual Weapon's Strike, a trap's
+  damage naming the hider) starts or keeps up its emergency search: search mode (an active Perception roll in its
+  cone each round, its d20, set again each round while it lasts); to where it last heard the hider if within 12 s
+  (perception's heard spot, now with its time), else a wait in place - it never simply knows where the hider is; its
+  glances held 0.8-1.2 s (emergency_search_glance_ms 1000) and 90-180 degrees, right round (stealth_watch.cpp's
+  glance asks EmergencyGlanceFor; the drawing needs nothing more - the cone turns with each glance); a shout:
+  hostile creatures to the hider within emergency_search_alert_metres (20) that can hear (not deafened), not
+  players' characters, run to the shouter's spot in search mode and wait there (an investigation); back to a normal
+  search emergency_search_fade_seconds (12) after the last harm. Logged "emergency search: ..." at each start, shout
+  and fade. A harmful effect without damage doesn't start it. emergency_search=1 (with hiders_need_search, faithful).
 - **Light where you hide** (0.32.0; owner: "do the sensible distances, I'll add
   light queries down the line"). The !light readings (Training Halls, night,
   interior): moon ambient 58 (dim), braziers / torch brackets found lit by

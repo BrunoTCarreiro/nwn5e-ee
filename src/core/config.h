@@ -112,6 +112,15 @@ struct Config {
   // Supreme Sneak's Stealth Attack keeps it if the round ends behind Three-Quarters Cover (rules_perception.cpp).
   // Faithful only. 0: NWN's own - stealth mode ends as a swing or any cast starts.
   bool attack_ends_hiding = true;
+  // #9 (the same decision): the emergency search - a creature harmed by a hider it can't find searches urgently: a
+  // Perception roll each round in its cone, glances held about emergency_search_glance_ms and up to right round, to
+  // where it last heard the hider (within 12 s) or scanning in place, a shout setting the hostile creatures within
+  // emergency_search_alert_metres searching; back to a normal search emergency_search_fade_seconds after the last
+  // harm (emergency_watch.cpp). Faithful (hiders_need_search) only.
+  bool emergency_search = true;
+  int emergency_search_glance_ms = 1000;
+  int emergency_search_alert_metres = 20;
+  int emergency_search_fade_seconds = 12;
   // #9 (owner, 2026-11-22: "2. Mostly A, but if there's an illuminated patch further out, there should not be an
   // island of vision, it should form a contiguous slice of detectability"): with cone_walls and stealth_light, each
   // slice reaches only as far as the creature could spot a hider - lit ground, or darkness within its darkvision -

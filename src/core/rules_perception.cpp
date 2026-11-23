@@ -127,6 +127,8 @@ extern "C" __declspec(dllimport) unsigned short __stdcall RtlCaptureStackBackTra
                                                                                  void** frames, unsigned long* hash);
 extern "C" __declspec(dllimport) unsigned long long __stdcall GetTickCount64();
 
+void InstallEmergencySearch();  // emergency_watch.cpp (#9)
+
 namespace {
 
 using SetStealthModeFn = void (*)(void* creature, uint8_t mode);
@@ -196,6 +198,7 @@ struct CastReveal {
 std::unordered_map<uint32_t, CastReveal> g_cast_reveal;   // id -> its Verbal cast from hiding
 std::unordered_map<uint32_t, int64_t> g_stealth_attack;   // id -> when its Sneak Attack took Stealth Attack
 std::unordered_set<uint32_t> g_turn_end_hide;              // ids: a Stealth Attack's hide decided at its round's end
+std::unordered_map<uint64_t, int64_t> g_heard_ms;          // (observer, hider) -> when it last heard it (#9)
 std::unordered_map<uint32_t, int64_t> g_revealed;          // id -> when RevealAfter last ended its hide
 
 // #129 (0.66.6): a hide checked for at once.
@@ -966,6 +969,7 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
   }
   // #133: where it heard a hider - a search goes there (UnseenHiderSearch).
   if (!spot && result && Hiding(target)) {
+    g_heard_ms[static_cast<uint64_t>(IdOf(observer)) << 32 | IdOf(target)] = NowMs();
     g_heard_at[static_cast<uint64_t>(IdOf(observer)) << 32 | IdOf(target)] = {
         Field<float>(target, ee::kObjectPositionX), Field<float>(target, ee::kObjectPositionY),
         Field<float>(target, ee::kObjectPositionZ)};
@@ -1095,6 +1099,7 @@ void InstallPerceptionRules() {
   }
   AddSkillAdjuster(&PerceptionSkill);
   AddDiceFilter(&StealthDice);
+  InstallEmergencySearch();  // #9 (2026-11-23): emergency_watch.cpp
   Log("perception: Stealth once per hide, passive Perception unless searching, no size / combat / Favored Enemy "
       "terms (faithful)");
 }
@@ -1218,6 +1223,21 @@ bool HeardSpot(uint32_t observer, uint32_t hider, float* x, float* y) {
   *y = heard->second.y;
   return true;
 }
+
+// #9's emergency search (emergency_watch.cpp): where and when (NowMs) `observer` last heard `hider`; false if never.
+bool HeardWhen(uint32_t observer, uint32_t hider, int64_t* at, float* x, float* y, float* z) {
+  const uint64_t key = static_cast<uint64_t>(observer) << 32 | hider;
+  const auto heard = g_heard_at.find(key);
+  const auto when = g_heard_ms.find(key);
+  if (heard == g_heard_at.end() || when == g_heard_ms.end()) return false;
+  *at = when->second;
+  *x = heard->second.x;
+  *y = heard->second.y;
+  *z = heard->second.z;
+  return true;
+}
+
+int64_t PerceptionNowMs() { return NowMs(); }
 
 // #9: a spell attack rolled by a hider (rules_advantage.cpp, after its d20): out of a Verbal cast (Spiritual Weapon's
 // Strike, a later strike of a spell) the hide ends right after it; inside one, at the cast's impact (ScriptStarted).

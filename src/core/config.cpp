@@ -79,6 +79,13 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.cone_light = ReadBool(ini, L"cone_light", g_config.cone_light);
   g_config.cover_objects = ReadBool(ini, L"cover_objects", g_config.cover_objects);
   g_config.attack_ends_hiding = ReadBool(ini, L"attack_ends_hiding", g_config.attack_ends_hiding);
+  g_config.emergency_search = ReadBool(ini, L"emergency_search", g_config.emergency_search);
+  g_config.emergency_search_glance_ms =
+      GetPrivateProfileIntW(L"rules", L"emergency_search_glance_ms", g_config.emergency_search_glance_ms, ini);
+  g_config.emergency_search_alert_metres =
+      GetPrivateProfileIntW(L"rules", L"emergency_search_alert_metres", g_config.emergency_search_alert_metres, ini);
+  g_config.emergency_search_fade_seconds =
+      GetPrivateProfileIntW(L"rules", L"emergency_search_fade_seconds", g_config.emergency_search_fade_seconds, ini);
   g_config.search_cone = GetPrivateProfileIntW(L"rules", L"search_cone", g_config.search_cone, ini);
   g_config.search_glance_min_degrees =
       GetPrivateProfileIntW(L"rules", L"search_glance_min_degrees", g_config.search_glance_min_degrees, ini);
@@ -231,10 +238,12 @@ void ConfigLoad(const wchar_t* directory) {
   Log("config: spellcasting=%s radial=%s", VariantName(g_config.spellcasting), VariantName(g_config.radial));
   if (g_config.perception == rules::RuleVariant::kFaithful) {
     Log("config: hiding_needs_15=%d found_up_close=%d alert_creatures_search=%d hiders_need_search=%d vision_cone=%d "
-        "cone_walls=%d found_ends_hiding=%d cover_objects=%d attack_ends_hiding=%d",
+        "cone_walls=%d found_ends_hiding=%d cover_objects=%d attack_ends_hiding=%d emergency_search=%d (%d ms, %d m, "
+        "%d s)",
         g_config.hiding_needs_15, g_config.found_up_close, g_config.alert_creatures_search, g_config.hiders_need_search,
         g_config.vision_cone, g_config.cone_walls, g_config.found_ends_hiding, g_config.cover_objects,
-        g_config.attack_ends_hiding);
+        g_config.attack_ends_hiding, g_config.emergency_search, g_config.emergency_search_glance_ms,
+        g_config.emergency_search_alert_metres, g_config.emergency_search_fade_seconds);
   }
   if (g_config.debug_players_poisoned) {
     Log("config: [debug] players_poisoned=1 - player characters count as poisoned for ability checks");

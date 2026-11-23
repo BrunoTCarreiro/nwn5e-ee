@@ -196,6 +196,8 @@
 #include "rules/search_glance.h"
 #include "rules/skills.h"
 
+const rules::GlanceTuning* EmergencyGlanceFor(uint32_t creature);  // emergency_watch.cpp (#9)
+
 bool SpotMargin(void* observer, void* hider, int* margin);  // rules_perception.cpp
 bool StealthParts(void* creature, int* extra, bool* proficient);  // rules_skills.cpp
 int CarriedLightRadius(void* creature);                      // rules_perception.cpp
@@ -1270,8 +1272,11 @@ void Glance(void* creature, uint32_t id) {
     }
     g.left_first = LookRoll() < 0.5;
   }
-  const float to = rules::GlanceFacing(g_glance, g.base, g.n, LookRoll(), g.has_toward, g.toward, g.left_first);
-  const int hold = rules::GlanceHoldMs(g_glance, LookRoll());
+  // #9 (2026-11-23): one searching urgently (harmed by the hider it can't find) glances quicker and wider.
+  const rules::GlanceTuning* urgent = EmergencyGlanceFor(id);
+  const rules::GlanceTuning& tuning = urgent ? *urgent : g_glance;
+  const float to = rules::GlanceFacing(tuning, g.base, g.n, LookRoll(), g.has_toward, g.toward, g.left_first);
+  const int hold = rules::GlanceHoldMs(tuning, LookRoll());
   char code[400];
   // 36: ACTION_WAIT (an investigation's wait at the noise, #133's); none at all is fine too.
   sprintf_s(code,
@@ -1294,8 +1299,9 @@ void Glance(void* creature, uint32_t id) {
   g.next = now + hold;
   if (logged < 300) {
     ++logged;
-    Log("stealth watch: 0x%08X glances (%s) - facing %.0f -> %.0f, holds %.1f s%s", id,
-        g.n == 0 && g.has_toward ? "toward where it heard you" : "about", facing, to, hold / 1000.0,
+    Log("stealth watch: 0x%08X glances (%s%s) - facing %.0f -> %.0f, holds %.1f s%s", id,
+        g.n == 0 && g.has_toward ? "toward where it heard you" : "about", urgent ? ", urgently" : "", facing, to,
+        hold / 1000.0,
         logged == 300 ? " (further glances not logged)" : "");
   }
   ++g.n;
