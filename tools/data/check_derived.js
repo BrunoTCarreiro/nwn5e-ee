@@ -20,6 +20,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const F = require("./floatdisk/floatdisk.js");
 const P = require("./composer/project.js");
+const PM = require("./particle_mask.js");  // #184's spike: the masked particle shader's mark
 const R = require("./floatdisk/reader.js");
 const O = require("./oneburst.js");
 
@@ -158,7 +159,8 @@ if (fs.existsSync(path.join(__dirname, "build_derived.js"))) put("tools/data/bui
 // #39's Spiritual Weapon look (the owner, 2026-11-23: "set it up and make 1 handed swords the first weapon"): its generator's
 // code, the worktree's (spiritweapon\build.js and the debris build it borrows from), and its three drafts, HEAD's.
 for (const rel of ["tools/data/spiritweapon/build.js", "tools/data/spiritweapon/check.js", "tools/data/debris/build.js",
-  "tools/data/placeable_bounds.js"]) {  // (and #166 part 2's bounds, which build_derived.js requires)
+  "tools/data/placeable_bounds.js",  // (and #166 part 2's bounds, which build_derived.js requires)
+  "tools/data/particle_mask.js"]) {  // (and #184's particle mask, which build_derived.js requires too)
   if (fs.existsSync(path.join(REPO, ...rel.split("/")))) put(rel, fs.readFileSync(path.join(REPO, ...rel.split("/"))));
 }
 for (const rel of headFiles("tools/data/vfx").filter((r) => /\/n5_swp_(idle|fly|hit)\.vfx$/.test(r))) put(rel, checkedOut(rel));
@@ -290,7 +292,8 @@ try {
         const by = NAMES.filter((m) => m.endsWith(".mdl") && fs.readFileSync(path.join(OUT, m), "latin1").includes(`\r\n  bitmap ${stem(name)}\r\n`));
         assert.ok(by.length, name + ": no built model names it");
       } else {
-        assert.ok(F.carriesMark(got, F.MARK) || F.carriesMark(got, P.MARK), name + " carries no generator's mark");
+        assert.ok(F.carriesMark(got, F.MARK) || F.carriesMark(got, P.MARK) || F.carriesMark(got, PM.MARK),
+          name + " carries no generator's mark");
       }
     }
     for (const { name, rev, bytes } of LAST) {
