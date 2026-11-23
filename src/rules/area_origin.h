@@ -67,4 +67,18 @@ bool AreaIsLasting(bool from_area_object, int spell);
 // rule (`fill_around`).
 bool AreaCountsPlaceables(bool lasting, bool fill_around);
 
+// #166 / #184, decision A (owner, 2026-11-23: "A"): NWN's own unconverted area spells follow the 2024 rule now - a
+// creature behind Total Cover from the spell's point of origin isn't in its area (no save, no effect), as in nwn5e's
+// own. core/spell_gather.cpp leaves it out of the spell's own gather: GetFirstObjectInShape / GetNextObjectInShape
+// while that spell's impact script runs on its caster (not a script it runs in turn, nor any other).
+// - Which spells: an area - spells.2da TargetShape cone, sphere, hsphere, cube or rectangle (a line), any case - and
+//   not one of nwn5e's own (`converted`: they leave a creature out in their own code, LeftOutOfArea).
+bool NwnAreaSpell(const std::string& target_shape, bool converted);
+// - Which objects the gather skips: a creature, not the caster, with Total Cover from the origin (Half and
+//   Three-Quarters stay in: +2 / +5 on a Dexterity save).
+bool GatherSkips(bool creature, bool caster, Cover cover);
+// - The Dexterity save's cover bonus: Half +2, Three-Quarters +5; Total Cover +5 only where no gather left the creature
+//   out (`gathered`: the save made in such a spell's script - its +5 for Total Cover gone, the creature isn't in it).
+int AreaSaveCoverBonus(Cover cover, bool gathered);
+
 }  // namespace rules

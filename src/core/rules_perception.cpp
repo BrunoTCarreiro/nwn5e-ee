@@ -108,6 +108,7 @@
 #include "rules/skills.h"
 #include "data/twoda.h"
 #include "object_cover.h"
+#include "spell_gather.h"
 #include "spell_mask.h"
 #include "rules_loaded.h"
 #include "skill_rank.h"
@@ -1033,6 +1034,7 @@ int AddMoveToPoint(void* creature, uint16_t group, const float* position, uint32
 void InstallPerceptionRules() {
   InstallCoverObjects();  // #166: the placeables' bounds (sight, cover) - attacks and saves use them in any perception
   InstallSpellMask();     // #184: the area spells' particle masks (spell_mask.cpp: spell_mask=1, faithful)
+  InstallSpellGather();   // #184 decision A: NWN's area spells leave out Total Cover (spell_gather.cpp)
   if (g_config.perception != rules::RuleVariant::kFaithful) return;
   if (g_config.stealth_light) ServeConditionalRows("light2024");  // EE's night terms zeroed: G replaces them
   g_listen_code = FunctionAt(EngineExport(ee::kDoListenDetection));

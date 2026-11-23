@@ -2,6 +2,8 @@
 
 #include <ctype.h>
 
+#include "rules/cover_objects.h"
+
 namespace rules {
 
 namespace {
@@ -74,5 +76,18 @@ bool LastingAreaSpell(int spell) {
 bool AreaIsLasting(bool from_area_object, int spell) { return from_area_object || LastingAreaSpell(spell); }
 
 bool AreaCountsPlaceables(bool lasting, bool fill_around) { return !(lasting && fill_around); }
+
+bool NwnAreaSpell(const std::string& target_shape, bool converted) {
+  if (converted) return false;
+  const std::string s = Lower(target_shape);
+  return s == "cone" || s == "sphere" || s == "hsphere" || s == "cube" || s == "rectangle";
+}
+
+bool GatherSkips(bool creature, bool caster, Cover cover) { return creature && !caster && cover == Cover::kTotal; }
+
+int AreaSaveCoverBonus(Cover cover, bool gathered) {
+  if (gathered && cover == Cover::kTotal) return 0;
+  return CoverSaveBonus(cover);
+}
 
 }  // namespace rules

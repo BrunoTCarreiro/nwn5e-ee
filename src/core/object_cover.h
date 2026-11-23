@@ -88,6 +88,11 @@ int SaveCoverBonus(void* creature, uint32_t versus, uint32_t script_self, int sp
 // #184's areas_fill_around: a lasting area's lines (an area-of-effect object's, or a spell that makes one, as it
 // appears: rules::AreaIsLasting) count only walls and shut doors, as SaveCoverBonus's do.
 bool LeftOutOfArea(void* caster, int spell, uint32_t target);
+// #166 / #184 decision A (spell_gather.cpp): whether NWN's own area spell `spell`, cast by `caster_id`, leaves the
+// creature `target_id` out of its gather - Total Cover from its point of origin, by the same lines as LeftOutOfArea's
+// (rules::GatherSkips). Logged once a cast ("cover: 0x... left out of <words>'s area - Total Cover from its point of
+// origin (<by>)") and both told once.
+bool LeftOutOfSpellGather(uint32_t caster_id, int spell, uint32_t target_id, const std::string& words);
 // An area whose origin isn't the caster's or the point aimed at (Ice Knife's burst around the creature it struck):
 // set while its creatures are gathered and saved.
 class ScopedAreaOrigin {

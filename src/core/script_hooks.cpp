@@ -24,6 +24,7 @@ std::vector<ScriptHandler> g_runs;
 std::vector<std::string> g_observer_names;  // 0.73.0: run after their script (#131)
 std::vector<ScriptObserver> g_observers;
 std::vector<ScriptStartListener> g_starts;  // 0.86.0: before every script (#37)
+std::vector<ScriptEndListener> g_ends;      // #184 decision A: after every script
 bool g_hooked = false;
 bool g_failed = false;
 
@@ -38,10 +39,12 @@ ScriptHandler Find(void* name) {
 }
 
 int RunScript(void* vm, void* name, uint32_t self, int self_valid, int event) {
+  bool heard = false;  // the start listeners told: the end listeners are too (#184 decision A: a bracket)
   if (name && !g_starts.empty()) {
     const char* chars = Field<const char*>(name, 0);
     const uint32_t length = Field<uint32_t>(name, 8);
     if (chars) {
+      heard = true;
       for (ScriptStartListener listener : g_starts) listener(self, chars, length);
     }
   }
@@ -57,6 +60,9 @@ int RunScript(void* vm, void* name, uint32_t self, int self_valid, int event) {
     result = g_run_script(vm, name, self, self_valid, event);
   }
   if (observer >= 0) g_observers[static_cast<size_t>(observer)](self, g_observer_names[observer].c_str());
+  if (heard) {
+    for (ScriptEndListener listener : g_ends) listener(self);
+  }
   return result;
 }
 
@@ -90,6 +96,12 @@ bool AddScriptObserver(const char* name, ScriptObserver observer) {
 bool AddScriptStartListener(ScriptStartListener listener) {
   if (!listener || !Hooked("a start listener")) return false;
   g_starts.push_back(listener);
+  return true;
+}
+
+bool AddScriptEndListener(ScriptEndListener listener) {
+  if (!listener || !Hooked("an end listener")) return false;
+  g_ends.push_back(listener);
   return true;
 }
 

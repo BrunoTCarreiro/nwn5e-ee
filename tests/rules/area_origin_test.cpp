@@ -76,3 +76,30 @@ TEST(AreaFillsAroundPlaceables) {
   CHECK_EQ(AreaCountsPlaceables(true, false), true);   // the house rule off: SRD 5.2.1 as built
   CHECK_EQ(AreaCountsPlaceables(false, false), true);
 }
+
+// #166 / #184 decision A: which NWN spells' gathers leave a creature out. Breaks caught: one of the five area shapes
+// left out (a cone's, a line's), the case minded; a single-target spell ("****") or a spell with no shape taken; one of
+// nwn5e's own (converted: it leaves out in its own code) taken too.
+TEST(NwnAreaSpellsGatherByShape) {
+  for (const char* shape : {"cone", "sphere", "hsphere", "cube", "rectangle", "Sphere", "CONE"}) {
+    CHECK_EQ(NwnAreaSpell(shape, false), true);
+  }
+  CHECK_EQ(NwnAreaSpell("****", false) || NwnAreaSpell("", false) || NwnAreaSpell("spellcone", false), false);
+  CHECK_EQ(NwnAreaSpell("sphere", true) || NwnAreaSpell("cone", true), false);
+}
+
+// The skip and the save. Breaks caught: a creature with Half or Three-Quarters Cover skipped (they save at +2 / +5); a
+// placeable or door skipped (only creatures); the caster skipped from its own spell's gather; Total Cover kept in; the
+// +5 for Total Cover kept where the gather left it out, or lost elsewhere; Half's or Three-Quarters' bonus lost.
+TEST(NwnGatherSkipsTotalCoverOnly) {
+  CHECK_EQ(GatherSkips(true, false, Cover::kTotal), true);
+  CHECK_EQ(GatherSkips(true, false, Cover::kThreeQuarters) || GatherSkips(true, false, Cover::kHalf), false);
+  CHECK_EQ(GatherSkips(true, false, Cover::kNone), false);
+  CHECK_EQ(GatherSkips(false, false, Cover::kTotal), false);  // not a creature
+  CHECK_EQ(GatherSkips(true, true, Cover::kTotal), false);    // the caster
+  CHECK_EQ(AreaSaveCoverBonus(Cover::kTotal, true), 0);
+  CHECK_EQ(AreaSaveCoverBonus(Cover::kTotal, false), 5);
+  CHECK_EQ(AreaSaveCoverBonus(Cover::kThreeQuarters, true), 5);
+  CHECK_EQ(AreaSaveCoverBonus(Cover::kHalf, true), 2);
+  CHECK_EQ(AreaSaveCoverBonus(Cover::kNone, false), 0);
+}

@@ -68,6 +68,7 @@
 #include "rules/reposition.h"
 #include "rules/spells2024.h"
 #include "server_tick.h"
+#include "spell_gather.h"
 #include "spell_mask.h"
 
 void* GameObjectById(uint32_t id);       // light_sources.cpp (the NWS object)
@@ -772,6 +773,35 @@ bool LeftOutOfArea(void* caster, int spell, uint32_t target_id) {
   return true;
 }
 
+bool LeftOutOfSpellGather(uint32_t caster_id, int spell, uint32_t target_id, const std::string& words) {
+  if (!CoverObjectsOn()) return false;
+  void* caster = GameObjectById(caster_id);
+  void* target = CreatureById(target_id);
+  void* area = caster ? engine::AreaOf(caster) : nullptr;
+  if (!target || !area || engine::AreaOf(target) != area) return false;
+  Origin origin;
+  if (!OriginOf(caster_id, spell, &origin)) return false;
+  CoverPoint points[rules::kLosBodyPoints];
+  std::string by;
+  uint32_t by_id = ee::kObjectInvalid;
+  const bool placeables = rules::AreaCountsPlaceables(origin.lasting, g_config.areas_fill_around);
+  const rules::Cover cover = CoverFrom(area, caster_id, target_id, origin.at, target, points, &by, &by_id, placeables);
+  if (!rules::GatherSkips(true, target_id == caster_id, cover)) return false;
+  if (TellNow(5, caster_id, target_id)) {
+    if (LogSlotHere()) {
+      Log("cover: 0x%08X left out of %s's area - Total Cover from its point of origin (%s; %s, %s, at %.1f, %.1f, "
+          "%.1f): no save, no effect", target_id, words.c_str(), by.c_str(), OriginWords(origin.kind), origin.from,
+          origin.at[0], origin.at[1], origin.at[2]);
+    }
+    const std::string what = ByWords(target_id, by_id);
+    TellPlayer(target_id, PlayerText("cover.area_you", {{"by", what}}));
+    if (CreatureById(caster_id)) {
+      TellPlayer(caster_id, PlayerText("cover.area_target", {{"target", NameOf(caster_id, target_id)}, {"by", what}}));
+    }
+  }
+  return true;
+}
+
 int SaveCoverBonus(void* creature, uint32_t versus, uint32_t script_self, int spell) {
   if (!CoverObjectsOn() || !creature || rules::SpellIgnoresCover(spell)) return 0;  // Sacred Flame
   void* area = engine::AreaOf(creature);
@@ -787,7 +817,8 @@ int SaveCoverBonus(void* creature, uint32_t versus, uint32_t script_self, int sp
   const rules::Cover cover =
       CoverFrom(area, origin_id, IdOf(creature), origin.at, creature, points, &by, &by_id, placeables);
   if (rules::AreaCoverEffectFor(cover, origin.own, true) == rules::AreaCoverEffect::kNone) return 0;
-  const int bonus = rules::CoverSaveBonus(cover);
+  // #184 decision A: in an NWN area spell's gather a creature with Total Cover was left out - its +5 gone.
+  const int bonus = rules::AreaSaveCoverBonus(cover, SpellGatherRunning(origin_id, spell));
   if (!bonus) return 0;
   const uint32_t t = IdOf(creature);
   if (TellNow(3, origin_id, t)) {

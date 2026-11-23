@@ -25,3 +25,8 @@ bool AddScriptObserver(const char* name, ScriptObserver observer);
 // terminated: `length` characters) - before handlers and observers. Every script goes through: keep it cheap.
 using ScriptStartListener = void (*)(uint32_t self, const char* name, uint32_t length);
 bool AddScriptStartListener(ScriptStartListener listener);
+
+// #184 decision A: `listener` hears every script end - its OBJECT_SELF - after its handler or the game's script and its
+// observer: with the start listeners, a bracket round each run (nested runs inside it bracketed in turn).
+using ScriptEndListener = void (*)(uint32_t self);
+bool AddScriptEndListener(ScriptEndListener listener);
