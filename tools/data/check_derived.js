@@ -5,12 +5,16 @@
 // with their models, the same bytes build after build.
 // The copy is <tmp>\n5_derived-*\: build_derived.js and the generators' code (*.js, *.bat, *.cpp) from this worktree;
 // everything else under tools\data\floatdisk and \composer - the recipes (composition.json, the projects), made.txt -
-// and data\rows, data\looks from HEAD as git checks them out (git cat-file --filters), never the worktree's: the owner's
+// and data\rows, data\looks from HEAD as git checks them out (checkout-index from a temporary index, the filters of git
+// cat-file --filters), never the worktree's: the owner's
 // uncommitted Composer edits are not the baseline. data\files is empty; the build's folder is <copy>\build\data\files.
 // The real worktree's data\ and tools\data\ are never written - the last check says so.
 // One burst (LD): the 16 placeable models oneburst.js lists are the game's own fountains (recomputed from the game); each
 // comes out as the game's model with its "dead"'s detonates taken out and nothing else changed; without them the build
 // writes every other file the same, byte for byte.
+// "Faster checks" (docs/TOOLS-PLAN.md): the copy's builds use this checkout's derived cache (build\derived_cache, keyed by
+// every input's bytes wherever the copy is), so a rerun reuses every generator a check doesn't change;
+// NWN5E_DERIVED_CACHE=verify runs every one each time and fails where the cache would differ, =off runs them uncached.
 "use strict";
 const assert = require("assert");
 const crypto = require("crypto");
@@ -62,7 +66,27 @@ function git(args, encoding = "buffer") {
   return r.stdout;
 }
 const headFiles = (dir) => git(["ls-tree", "-r", "--name-only", "HEAD", "--", dir + "/"], "utf8").split(/\r?\n/).filter(Boolean);
-const checkedOut = (rel) => git(["cat-file", "--filters", "HEAD:" + rel]);  // HEAD's copy as git checks it out here
+// HEAD's copy as git checks it out here (cat-file --filters), or from checkedOutAll's.
+const HEAD_COPIES = new Map();
+const checkedOut = (rel) => HEAD_COPIES.get(rel) || git(["cat-file", "--filters", "HEAD:" + rel]);
+// Many of HEAD's files as git checks them out, in two git runs instead of one each ("Faster checks": the copy's two
+// hundred rows files took 15 s): HEAD read into a temporary index, checkout-index writing them under a temporary folder
+// with the same filters - the real index and worktree untouched. Each one's bytes kept for checkedOut.
+function checkedOutAll(rels) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "n5_head-"));
+  try {
+    const env = Object.assign({}, process.env, { GIT_INDEX_FILE: path.join(tmp, "index") });
+    const run = (args, input) => {
+      const r = spawnSync("git", args, { cwd: REPO, env, input, maxBuffer: 64 << 20, windowsHide: true });
+      if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${String(r.stderr).trim()}`);
+    };
+    run(["read-tree", "HEAD"]);
+    run(["checkout-index", "-f", "--stdin", "--prefix=" + path.join(tmp, "tree").split(path.sep).join("/") + "/"], rels.join("\n") + "\n");
+    for (const rel of rels) HEAD_COPIES.set(rel, fs.readFileSync(path.join(tmp, "tree", ...rel.split("/"))));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
 const stored = (rel) => git(["show", "HEAD:" + rel]);  // HEAD's blob as git stores it
 const lf = (bytes) => Buffer.from(bytes.toString("latin1").replace(/\r\n/g, "\n"), "latin1");
 
@@ -104,8 +128,8 @@ const ignored = (name) => spawnSync("git", ["check-ignore", "-q", "--no-index", 
 // generator are what they were then: the build must give it back byte for byte. [{ name, rev, bytes }], bytes null once
 // either changed (not compared); a model not removed yet isn't listed.
 function lastCommitted() {
-  const blobs = (rev) => ["composition.json", "floatdisk.js", "build.js", "reader.js", "files.js"]
-    .map((f) => git(["rev-parse", `${rev}:tools/data/floatdisk/${f}`], "utf8").trim()).join(" ");
+  const blobs = (rev) => git(["rev-parse", ...["composition.json", "floatdisk.js", "build.js", "reader.js", "files.js"]
+    .map((f) => `${rev}:tools/data/floatdisk/${f}`)], "utf8").trim().split(/\s+/).join(" ");  // (one git run for the five)
   const now = blobs("HEAD"), out = [];
   for (const name of GAME_DERIVED) {
     const gone = git(["log", "-1", "--format=%H", "--diff-filter=D", "HEAD", "--", "data/files/" + name], "utf8").trim();
@@ -153,6 +177,10 @@ const put = (rel, bytes) => {
   fs.mkdirSync(path.dirname(to), { recursive: true });
   fs.writeFileSync(to, bytes);
 };
+// (HEAD's copies of everything below that comes from HEAD, at once)
+checkedOutAll([...headFiles("tools/data/floatdisk"), ...headFiles("tools/data/composer"), ...headFiles("data/rows"), ...headFiles("data/looks"),
+  ...headFiles("tools/data/vfx").filter((r) => /\/n5_swp_(idle|fly|hit)\.vfx$/.test(r))].filter((rel) => !/\.(js|bat|cpp)$/i.test(rel) ||
+  rel.startsWith("data/") || rel.startsWith("tools/data/vfx/")));
 for (const rel of [...headFiles("tools/data/floatdisk"), ...headFiles("tools/data/composer")]) {
   put(rel, /\.(js|bat|cpp)$/i.test(rel) ? fs.readFileSync(path.join(REPO, ...rel.split("/"))) : checkedOut(rel));
 }
@@ -162,7 +190,8 @@ if (fs.existsSync(path.join(__dirname, "build_derived.js"))) put("tools/data/bui
 for (const rel of ["tools/data/spiritweapon/build.js", "tools/data/spiritweapon/check.js", "tools/data/debris/build.js",
   "tools/data/placeable_bounds.js",  // (and #166 part 2's bounds, which build_derived.js requires)
   "tools/data/particle_mask.js",  // (and #184's particle mask, which build_derived.js requires too)
-  "tools/data/spell_mask.js"]) {  // (and #184's spells' masked looks, likewise)
+  "tools/data/spell_mask.js",  // (and #184's spells' masked looks, likewise)
+  "tools/data/derived_cache.js", "tools/data/derived_trace.js"]) {  // (and its cache, "Faster checks")
   if (fs.existsSync(path.join(REPO, ...rel.split("/")))) put(rel, fs.readFileSync(path.join(REPO, ...rel.split("/"))));
 }
 for (const rel of headFiles("tools/data/vfx").filter((r) => /\/n5_swp_(idle|fly|hit)\.vfx$/.test(r))) put(rel, checkedOut(rel));
@@ -176,11 +205,16 @@ for (const rel of [...headFiles("data/rows"), ...headFiles("data/looks")]) put(r
 fs.mkdirSync(FILES, { recursive: true });
 
 // build_derived.js in the copy: the game, nwn5e-tools and the reader given (`over` replaces one; null leaves it out).
+// Its cache ("Faster checks", derived_cache.js) is this worktree's build\derived_cache (NWN5E_DERIVED_CACHE_DIR, when set,
+// is kept): what it keeps is keyed by every input's bytes, wherever the repo is - this copy's runs reuse a build's and
+// each other's, and run again what a check changes (a recipe, the rows, oneburst.js's list). NWN5E_DERIVED_CACHE=verify
+// (or off) runs every generator every time.
+const CACHE_DIR = process.env.NWN5E_DERIVED_CACHE_DIR || path.join(REPO, "build", "derived_cache");
 function derive(args, over = {}) {
   const given = Object.assign({ game: GAME, tools: TOOLS, reader: READER }, over);
   const pre = [].concat(...Object.entries(given).filter(([, v]) => v !== null).map(([k, v]) => ["--" + k, v]));
   const r = spawnSync(process.execPath, [path.join(root, "tools", "data", "build_derived.js"), ...pre, ...args],
-    { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+    { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true, env: Object.assign({}, process.env, { NWN5E_DERIVED_CACHE_DIR: CACHE_DIR }) });
   return { code: r.status, out: r.stdout || "", err: r.stderr || "" };
 }
 const done = (r) => assert.strictEqual(r.code, 0, "build_derived.js exited " + r.code + ": " + r.err.trim());
@@ -336,7 +370,16 @@ try {
   // --- One burst (LD) -------------------------------------------------------------------------------------------------
   const GAME_RES = GAME_DATA.resources(GAME);
   check("LD: oneburst.js's 16 are the game's fountains - every placeables.2da model whose looping \"dead\" has a detonate and an Explosion emitter it sets off", () => {
-    const f = O.fountains({ res: GAME_RES, reader: READER, twoDa: GAME_DATA.twoDa });
+    // The game's fountains read through the derived cache too (build_derived.js's, keyed by the game's files, oneburst.js
+    // and the reader; NWN5E_DERIVED_CACHE=off or verify reads them every time): every placeables.2da model's
+    // animations, the run's slowest read.
+    const DC = require("./derived_cache.js");
+    const mode = ["off", "fresh", "verify"].includes(String(process.env.NWN5E_DERIVED_CACHE || "").toLowerCase()) ? process.env.NWN5E_DERIVED_CACHE.toLowerCase() : "on";
+    const cache = DC.open({ dir: CACHE_DIR, mode, anchors: { repo: REPO, tools: TOOLS, game: GAME, reader: READER } });
+    const GD = require.resolve(path.join(TOOLS, "spell_bench", "game_data.js"));
+    const f = cache.unit({ id: "check_derived: the game's fountains", key: {}, modules: [require.resolve("./oneburst.js"), GD],
+      inputs: [path.join(GAME, "data", "nwn_base.key"), path.join(GAME, "data", "nwn_retail.key"), READER],
+      run: () => O.fountains({ res: GAME_RES, reader: READER, twoDa: GAME_DATA.twoDa }) });
     const listed = [...O.MODELS].sort();
     const added = f.fountains.filter((m) => !listed.includes(m)), gone = listed.filter((m) => !f.fountains.includes(m));
     assert.deepStrictEqual(f.fountains, listed, `the game's differ from oneburst.js's MODELS - new: ${added.join(", ") || "none"}; ` +

@@ -55,10 +55,21 @@
 //   (particle_mask.js), written into --out under that name and owned there by it; git-ignored. Skipped, and said, when
 //   the game's text hasn't the anchors it needs.
 //
+// - The cache (derived_cache.js; docs/TOOLS-PLAN.md, "Faster checks": the owner, 2026-11-23, "yes, do 1 to 3 after the
+//   install"): each generator's output - each Floating Disk, Composer and Spiritual Weapon run, the one-burst models, the
+//   placeable bounds, the particle mask, the spells' masked looks - is kept in build\derived_cache
+//   (NWN5E_DERIVED_CACHE_DIR elsewhere), keyed by
+//   everything it read (the game's files by size and time; the recipes, data\rows, the generators' and nwn5e-tools'
+//   code and the mesh reader by their bytes), and reused while all of it is as it was. A game update or a changed
+//   generator, recipe or reader runs it again. One line says how many it reused and why each other ran. --fresh (and
+//   build.bat clean) runs every one and keeps it; --no-cache (or NWN5E_DERIVED_CACHE=off) neither reads nor keeps;
+//   NWN5E_DERIVED_CACHE=verify runs every one and fails where a kept output differs from the run's.
+//
 // Exit codes: 0 done; 2 a prerequisite missing - nwn5e-tools, the game, the mesh reader - one line saying which and how
 // to fix it; 1 anything else (a refused build, rows that disagree, a file in the way). build.bat stops on either, unless
 // NWN5E_DERIVED=skip.
 "use strict";
+const DC = require("./derived_cache.js");  // (first: its tracer wraps fs and child_process before the generators load)
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -77,6 +88,11 @@ const shown = (file) => W.shown(REPO, file);  // a repo file from the repo's roo
 const argv = process.argv.slice(2);
 const option = (name, fallback) => W.option(argv, name, fallback);
 const CHECK = argv.includes("--check");
+// The cache: its folder, and how it's used (derived_cache.js: on, off, fresh, verify).
+const CACHE_DIR = path.resolve(process.env.NWN5E_DERIVED_CACHE_DIR || path.join(REPO, "build", "derived_cache"));
+const CACHE_ENV = String(process.env.NWN5E_DERIVED_CACHE || "").toLowerCase();
+const CACHE_MODE = argv.includes("--no-cache") ? "off" : argv.includes("--fresh") ? "fresh"
+  : ["off", "fresh", "verify"].includes(CACHE_ENV) ? CACHE_ENV : "on";
 const TOOLS = path.resolve(option("tools", process.env.NWN5E_TOOLS || path.join(REPO, "..", "nwn5e-tools")));
 const BUILD = path.resolve(process.env.NWN5E_BUILD || path.join(TOOLS, "..", "nwn5e-ee", "build"));  // nwn5e.ini's, as the generators'
 
@@ -163,17 +179,25 @@ function firstDifference(a, b) {
 // One generator into a scratch folder: files\ (empty) and rows\ (a copy of data\rows: its own rows come out unchanged
 // when they agree, and the Composer sees every other rows file's rows as taken). -> { files: [{ name, bytes }], rows:
 // [{ name, state: "agrees" | "differs" | "missing", line }] }. A refused build throws, with the generator's reason.
-function run(gen, pre) {
+// `ctx` (derived_cache.js): the generator's added environment (its trace); the scratch folder is no input, its rows\
+// is read as data\rows, and each rows file the generator gives is compared with data\rows' own - an input too.
+function run(gen, pre, ctx) {
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), "n5_derived-"));
+  ctx.exclude(stage);
   try {
     const files = path.join(stage, "files"), rows = path.join(stage, "rows");
     fs.mkdirSync(files);
     fs.mkdirSync(rows);
+    const seen = new Map();
     for (const f of fs.existsSync(ROWS) ? fs.readdirSync(ROWS) : []) {
-      if (fs.statSync(path.join(ROWS, f)).isFile()) fs.copyFileSync(path.join(ROWS, f), path.join(rows, f));
+      const st = fs.statSync(path.join(ROWS, f));
+      if (!st.isFile()) continue;
+      seen.set(path.join(ROWS, f).toLowerCase(), { size: st.size, mtimeMs: st.mtimeMs });
+      fs.copyFileSync(path.join(ROWS, f), path.join(rows, f));
     }
+    ctx.alias(rows, ROWS, seen);
     const r = spawnSync(process.execPath, [gen.script, ...gen.args, "--json", "--game", pre.game, "--tools", TOOLS, "--reader", pre.reader,
-      "--files", files, "--rows", rows], { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+      "--files", files, "--rows", rows], { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true, env: Object.assign({}, process.env, ctx.env) });
     let j = null;
     try {
       j = JSON.parse((r.stdout || "").trim().split(/\r?\n/).pop());
@@ -191,6 +215,7 @@ function run(gen, pre) {
         out.files.push({ name, bytes: fs.readFileSync(file) });
       } else if (dir === rows) {
         const committed = path.join(ROWS, name);
+        ctx.input(committed);
         const state = x.state === "unchanged" ? "agrees" : fs.existsSync(committed) ? "differs" : "missing";
         out.rows.push({ name, state, line: state === "differs" ? firstDifference(fs.readFileSync(committed), fs.readFileSync(file)) : null });
       } else {
@@ -218,13 +243,20 @@ function main() {
   const pre = prerequisites();
   const { list, skipped } = generators();
   const say = console.log;
+  // The cache: a path kept by where it is - in the repo (or check_derived.js's copy of it), nwn5e-tools, the game, the
+  // reader - so the same inputs elsewhere are the same entries. The game's keys are read once per process (game_data.js):
+  // inputs of each run here, as the reader is of each.
+  const cache = DC.open({ dir: CACHE_DIR, mode: CACHE_MODE, anchors: { repo: REPO, tools: TOOLS, game: pre.game, reader: pre.reader }, log: say });
+  const GAME_DATA = path.join(TOOLS, "spell_bench", "game_data.js");
+  const keys = ["nwn_base.key", "nwn_retail.key"].map((k) => path.join(pre.game, "data", k));
   for (const { file, why } of skipped) say(`build_derived: skipped ${shown(file)} - ${why}`);
 
   // Every generator built and its rows checked before anything is written.
   const built = [];
   const disagree = [], again = [];
   for (const gen of list) {
-    const b = run(gen, pre);
+    const b = cache.unit({ id: gen.label, key: { script: gen.script, args: gen.args }, child: true, inputs: [pre.reader],
+      run: (ctx) => run(gen, pre, ctx) });
     const bad = b.rows.filter((x) => x.state !== "agrees");
     say(`build_derived: ${gen.label} (${shown(gen.recipe)}): ${b.files.length} file${b.files.length === 1 ? "" : "s"}; ` +
       `its rows ${bad.length ? "disagree" : "agree"} (${b.rows.map((x) => "data/rows/" + x.name).join(", ") || "none"})`);
@@ -245,8 +277,9 @@ function main() {
 
   // One burst (LD): the game's placeable models whose looping "dead" re-fires a detonate, without it, under their own
   // names. The game's resources as the generators read them (spell_bench\game_data.js: its keys, ovr\ over them).
-  const res = require(path.join(TOOLS, "spell_bench", "game_data.js")).resources(pre.game);
-  const burst = O.derive({ models: O.MODELS, res, reader: pre.reader });
+  const res = require(GAME_DATA).resources(pre.game);
+  const burst = cache.unit({ id: "one burst", key: { models: O.MODELS }, modules: [require.resolve("./oneburst.js"), GAME_DATA],
+    inputs: [...keys, pre.reader], run: () => O.derive({ models: O.MODELS, res, reader: pre.reader }) });
   for (const { model, why } of burst.skipped) say(`build_derived: one burst: skipped ${model} - ${why}`);
   const forms = ["compiled", "ascii"].map((f) => [f, burst.files.filter((x) => x.form === f).length]).filter(([, n]) => n).map(([f, n]) => `${n} ${f}`);
   const taken = burst.files.reduce((n, x) => n + x.dropped, 0);
@@ -255,8 +288,8 @@ function main() {
   // #166 part 2: the placeables' bounds (tools/data/placeable_bounds.js) - the visible geometry of every placeables.2da
   // model and its walkmesh's footprint - into the build's data\placeable_bounds.txt beside data\files, for the DLL's own
   // sight lines and cover. The game's numbers: written into the build, never the repo.
-  const bounds = require("./placeable_bounds.js").derive({ res, reader: pre.reader,
-    twoDa: require(path.join(TOOLS, "spell_bench", "game_data.js")).twoDa });
+  const bounds = cache.unit({ id: "placeable bounds", key: {}, modules: [require.resolve("./placeable_bounds.js"), GAME_DATA],
+    inputs: [...keys, pre.reader], run: () => require("./placeable_bounds.js").derive({ res, reader: pre.reader, twoDa: require(GAME_DATA).twoDa }) });
   const boundsFile = path.join(path.dirname(OUT), "placeable_bounds.txt");
   if (!CHECK) {
     fs.mkdirSync(path.dirname(boundsFile), { recursive: true });  // (a build's data\ exists; a check's scratch --out may not yet)
@@ -272,7 +305,8 @@ function main() {
   // one-burst copy is: only this makes it there, and the game's shader fixes the bytes. Skipped, and said, when the
   // game's text hasn't its anchors (a game update): the build goes on, and !maskproof says the shader is missing.
   const PM = require("./particle_mask.js");
-  const mask = PM.derive({ res });
+  const mask = cache.unit({ id: "particle mask", key: {}, modules: [require.resolve("./particle_mask.js"), GAME_DATA], inputs: keys,
+    run: () => PM.derive({ res }) });
   say(`build_derived: particle mask (tools/data/particle_mask.js): ${mask.skipped ? "skipped - " + mask.skipped
     : `${mask.name}, the game's ${PM.SOURCE}.shd with nwn5e's mask`}`);
   if (!mask.skipped) built.push({ gen: { label: "particle mask", owns: new Set([mask.name.toLowerCase()]) }, files: [{ name: mask.name, bytes: mask.bytes }] });
@@ -280,13 +314,20 @@ function main() {
   // emitters draw through the particle mask's materials (n5x_*.mtr), named by data\rows' *.if_spellmask.txt. Owned in
   // --out by their names, as the shader is (only spell_mask.js makes those names; the game's models fix the bytes). A
   // model it can't copy is skipped and said: core/spell_mask.cpp then serves none of the rows that name the copies.
+  // Through the cache as the one-burst models are: it reads the game's models (res) and runs the reader on its own copies.
   const SM = require("./spell_mask.js");
-  const spellMask = SM.derive({ res, reader: pre.reader });
+  const spellMask = cache.unit({ id: "spell mask", key: { models: SM.MODELS }, modules: [require.resolve("./spell_mask.js"), GAME_DATA],
+    inputs: [...keys, pre.reader], run: () => SM.derive({ res, reader: pre.reader }) });
   for (const { model, why } of spellMask.skipped) say(`build_derived: spell mask: skipped ${model} - ${why}`);
   const materials = spellMask.files.filter((f) => /\.mtr$/i.test(f.name)).length;
   say(`build_derived: spell mask (tools/data/spell_mask.js): ${spellMask.copies.length} of the spells' effect models copied, ` +
     `${spellMask.copies.reduce((n, c) => n + c.masked, 0)} emitter headers on ${materials} masked materials`);
   built.push({ gen: { label: "spell mask", owns: new Set(spellMask.files.map((f) => f.name.toLowerCase())) }, files: spellMask.files });
+  // The cache's line: what it reused, and why each other generator ran.
+  const { reused, built: ran, missed } = cache.stats;
+  say(cache.mode === "off" ? "build_derived: cache: off - every generator ran"
+    : `build_derived: cache (${shown(cache.dir)}${cache.mode === "on" ? "" : ", " + cache.mode}): ${reused} reused, ${ran} ran` +
+      (missed.length ? " - " + missed.join("; ") : ""));
 
   // The files into --out, under the generators' ownership rule: a model or .pwk carrying its generator's mark, a texture
   // its made.txt lists in data\files, a baked texture by its name (files.js's "baked"), a shape's soft texture - or an
@@ -332,6 +373,7 @@ function main() {
     say((state === "unchanged" ? "unchanged" : CHECK ? "would write" : "written").padEnd(CHECK ? 11 : 9) + " " + path.basename(file));
   }
   const count = `${results.length} file${results.length === 1 ? "" : "s"} in ${shown(OUT)}`;
+  cache.gc();
   say(CHECK ? `build_derived: --check, nothing written: ${count}: ${changed} would be written, ${results.length - changed} unchanged`
     : `build_derived: ${count}: ${changed} written, ${results.length - changed} unchanged`);
 }

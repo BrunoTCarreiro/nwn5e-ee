@@ -142,6 +142,45 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
 
 build.bat stops on either (above).
 
+## The cache
+
+Every build used to run every generator again - the bounds alone read 1,215 of the game's models. Now each one's output
+is kept and reused while nothing it read has changed (docs/TOOLS-PLAN.md, "Faster checks"; the owner, 2026-11-23: "yes,
+do 1 to 3 after the install"). `derived_cache.js` keeps them, `derived_trace.js` watches what they read.
+
+- **Where:** `build\derived_cache\` in this checkout (git-ignored with the rest of `build\`; `NWN5E_DERIVED_CACHE_DIR`
+  puts it elsewhere). `u\<key>\` holds a generator's last 12 runs - what each read, and its output's SHA-1s - and `b\`
+  the output's bytes, by SHA-1. Deleting the folder only makes the next build do the full work.
+- **What a generator's run read** - the Floating Disk's, each Composer project's and the Spiritual Weapon's (each a
+  child process, its own children with it), the one-burst models', the placeable bounds', the particle mask's and the
+  spells' masked looks' (run in build_derived's own process):
+  - every file it read (its recipe, `data\rows` through its scratch copy, the drafts, the game's keys and BIFs), every
+    module it loaded (the generator's code, nwn5e-tools' `core.js`, `game_data.js`, `helper.js`...) and the mesh reader
+    it ran;
+  - every path it looked at, there or not (the game's `ovr\` copies it looked for), and every folder it listed;
+  - not what it wrote and read back itself, or anything in a scratch folder it made.
+- **Reused** when every one of those is as it was: the same size and time, or the same bytes (a file the repo, a copy
+  of it - check_derived.js's - or nwn5e-tools holds: by its SHA-1, so a fresh checkout or copy reuses it); the game's
+  files by size and time only (some are gigabytes - a game update changes them); each path there or not as it was;
+  each folder's names the same. Its key: the generator and its arguments, Node's version, the environment the
+  generators read (`NWN5E_BUILD`, `NWN5E_MDLMESH`, `NWN5E_ANIM_HELPER`, `NWN_GAME_DIR`, `NWN5E_TOOLS`), and
+  `build_derived.js`'s and the cache's own code.
+- **Runs again** on anything else - a game update, a recipe, a rows file it reads, any of its code or nwn5e-tools' it
+  loads, the mesh reader rebuilt - and keeps that run. A run that fails (a refused build, rows that disagree) is never
+  kept. Neither is one whose input changed while it ran.
+- **Says** one line after the generators: `build_derived: cache (build/derived_cache): 4 reused, 1 ran - the Floating
+  Disk (repo:tools/data/floatdisk/composition.json changed)` - for each that ran, the first input that had changed.
+- **Forcing the full work:** `--fresh` (build.bat clean passes it) runs every generator and keeps the runs;
+  `--no-cache` or `NWN5E_DERIVED_CACHE=off` neither reads nor keeps; `NWN5E_DERIVED_CACHE=verify` runs every generator
+  and stops the build where a kept output differs from the run's - the proof the cache gives the same bytes.
+- **check_derived.js** uses this checkout's cache for its copy's builds (keyed by bytes, wherever the copy is), and for
+  its read of the game's fountains; its own changes - rows that disagree, a recipe edited, oneburst.js's list - run
+  the generator they reach again.
+- `node tools\data\check_derived_cache.js` checks the cache on temporary folders (no game): a hit, each kind of input
+  changed (a file's bytes and not its time, a path that appears, a folder's names, a module, a game file's time, the
+  reader), what a run wrote, a scratch copy read as its folder, a copy of the repo, a child and its child, an error, the
+  modes, a damaged blob, an input changed while it ran.
+
 ## One burst
 
 The owner, 2026-11-20, on the Academy's lectern (PLC_K02), which "fountained a huge amount of debris" when broken: "For
@@ -186,7 +225,8 @@ the lectern A" - the game's models that fountain, served without it, built from 
 `node tools\data\check_derived.js` runs it end to end on a temporary copy, never this worktree's `data\` or
 `tools\data\`. It needs the game (it prints `skip` without it).
 
-- The copy's recipes and `made.txt` come from `HEAD` (`git cat-file --filters`), never the worktree, so uncommitted
+- The copy's recipes and `made.txt` come from `HEAD` as git checks them out (one checkout-index from a temporary index:
+  `git cat-file --filters`' bytes, in two git runs, not one a file), never the worktree, so uncommitted
   Composer edits are never the baseline. The generators' code comes from the worktree.
 - It checks that:
   - the Floating Disk's seven game-derived models (the six and `c_n5fd_empty.mdl`) aren't at `HEAD` and are
