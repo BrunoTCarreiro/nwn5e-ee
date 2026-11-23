@@ -155,6 +155,13 @@ for (const rel of [...headFiles("tools/data/floatdisk"), ...headFiles("tools/dat
   put(rel, /\.(js|bat|cpp)$/i.test(rel) ? fs.readFileSync(path.join(REPO, ...rel.split("/"))) : checkedOut(rel));
 }
 if (fs.existsSync(path.join(__dirname, "build_derived.js"))) put("tools/data/build_derived.js", fs.readFileSync(path.join(__dirname, "build_derived.js")));
+// #39's Spiritual Weapon look (the owner, 2026-11-23: "set it up and make 1 handed swords the first weapon"): its generator's
+// code, the worktree's (spiritweapon\build.js and the debris build it borrows from), and its three drafts, HEAD's.
+for (const rel of ["tools/data/spiritweapon/build.js", "tools/data/spiritweapon/check.js", "tools/data/debris/build.js",
+  "tools/data/placeable_bounds.js"]) {  // (and #166 part 2's bounds, which build_derived.js requires)
+  if (fs.existsSync(path.join(REPO, ...rel.split("/")))) put(rel, fs.readFileSync(path.join(REPO, ...rel.split("/"))));
+}
+for (const rel of headFiles("tools/data/vfx").filter((r) => /\/n5_swp_(idle|fly|hit)\.vfx$/.test(r))) put(rel, checkedOut(rel));
 const ONE_BURST_JS = path.join(root, "tools", "data", "oneburst.js");  // LD: the copy's, the worktree's code
 put("tools/data/oneburst.js", fs.readFileSync(path.join(__dirname, "oneburst.js")));
 // The copy's oneburst.js listing `models` instead (null: back to the worktree's), for a build without - or with other -
@@ -259,10 +266,21 @@ try {
     // texture, a shape's soft texture or a moving texture's material (n5p_ / n5s_ / n5u_ and 12 hex digits: only the
     // generators make such names) that a built model names. The shader (M2) is committed whole: the generators' own.
     const stem = (name) => name.replace(/\.(tga|dds|txi|mtr)$/, "");  // (W1: a clamped material's copy and TXI too)
-    const named = (name) => F.BAKED.test(stem(name)) || F.SHAPE_TEXTURE.test(stem(name)) || F.MOTION_TEXTURE.test(stem(name));
+    // (an Additive part's or a library texture's copy - n5l_ - is named by the built model that wants it, too)
+    const named = (name) => F.BAKED.test(stem(name)) || F.SHAPE_TEXTURE.test(stem(name)) || F.MOTION_TEXTURE.test(stem(name)) ||
+      (!!F.COPY_TEXTURE && F.COPY_TEXTURE.test(stem(name)));
     for (const name of NAMES.filter((n) => !EXPECTED.has(n))) {
       if (name === SHADER) {
         assert.ok(F.isMotionShader(fs.readFileSync(path.join(OUT, name))), name + " isn't the generators' shader");
+        continue;
+      }
+      // #39's Spiritual Weapon look: its three models are committed as the fallback (the generated blade) and built over it
+      // (the sword, from the game) - not HEAD's, each carrying the model writer's line for its own name.
+      if (/^n5_swp_(idle|fly|hit)\.mdl$/.test(name)) {
+        const got = fs.readFileSync(path.join(OUT, name));
+        assert.ok(AT_HEAD.has(name), name + ": the Spiritual Weapon's fallback isn't committed at HEAD");
+        assert.ok(F.carriesMark(got, "# nwn5e VFX editor (!vfxedit): " + name.replace(/\.mdl$/, "")), name + " isn't the model writer's");
+        assert.ok(!lf(got).equals(stored("data/files/" + name)), name + " is the committed fallback, not the look built over it");
         continue;
       }
       assert.ok(ignored(name), `${name}: built, not committed at HEAD, and not git-ignored`);

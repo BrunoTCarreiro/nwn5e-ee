@@ -2394,6 +2394,30 @@ monster AC by CR.
         models from the owner's drafts. The nwn5e tab lists them too but reads them back from the models - under the
         writer's names and without the blade's fades (nwn5e's own models' rule) - so it's for a look, not for refining.
       - Tests SpiritWeapon* (6); check.js all passed; 19 of 19 breaks of the recipe caught by its checks.
+    - *Decided (owner, 2026-11-23):* a game weapon for the force. The owner: "for these effects can I pick an existing
+      weapon mesh instead of using a custom one?" - told the Composer's parts list has the game's weapons (Items, each
+      weapon its three pieces) with Tint and Save and build, and that Tint only multiplies the colour (an Additive option
+      would be needed for a game weapon to glow as the generated blade does) - then "set it up and make 1 handed swords
+      the first weapon, you can pick one at random".
+    - *Built (the sword look):*
+      - **The sword:** shortsword 012 (`wswss_b_012`, `_m_012`, `_t_012`), drawn by `crypto.randomInt` from the 99
+        one-handed swords the Items list shows (24 shortswords, 37 longswords, 17 rapiers, 21 scimitars).
+      - **Its Composer project** tools/data/composer/swpsword.json (a spell mesh, `n5m_swpsword`): the three pieces named,
+        standing upright point up, scale 1.2 (about 0.89 m), tinted blue (0.45 0.7 1: its brass texture multiplied by it reads blue-green), Blend Additive. Only the
+        project is committed; the mesh is built from the player's game.
+      - **Composer parts' Blend (Normal, Additive):** see TOOLS-PLAN.md (the bench and the generators).
+      - **The effects:** tools/data/spiritweapon/build.js `--look sword` takes the committed drafts and swaps the sword's
+        meshes in for the generated blade - under the blade's node, at its place and turn, with its fades - every node,
+        key, glow, mote, streak, edge and fan as they are: the flight's still along +y 1.2 m up (spells.2da 1279's
+        projectile), the slash's middle still at 0.15 s. The game's geometry is then in those models, so they're built at
+        build time (tools/data/build_derived.js: a generator of their own, over the committed fallback's copies in the
+        build's data\files, owned by the model writer's line for their names) - never committed. A build without the game
+        (NWN5E_DERIVED=skip) keeps the generated blade.
+      - **Looks:** build.js's LOOKS (blade - the committed fallback - and sword; DEFAULT_LOOK sword). A cast-time choice of
+        look (the SRD's force "resembles a weapon of your choice") adds an entry and a Composer project each (mace, hammer,
+        axe), built under its own names (n5_sw<code>_idle...) with rows of its own beside 4180 / 4182 and projectiles
+        beside 1279; the game side then picks the row by the look chosen. `--look sword --saved <the bench's saved>`
+        writes the look's drafts (n5_sws_idle, _fly, _hit) for the bench's Yours tab.
     - *Decided (owner, 2026-11-22):* Heat Metal's rework. The owner on S2-25b: "the axe becomes on fire (the vfx need
       to be adjusted so the weapon just glows red) but isn't visually dropped. Ah, a second time it was put away but the
       orc immediately brought it back out AND attacked the same turn so testing S2-26b is very hard as they orc equips
@@ -7029,6 +7053,11 @@ cleared, the move, then the attack, by DelayCommand - outside the engine's actio
 new attack order is dropped without new orders. Logged "cover: 0x...'s ranged attack on 0x... refused - Total Cover;
 it steps 3.0 m aside to (x, y) - a line from there" / "closes in ..." / "walks round the obstacle to it". Player
 characters are only told, as before.
+*Decided (owner, 2026-11-23: "for spells like burning hands I assume it's way harder to modify the vfx to cut off when it
+hit an obstacle, like the vision cones, right?", then "leave it for the look pass"):* the rule already leaves a creature
+with Total Cover out of a cone's or line's area. The picture's flames still pass through obstacles, since NWN's particles
+collide only with the ground plane. Sliced looks, sub-cones with pre-built reaches picked at cast time as the vision cones
+do, wait for the look pass on the cone and line spells: #184.
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms

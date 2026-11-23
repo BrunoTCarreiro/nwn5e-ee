@@ -212,5 +212,93 @@ check("on the stage: the strike's arc under 150 at once, all added light, over b
 check("within the game's typical budget", one.every((e) => S.particleBudget(e.fx).total <= S.BUDGET.typical),
   JSON.stringify(one.map((e) => S.particleBudget(e.fx))));
 
+// --- the looks (the owner, 2026-11-23: "for these effects can I pick an existing weapon mesh instead of using a custom one?",
+// then "set it up and make 1 handed swords the first weapon, you can pick one at random") ----------------------------------
+// A weapon's spell mesh stands it upright, point up, its lowest point on the guide (the Composer): a test one here, made of
+// nothing of the game's - a stick 0.9 m tall from the ground, its point a single vertex at the top, two meshes (a grip and a
+// blade, one textured n5l_0123456789ab).
+const stickDraft = core.writeDraft(core.effect({ name: "n5m_test", planes: [
+  core.plane({ name: "grip", bitmap: "null", verts: [-0.02, -0.02, 0, 0.02, -0.02, 0, 0, 0.02, 0, 0, 0, 0.2], faces: [0, 1, 3, 1, 2, 3, 2, 0, 3, 0, 2, 1], tverts: [0, 0, 1, 0, 0.5, 1, 0.5, 0.5] }),
+  core.plane({ name: "blade", bitmap: "n5l_0123456789ab", selfillum: [0.72, 0.86, 1], verts: [-0.04, -0.01, 0.2, 0.04, -0.01, 0.2, 0, 0.01, 0.2, 0, 0, 0.9],
+    faces: [0, 1, 3, 1, 2, 3, 2, 0, 3, 0, 2, 1], tverts: [0, 0, 1, 0, 0.5, 1, 0.5, 0.5] })] }));
+const weapon = B.weaponMeshes(core, stickDraft, "n5m_test");
+const along = (ms) => { let lo = Infinity, hi = -Infinity; for (const m of ms) for (let i = 1; i < m.verts.length; i += 3) { lo = Math.min(lo, m.verts[i]); hi = Math.max(hi, m.verts[i]); } return [lo, hi]; };
+const [wlo, whi] = along(weapon), tipAt = weapon[1].verts.slice(9, 12);
+check("looks: a spell mesh's weapon placed as the blade is - upright (z) turned to +y, its point at +y, its middle at 0",
+  weapon.length === 2 && near(wlo, -0.45) && near(whi, 0.45) && near(tipAt[0], 0) && near(tipAt[1], 0.45) && near(tipAt[2], 0) &&
+  weapon[1].bitmap === "n5l_0123456789ab" && [0.72, 0.86, 1].every((c, k) => near(weapon[1].selfillum[k], c, 1e-6)), JSON.stringify([wlo, whi, tipAt, weapon[1].bitmap, weapon[1].selfillum]));
+// Each effect with it swapped in: the blade's planes replaced, under the blade's parent at its place and turn with its keys
+// (its fades); every node, emitter and key as it was; the slash's middle still at 0.15 s; the flight's weapon along +y,
+// 1.2 m up.
+for (const e of one) {
+  const fx = core.readDraft(e.draft), swapped = B.withWeapon(core, fx, weapon), blade = fx.planes.find((p) => p.name === "blade");
+  const strip = (x) => JSON.stringify(Object.assign({}, x, { planes: [] }));
+  const ws = swapped.planes;
+  check(`looks: ${e.name} with the weapon swapped in for its blade - the rest as it was`,
+    ws.length === 2 && ws.map((p) => p.name).join() === "weapon,weapon_2" && ws.every((p) => p.parent === blade.parent && p.position.join() === blade.position.join() &&
+      p.orientation.join() === blade.orientation.join() && JSON.stringify(p.keys) === JSON.stringify(blade.keys)) && strip(swapped) === strip(fx) &&
+    ws[1].bitmap === "n5l_0123456789ab" && ws[0].bitmap === "null");
+}
+{
+  const flyFx = B.withWeapon(core, core.readDraft(byName.n5_swp_fly.draft), weapon), node = flyFx.nodes.find((n) => n.name === flyFx.planes[0].parent);
+  const tipWorld = [node.position[0] + tipAt[0], node.position[1] + tipAt[1], node.position[2] + tipAt[2]];
+  check("looks: the flight's weapon point first along +y, 1.2 m up (spells.2da 1279's projectile)", near(node.position[2], 1.2, 1e-6) && near(tipWorld[1], 0.45) && near(tipWorld[2], 1.2));
+  const hitFx = B.withWeapon(core, core.readDraft(byName.n5_swp_hit.draft), weapon);
+  check("looks: the strike's swing as it was - its middle at 0.15 s", JSON.stringify(hitFx.nodes) === JSON.stringify(core.readDraft(byName.n5_swp_hit.draft).nodes) &&
+    B.SLASH_AT === 0.15);
+}
+check("looks: the sword the default look, its own names n5_sws_*, the blade the committed fallback",
+  B.DEFAULT_LOOK === "sword" && B.LOOKS.sword.project === "swpsword" && B.LOOKS.blade.project === null && B.lookName("n5_swp_idle", "sword") === "n5_sws_idle" &&
+  B.lookName("n5_swp_hit", "blade") === "n5_swb_hit");
+{
+  const tmp = fs.mkdtempSync(path.join(require("os").tmpdir(), "n5_swp_check-"));
+  try {
+    for (const f of ["n5l_0123456789ab.tga", "n5l_0123456789ab.txi", "n5l_ffffffffffff.tga", "w_metal_tex.tga", "n5m_test.vfx"]) fs.writeFileSync(path.join(tmp, f), "x");
+    const named = B.namedTextures(weapon, tmp).map((t) => t.name).sort().join();
+    check("looks: the textures carried are those its meshes name (an Additive part's copy and its TXI) - nothing else", named === "n5l_0123456789ab.tga,n5l_0123456789ab.txi", named);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+// The project: the game's parts named, nothing of the game's kept - the shortsword's three pieces, upright, pale blue,
+// Additive.
+{
+  const proj = JSON.parse(lf(path.join(ROOT, "tools", "data", "composer", "swpsword.json")));
+  const part = proj.variants[0].parts[0];
+  check("looks: the sword's project - shortsword 012's three pieces named, upright, about 0.9 m, tinted blue, Additive",
+    proj.kind === "spellmesh" && proj.name === "swpsword" && proj.variants.length === 1 && part.model.join() === "wswss_b_012,wswss_m_012,wswss_t_012" &&
+    part.tilt.join() === "90,0" && part.scale === 1.2 && part.blend === "additive" && part.tint[2] === 1 && part.tint[0] < part.tint[1] && part.tint[1] < 1);
+}
+// build_derived.js builds it: the Spiritual Weapon's default look a generator of its own.
+{
+  const text = lf(path.join(ROOT, "tools", "data", "build_derived.js"));
+  check("looks: build_derived.js builds the default look over the committed fallback (n5_swp_* owned by the writer's line)",
+    /args: \["--look", look\]/.test(text) && /SWP_MODEL = \/\^n5_swp_\(idle\|fly\|hit\)\\\.mdl\$\/i/.test(text) && /swpmodel: \(w, old\)/.test(text));
+}
+// With the game (skipped without one): the default look built as build_derived.js runs it - the three models with the
+// sword's meshes in (each the model writer's, naming the game's own texture or an Additive copy), into a scratch folder.
+{
+  const gameDir = T.option("game", process.env.NWN_GAME_DIR || "X:\\SteamLibrary\\steamapps\\common\\Neverwinter Nights");
+  if (!fs.existsSync(path.join(gameDir, "data", "nwn_base.key"))) {
+    console.log("skip: the sword's look built from the game - no game at " + gameDir + " (--game)");
+  } else {
+    const tmp = fs.mkdtempSync(path.join(require("os").tmpdir(), "n5_swp_look-"));
+    try {
+      const { spawnSync } = require("child_process");
+      const r = spawnSync(process.execPath, [path.join(__dirname, "build.js"), "--look", "sword", "--files", tmp, "--json", "--game", gameDir,
+        "--tools", T.dir, ...(T.option("reader", "") ? ["--reader", T.option("reader", "")] : [])], { encoding: "utf8", windowsHide: true, maxBuffer: 64 << 20 });
+      let j = null;
+      try { j = JSON.parse((r.stdout || "").trim().split(/\r?\n/).pop()); } catch (e) { /* below */ }
+      const models = ["n5_swp_idle", "n5_swp_fly", "n5_swp_hit"].map((n) => path.join(tmp, n + ".mdl"));
+      const ok = r.status === 0 && j && j.mesh === "n5m_swpsword" && models.every((m) => fs.existsSync(m) && lf(m).split("\n")[1] === "# nwn5e VFX editor (!vfxedit): " + path.basename(m, ".mdl") &&
+        /\nnode trimesh n5_swp_\w+_p0_weapon\n/.test(lf(m)) && !/_blade\n/.test(lf(m)));
+      check("looks, with the game: the sword's three models built (the weapon's meshes in, the blade's out), their textures with them",
+        ok, JSON.stringify(j ? { mesh: j.mesh, files: (j.files || []).map((f) => path.basename(f.file)) } : (r.stderr || r.stdout || "").slice(0, 400)));
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  }
+}
+
 console.log(failures ? "\n" + failures + " failed" : "\nall passed");
 process.exit(failures ? 1 : 0);

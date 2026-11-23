@@ -36,6 +36,20 @@
 // Refining (the owner's): open one in the bench's nwn5e tab, change it and Save - the draft lands in
 // build\vfxedit\saved\<name>.vfx; copied over tools\data\vfx\<name>.vfx, --from-drafts builds the models from the drafts
 // as they are (the recipe here no longer rewrites them).
+//
+// Looks (the owner, 2026-11-23: "for these effects can I pick an existing weapon mesh instead of using a custom one?", then
+// "set it up and make 1 handed swords the first weapon, you can pick one at random"): the force's weapon, swapped in for
+// the generated blade - every node, key, glow, mote, streak, edge and fan as the drafts have them. LOOKS names each: the
+// generated blade (this recipe's: the committed drafts and models, the fallback) and the game's weapons as Composer
+// spell-mesh projects (tools\data\composer\<project>.json - the game's parts named, nothing of the game's kept): the sword,
+// shortsword 012 of the game's 99 one-handed swords, drawn at random. A game weapon's effects carry the game's geometry, so
+// they're made at build time from the player's own game, never committed:
+//   node tools\data\spiritweapon\build.js --look sword --files <folder> [--json] [--game <folder>] [--tools ...] [--reader ...]
+//     (build_derived.js's way: the default look's three models under the base names, n5_swp_idle / _fly / _hit, and the
+//     textures its spell mesh names - an Additive part's copies - into <folder>, over the committed fallback's copies there)
+//   node tools\data\spiritweapon\build.js --look sword --saved <the bench's vfxedit\saved>
+//     (the look's drafts for the bench - n5_sws_idle, _fly, _hit, its own names - with those textures, in Yours)
+//   --mesh <draft>      the spell mesh's draft as built (else its project is built through tools\data\composer\build.js)
 //   --tools <folder>    nwn5e-tools (default: NWN5E_TOOLS, else beside this repo)
 //   --reader <exe>      mdlmesh (default: NWN5E_MDLMESH, else build\floatdisk\mdlmesh.exe, built if needed)
 "use strict";
@@ -306,8 +320,130 @@ function build(core) {
   return effects(core).map((e) => Object.assign(e, { draft: core.writeDraft(e.fx) }));
 }
 
+// --- looks ---------------------------------------------------------------------------------------------------------------
+// The force's weapon. `code`: a look's own names (n5_sw<code>_idle...: its drafts for the bench, and a cast-time choice's
+// models later); `project`: its Composer spell-mesh project (none: the generated blade above). DEFAULT_LOOK is what a
+// build installs under the base names (n5_swp_*) when it can - the game read, the project built; else the committed
+// fallback (the generated blade) stays. A cast-time choice of look (the SRD's force "resembles a weapon of your choice":
+// sword, mace, hammer, axe) slots in as more entries here, each with its project, and each built under its own names
+// (lookNames) with rows of its own beside 4180 / 4182 and spells.2da projectiles beside 1279 - the game side picking the
+// row by the look chosen; nothing here assumes one look.
+const LOOKS = {
+  blade: { code: "b", project: null },
+  sword: { code: "s", project: "swpsword" },
+};
+const DEFAULT_LOOK = "sword";
+const COMPOSER = path.join(REPO, "tools", "data", "composer");
+// A look's own name for one of the three: n5_swp_idle -> n5_sws_idle (the sword's).
+const lookName = (base, look) => base.replace(/^n5_swp_/, "n5_sw" + LOOKS[look].code + "_");
+// The weapon placed as the generated blade is (its frame: +y along it, the point at +y, its middle at 0): a spell mesh
+// stands its weapon upright, point up, its lowest point on the ground (the Composer's guide) - so each vertex turned a
+// quarter back about x (z up -> y along) and moved so its middle along y is 0. From a spell mesh's draft text -> its
+// meshes ({ name, bitmap, verts, tverts, faces, diffuse, ambient, selfillum, alpha, transparencyhint }) so placed.
+function weaponMeshes(core, text, label) {
+  const F = require("../floatdisk/floatdisk.js");
+  const { meshes } = F.modelSpaceMeshes(core.readDraft(text), label);
+  if (!meshes.length) throw new Error(`${label}: no meshes`);
+  const turned = meshes.map((m) => {
+    const v = [];
+    for (let i = 0; i + 2 < m.verts.length; i += 3) v.push(m.verts[i], m.verts[i + 2], -m.verts[i + 1]);
+    return v;
+  });
+  let lo = Infinity, hi = -Infinity;
+  for (const v of turned) for (let i = 1; i < v.length; i += 3) { lo = Math.min(lo, v[i]); hi = Math.max(hi, v[i]); }
+  const mid = (lo + hi) / 2;
+  return meshes.map((m, k) => Object.assign({}, m, { verts: turned[k].map((x, i) => r6(i % 3 === 1 ? x - mid : x)) }));
+}
+// An effect (core.effect's) with its generated blade (the plane "blade") swapped for `meshes` (weaponMeshes'): each a
+// plane where the blade was - under its parent, at its place and turn, with its keys (its fades) - named weapon,
+// weapon_2, ... in the meshes' order; every other part as it was. -> a new effect.
+function withWeapon(core, fx, meshes) {
+  const out = core.readDraft(core.writeDraft(fx));
+  const at = out.planes.findIndex((p) => p.name === "blade");
+  if (at < 0) throw new Error(`${fx.name}: no plane "blade" to swap the weapon in for`);
+  const blade = out.planes[at];
+  const planes = meshes.map((m, k) => core.plane({ name: k ? `weapon_${k + 1}` : "weapon", parent: blade.parent,
+    position: blade.position.slice(), orientation: blade.orientation.slice(), bitmap: m.bitmap || "null", verts: m.verts, tverts: m.tverts,
+    faces: m.faces, diffuse: m.diffuse, ambient: m.ambient, selfillum: m.selfillum, alpha: m.alpha, transparencyhint: m.transparencyhint || 0,
+    keys: JSON.parse(JSON.stringify(blade.keys || [])) }));
+  out.planes.splice(at, 1, ...planes);
+  return out;
+}
+// A look's spell mesh built through the Composer's generator into `saved` (a scratch folder): -> its draft's text.
+function buildMesh(look, saved, pre) {
+  const { spawnSync } = require("child_process");
+  const project = path.join(COMPOSER, LOOKS[look].project + ".json");
+  const args = [path.join(COMPOSER, "build.js"), project, "--json", "--saved", saved];
+  for (const k of ["game", "tools", "reader"]) if (pre[k]) args.push("--" + k, pre[k]);
+  const r = spawnSync(process.execPath, args, { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+  let j = null;
+  try { j = JSON.parse((r.stdout || "").trim().split(/\r?\n/).pop()); } catch (e) { /* the reason below */ }
+  if (r.status !== 0 || !j || j.error) throw new Error(`the ${look}'s spell mesh (${path.relative(REPO, project)}): ` + (j && j.error ? j.error : String(r.stderr || r.stdout).trim()));
+  const variant = (j.variants || [])[0];
+  if (!variant || !variant.model) throw new Error(`the ${look}'s spell mesh: no variant built`);
+  return { model: variant.model, text: fs.readFileSync(path.join(saved, variant.model + ".vfx"), "utf8") };
+}
+// The files beside a spell mesh's draft that its meshes name (an Additive part's copies and their TXIs, a bake): [{ name,
+// file }] - the game's own textures are named only, never copied.
+function namedTextures(meshes, dir) {
+  const stems = new Set(meshes.map((m) => String(m.bitmap || "").toLowerCase()).filter((b) => b && b !== "null"));
+  return (fs.existsSync(dir) ? fs.readdirSync(dir) : []).filter((f) => stems.has(f.replace(/\.(tga|dds|txi)$/i, "").toLowerCase()) && /\.(tga|dds|txi)$/i.test(f))
+    .map((f) => ({ name: f, file: path.join(dir, f) }));
+}
+// --look: the look's three effects from the committed drafts (tools\data\vfx: the owner's refinements carried) with its
+// weapon swapped in - their models into --files (build_derived.js) or their drafts into --saved (the bench's).
+function buildLook(argv, option, core) {
+  const look = option("look", "");
+  if (!LOOKS[look] || !LOOKS[look].project) throw new Error(`--look: one of ${Object.keys(LOOKS).filter((k) => LOOKS[k].project).join(", ")} (the blade is the committed models)`);
+  const files = option("files", ""), saved = option("saved", ""), json = argv.includes("--json");
+  if (!files === !saved) throw new Error("--look takes --files <folder> (a build's: its models) or --saved <folder> (the bench's: its drafts)");
+  const os = require("os");
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "n5_swp_look-"));
+  try {
+    const R = require("../floatdisk/reader.js");
+    const pre = { game: option("game", ""), tools: option("tools", process.env.NWN5E_TOOLS || ""),
+      reader: R.ensureReader({ repo: REPO, reader: option("reader", process.env.NWN5E_MDLMESH || ""), log: () => {} }) };
+    const given = option("mesh", "");
+    const mesh = given ? { model: path.basename(given, ".vfx"), text: fs.readFileSync(given, "utf8") } : buildMesh(look, scratch, pre);
+    const meshDir = given ? path.dirname(path.resolve(given)) : scratch;
+    const meshes = weaponMeshes(core, mesh.text, mesh.model);
+    const written = [];
+    for (const base of MODELS) {
+      const draft = fs.readFileSync(path.join(DRAFTS, base + ".vfx"), "utf8").replace(/\r/g, "");
+      const fx = withWeapon(core, core.readDraft(draft), meshes);
+      if (files) {
+        fx.name = base;
+        const draftFile = path.join(scratch, base + ".vfx");
+        fs.writeFileSync(draftFile, core.writeDraft(fx));
+        const file = path.join(files, base + ".mdl");
+        fs.writeFileSync(file, D.modelOf(reader(pre), draftFile, base));
+        written.push(file);
+      } else {
+        fx.name = lookName(base, look);
+        const file = path.join(saved, fx.name + ".vfx");
+        fs.writeFileSync(file, core.writeDraft(fx).replace(/\n/g, "\r\n"));  // (CRLF, as the bench saves drafts)
+        written.push(file);
+      }
+    }
+    for (const t of namedTextures(meshes, meshDir)) {
+      const file = path.join(files || saved, t.name);
+      fs.copyFileSync(t.file, file);
+      written.push(file);
+    }
+    if (json) console.log(JSON.stringify({ look, mesh: mesh.model, files: written.map((file) => ({ state: "new", file })) }));
+    else for (const f of written) console.log(`${look}: ${f}`);
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+}
+const reader = (pre) => pre.reader;
+
 function main() {
   const argv = process.argv.slice(2);
+  if (argv.includes("--look")) {
+    const { core, option } = D.tools(argv);
+    return buildLook(argv, option, core);
+  }
   const { core, option } = D.tools(argv);
   const R = require("../floatdisk/reader.js");
   const reader = R.ensureReader({ repo: REPO, reader: option("reader", process.env.NWN5E_MDLMESH || "") });
@@ -327,7 +463,7 @@ function main() {
   }
 }
 
-module.exports = { MODELS, ROWS, LABELS, FLY_PROJECTILE_ROW, IDLE, FLY, HIT, BLADE_TEX, GLOW_TEX, LOOP, KEY_STEP, HOVER_Z, BOB, FLY_Z,
+module.exports = { LOOKS, DEFAULT_LOOK, lookName, weaponMeshes, withWeapon, namedTextures, MODELS, ROWS, LABELS, FLY_PROJECTILE_ROW, IDLE, FLY, HIT, BLADE_TEX, GLOW_TEX, LOOP, KEY_STEP, HOVER_Z, BOB, FLY_Z,
   PIVOT, SWING_FROM, SWING_TO, SWING_TIME, SLASH_AT, BLADE_LENGTH, BLADE_LO, BLADE_MID, bladeMesh, bladeTexture, glowTexture, textures, hoverAt, swingAt, axisAngle, effects, build };
 if (require.main === module) {
   try {

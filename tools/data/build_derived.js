@@ -20,6 +20,14 @@
 //   spell mesh's project (its drafts live in the VFX Bench's saved folder, and the dev layer writes its models when the
 //   game runs), and a project never built - no data\rows\placeables.<name>.txt and no variant with a row, as the
 //   bench's New project writes it - whose models nothing installed names.
+// - #39's Spiritual Weapon look (the owner, 2026-11-23: "for these effects can I pick an existing weapon mesh instead of
+//   using a custom one?", then "set it up and make 1 handed swords the first weapon, you can pick one at random"): the
+//   force's three effects with its default look's weapon (spiritweapon\build.js DEFAULT_LOOK: the sword, the Composer's
+//   swpsword.json - the game's shortsword 012) in place of the generated blade - n5_swp_idle, _fly and _hit, built from the
+//   player's game (spiritweapon\build.js --look) over the committed fallback's copies in --out (the generated blade, which
+//   build.bat copied there with the rest of data\files: a build without the game - NWN5E_DERIVED=skip - keeps it), with
+//   the textures the weapon's meshes name (an Additive part's copies: n5l_ names). Owned there by their names and the
+//   model writer's line for that name ("# nwn5e VFX editor (!vfxedit): <name>"), which the fallback carries too.
 // - The rows stay the repo's: data\rows' appearance.floatdisk.txt, placeables.floatdisk.txt and each project's
 //   placeables.<name>.txt are committed text that names the models. Each generator writes its rows over a copy of
 //   data\rows, and they must come out unchanged: rows that differ (or are missing) stop the build, nothing written -
@@ -131,6 +139,13 @@ function generators() {
     list.push({ label: `the Composer's project ${name}`, script: path.join(composer, "build.js"), recipe: file, args: [file], mark: P.MARK,
       made: W.readManifest(path.join(composer, "made.txt")), again: `node tools\\data\\composer\\build.js ${shown(file).split("/").join("\\")} --files <a scratch folder>` });
   }
+  // #39's Spiritual Weapon: its default look's three effects (spiritweapon\build.js --look; its spell mesh's project
+  // built inside it, as above skipped on its own).
+  const sw = require("./spiritweapon/build.js"), look = sw.DEFAULT_LOOK, swProject = path.join(composer, sw.LOOKS[look].project + ".json");
+  if (!fs.existsSync(swProject)) skipped.push({ file: swProject, why: `the Spiritual Weapon's ${look}: its project isn't there - the generated blade stays` });
+  else list.push({ label: `the Spiritual Weapon's ${look}`, script: path.join(__dirname, "spiritweapon", "build.js"),
+    recipe: path.join(composer, sw.LOOKS[look].project + ".json"), args: ["--look", look], mark: null, swp: true, made: new Set(),
+    again: `node tools\\data\\spiritweapon\\build.js --look ${look} --files <a scratch folder>` });
   return { list, skipped };
 }
 
@@ -258,19 +273,25 @@ function main() {
   const isMaterial = (name) => /\.(mtr|tga|dds|txi)$/i.test(name) && F.MOTION_TEXTURE.test(name.replace(/\.(mtr|tga|dds|txi)$/i, ""));
   const isCopy = (name) => /\.(tga|dds|txi)$/i.test(name) && !!F.COPY_TEXTURE && F.COPY_TEXTURE.test(name.replace(/\.(tga|dds|txi)$/i, ""));
   const isShader = (name) => name.toLowerCase() === F.MOTION_SHADER + ".shd";
+  // The Spiritual Weapon's three models (the generated blade's committed fallback, or a look built over it): the model
+  // writer's mark line, "# nwn5e VFX editor (!vfxedit): <name>" (vfx_model.cpp WriteVfxModel).
+  const SWP_MODEL = /^n5_swp_(idle|fly|hit)\.mdl$/i, SWP_MARK = "# nwn5e VFX editor (!vfxedit): ";
   // A one-burst copy (LD): kind "oneburst", owned by its name - one of oneburst.js's MODELS (only it makes them in a
   // build's data\files, and the game's model fixes the bytes).
   const writes = [], byName = new Map();
   for (const { gen, files } of built) {
     const owned = gen.oneBurst ? (w) => ONE_BURST.has(path.basename(w.file).toLowerCase())
-      : W.ownership({ repo: REPO, manifest: gen.made, mark: gen.mark, kinds: { texture: (w) => gen.made.has("data/files/" + path.basename(w.file)) } });
+      : W.ownership({ repo: REPO, manifest: gen.made, mark: gen.mark, kinds: { texture: (w) => gen.made.has("data/files/" + path.basename(w.file)),
+        // (the Spiritual Weapon's: one of its three models, carrying the model writer's line for its own name)
+        swpmodel: (w, old) => SWP_MODEL.test(path.basename(w.file)) && F.carriesMark(old, SWP_MARK + path.basename(w.file).replace(/\.mdl$/i, "")) } });
     for (const f of files) {
       const had = byName.get(f.name.toLowerCase());
       if (had) {
         if (!had.bytes.equals(f.bytes)) throw new Error(`${f.name}: ${had.gen.label} and ${gen.label} both make it, differently`);
         continue;
       }
-      const kind = gen.oneBurst ? "oneburst" : F.carriesMark(f.bytes, gen.mark) ? "text" : isBake(f.name) ? "baked" : isShape(f.name) ? "shape"
+      const kind = gen.oneBurst ? "oneburst" : gen.swp && SWP_MODEL.test(f.name) ? "swpmodel" : gen.mark && F.carriesMark(f.bytes, gen.mark) ? "text"
+        : isBake(f.name) ? "baked" : isShape(f.name) ? "shape"
         : isMaterial(f.name) ? "material" : isCopy(f.name) ? "copy" : isShader(f.name) ? "shader" : "texture";
       const w = { file: path.join(OUT, f.name), bytes: f.bytes, kind, owned, gen };
       byName.set(f.name.toLowerCase(), w);

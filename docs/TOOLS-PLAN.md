@@ -150,6 +150,13 @@ quoted here, as in PLAN.md.
   and streak alone. Now its blade, glow and streak hang from a node `flight` 1.2 m up (the model's height and +y as
   before), its row moving and turning them (1.2 -> 1.5 m); check.js and the tests hold every blade under a node. test.bat
   744 ok, check.js all passed (21 of 21 breaks caught).
+  *A game weapon (the owner, 2026-11-23: "for these effects can I pick an existing weapon mesh instead of using a custom
+  one?", then "set it up and make 1 handed swords the first weapon, you can pick one at random"):* shortsword 012, drawn at
+  random from the Items list's 99 one-handed swords, as a Composer spell-mesh project (tools/data/composer/swpsword.json:
+  upright, 0.89 m, tinted blue, Blend Additive); spiritweapon/build.js `--look sword` swaps its meshes in for the generated
+  blade in the three drafts, and build_derived.js builds the three models with it at build time over the committed
+  generated-blade fallback (the game's geometry never committed). The Composer's parts gained Blend (Normal, Additive) for
+  it - the stage, Play in game and Save and build honouring it.
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 
