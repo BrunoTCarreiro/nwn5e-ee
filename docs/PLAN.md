@@ -6984,7 +6984,7 @@ bottom of the Cylinder") - a cone or a line from its caster, a sphere from its c
 the centre of its top, a cube from the face it's placed on; Total Cover from the origin leaves a creature out of
 nwn5e's own area spells; (3) an AI attacker refused by Total Cover moves (sideways for a clear shot, round the
 obstacle for melee) instead of trying again in place.
-*Built (decision 1, low cover):* rules/los_probe: seven body points, a Medium creature standing (1.8 m) - feet 0.15,
+*Built 0.99.128 (decision 1, low cover):* rules/los_probe: seven body points, a Medium creature standing (1.8 m) - feet 0.15,
 knees 0.5, waist 0.95, chest 1.3, head 1.65, shoulders 0.25 m to either side at 1.45 - scaled by its size's height
 (Tiny 0.6, Small 1.0, Medium 1.8, Large 3.0, Huge 5.0 m; appearance.2da's HEIGHT isn't a height - Human 2, Hill Giant
 1 - so by size) and, in stealth mode, its heights by the crouch (0.61: Medium 1.1 m; the shoulders' width kept).
@@ -7000,7 +7000,7 @@ Three-Quarters (6 of 7: unseen while hiding) and the table Half (4); the barrel 
 against the table: none - it covers about 0.85 m of 1.8, just under half. The tall ones: statue and bookcase Total,
 the broken pillar Three-Quarters standing (the head over it) and Total crouched. Tests LosProbeBodyBySizeAndCrouch,
 CoverDegreesFromBlockedPoints (the counts, the eyes, the slices' end).
-*Built (decision 2, areas from their point of origin; rules/area_origin.{h,cpp}, tests AreaOriginPerShape,
+*Built 0.99.128 (decision 2, areas from their point of origin; rules/area_origin.{h,cpp}, tests AreaOriginPerShape,
 AreaCoverInOrOut):* each area's lines start at its shape's point of origin - a Cone or a Line (Burning Hands, Color
 Spray, a Dragon's Breath exhale; NWN's cones and spell cylinders: Cone of Cold, Lightning Bolt) at the caster's (the
 breather's) eyes; a Cube from the caster (Thunderwave) at the centre of the face on it (half the side up, 2.3 m for 15
@@ -7019,7 +7019,7 @@ Burning Hands, Color Spray, Thunderwave, Sleep, Shatter, Ice Knife's burst, Enta
 Half and Three-Quarters: +2 / +5 on a Dexterity save as before (rules_save_roll.cpp's SaveCoverBonus, now from the
 same origin). NWN's own unconverted area spells keep the creature in, Total Cover giving +5 on a Dexterity save.
 Sacred Flame still gets none.
-*Built (decision 3, a refused attacker repositions; rules/reposition.{h,cpp}, test RepositionSpotsAndChoice):* when
+*Built 0.99.128 (decision 3, a refused attacker repositions; rules/reposition.{h,cpp}, test RepositionSpotsAndChoice):* when
 Total Cover refuses an AI creature's attack (object_cover.cpp's TotalCoverHoldsAttack), it moves instead of trying
 again in place - a ranged attacker tries spots square to its line to the target, 1.5, 3 and 4.5 m to either side
 (nearest first, its left first), each with nwn5e's own sight test from its eyes there (off the area's grid: no), and
