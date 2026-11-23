@@ -132,6 +132,21 @@ TEST(SpiritWeaponDraftsWriteTheModels) {
   }
 }
 
+// Every blade hangs under a node of its draft: the VFX Bench gives a draft's plane (one with no `mesh`) no row of its own,
+// so the owner moves, turns and keys it through that node's row.
+TEST(SpiritWeaponBladesHangUnderANode) {
+  for (const char* name : kModels) {
+    data::VfxEffect effect;
+    CHECK_EQ(SwpDraft(name, &effect), true);
+    CHECK_EQ(!effect.planes.empty(), true);
+    for (const data::VfxPlane& p : effect.planes) {
+      bool under = false;
+      for (const data::VfxNode& n : effect.nodes) under = under || n.name == p.parent;
+      CHECK_EQ(under, true);
+    }
+  }
+}
+
 // The textures beside them: the blade's with its TXI saying added light (the game draws a mesh adding its light only by
 // its texture's TXI), the glow's with none (a particle's blend is its emitter's) - 32-bit TGAs with alpha.
 TEST(SpiritWeaponTexturesShipBesideTheModels) {
@@ -180,7 +195,9 @@ TEST(SpiritWeaponIdleLoopsSeamlessly) {
 
 // The flight: a projectile model plays no keyed animation (the game's own vpr_* have none), so every emitter carries its
 // rate in the model's geometry; the blade's point along +y (the game's own ammunition flies point first along +y), 1.2 m
-// over its root (cast from a marker at ground level).
+// over its root (cast from a marker at ground level) on its node, as the other two's blades hang from theirs (the VFX
+// Bench moves a draft's plane only through the node it hangs under - the owner, 2026-11-23: "I can't seem to affect the
+// mesh in the last one, only the glow and streak").
 TEST(SpiritWeaponFlightNeedsNoAnimation) {
   data::VfxEffect fly;
   CHECK_EQ(SwpDraft("n5_swp_fly", &fly), true);
@@ -199,7 +216,11 @@ TEST(SpiritWeaponFlightNeedsNoAnimation) {
     }
   }
   CHECK_EQ(most > 0.4f && fabsf(v[tip]) < 1e-4f && fabsf(v[tip + 2]) < 1e-4f, true);  // the point: on the +y axis
-  CHECK_EQ(fly.planes[0].orientation[3] == 0.0f && fly.planes[0].position[2] == 1.2f, true);
+  CHECK_EQ(fly.planes[0].orientation[3] == 0.0f && fly.planes[0].position[2] == 0.0f, true);
+  CHECK_EQ(fly.nodes.size() == 1 && fly.planes[0].parent == fly.nodes[0].name && fly.nodes[0].position[2] == 1.2f &&
+               fly.nodes[0].orientation[3] == 0.0f,
+           true);
+  for (const data::VfxEmitter& e : fly.emitters) CHECK_EQ(e.parent == fly.nodes[0].name, true);
 }
 
 // The strike: a one-shot whose impact starts on its keys (transtime 0 - its blade's fade starts at 0, off its rest), so

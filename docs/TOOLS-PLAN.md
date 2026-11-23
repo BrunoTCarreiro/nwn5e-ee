@@ -143,6 +143,13 @@ quoted here, as in PLAN.md.
   wambo_001: points at +y); the game's vpr_* projectile models have no keys. The bench needs no change: its Draft text
   box opens a draft exactly (the nwn5e tab reads nwn5e's own models back under the writer's names and without a plane's
   keys - for a look, not for refining). check.js all passed (19 of 19 breaks caught), test.bat SpiritWeapon* ok.
+  *Fixed (the owner, 2026-11-23, on the drafts in the bench: "I can't seem to affect the mesh in the last one, only the
+  glow and streak"):* the bench gives a draft's plane (no `mesh`: drawn, never edited, #161) no row or card of its own -
+  a blade is reached through the node it hangs under. The idle's hangs from hover and the strike's from swing (their rows
+  move it: typed z +0.3, the blade 1.36 -> 1.66 m and 1.22 -> 1.52 m), the flight's hung at the root: its rows were glow
+  and streak alone. Now its blade, glow and streak hang from a node `flight` 1.2 m up (the model's height and +y as
+  before), its row moving and turning them (1.2 -> 1.5 m); check.js and the tests hold every blade under a node. test.bat
+  744 ok, check.js all passed (21 of 21 breaks caught).
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 

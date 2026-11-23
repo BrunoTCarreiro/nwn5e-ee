@@ -244,18 +244,22 @@ function idle(core) {
   return core.effect({ name: IDLE, duration: true, seconds: 8, attach: "root", lengths: [0.5, LOOP, 0.25], nodes: [hover], emitters, planes: [blade] });
 }
 
-// The flight (spells.2da 1279's projectile): the blade along +y at FLY_Z over the model's root, a short streak left in
-// the world behind it.
+// The flight (spells.2da 1279's projectile): the blade along +y, a short streak left in the world behind it - all of it
+// hanging from a node FLY_Z over the model's root, as the idle's from its hover and the strike's from its swing: the
+// VFX Bench gives a draft's plane (one with no `mesh`: drawn, never edited, nwn5e-ee #161) no row or card of its own, so
+// the owner moves, turns and keys the blade through the node it hangs under (the owner, 2026-11-23, on the first draft's
+// blade at the root: "I can't seem to affect the mesh in the last one, only the glow and streak").
 const FLY_Z = 1.2;
 function fly(core) {
-  const blade = bladePlane(core, { position: [0, 0, FLY_Z] });
+  const flight = core.node({ name: "flight", position: [0, 0, FLY_Z] });
+  const blade = bladePlane(core, { parent: "flight" });
   const emitters = [
-    halo(core, { position: [0, 0, FLY_Z], birthrate: 12, life: 0.5, alpha_start: 0.35, xsize: 3, ysize: 75 }),
-    core.emitter({ name: "streak", position: [0, 0, FLY_Z], update: "Fountain", render: "Normal", blend: "Lighten", texture: GLOW_TEX, grid: 1, frame_end: 0,
+    halo(core, { parent: "flight", birthrate: 12, life: 0.5, alpha_start: 0.35, xsize: 3, ysize: 75 }),
+    core.emitter({ name: "streak", parent: "flight", update: "Fountain", render: "Normal", blend: "Lighten", texture: GLOW_TEX, grid: 1, frame_end: 0,
       birthrate: 60, life: 0.2, velocity: 0, randvel: 0, spread: 0, mass: 0, size_start: 0.22, size_end: 0.04, color_start: PALE,
       color_end: BLUE, alpha_start: 0.45, alpha_end: 0, xsize: 2, ysize: 70 }),
   ];
-  return core.effect({ name: FLY, duration: true, seconds: 2, attach: "root", lengths: [0, 2, 1], emitters, planes: [blade] });
+  return core.effect({ name: FLY, duration: true, seconds: 2, attach: "root", lengths: [0, 2, 1], nodes: [flight], emitters, planes: [blade] });
 }
 
 // The strike (4182): from its pivot 1.3 m up, 15 cm in front, the blade sweeps from up and right to down and left in

@@ -122,10 +122,20 @@ const fade = (anim) => (blade.keys.find((k) => k.anim === anim) || {}).alpha || 
 check("the idle: the blade hangs point down round 1.2 m, fading in over its start (0.5 s) and out over its end (0.25 s)",
   near(down[2], -1, 1e-5) && blade.parent === "hover" && hover.position[2] === 1.2 && fade("impact").join() === "0,0,0.5,1" &&
   fade("cessation").join() === "0,1,0.25,0" && idle.lengths[0] === 0.5 && idle.lengths[2] === 0.25);
-// The flight: the blade 1.2 m over the model's root (cast from a marker at ground level), its emitters with it.
+// The flight: the blade 1.2 m over the model's root (cast from a marker at ground level), its emitters with it - all
+// hanging from its node.
 const fly = byName.n5_swp_fly.fx;
-check("the flight: the blade point first along +y, 1.2 m over its root, its emitters with it",
-  fly.planes[0].position.join() === "0,0,1.2" && fly.planes[0].orientation.join() === "0,0,0,0" && fly.emitters.every((e) => e.position[2] === 1.2));
+check("the flight: the blade point first along +y, 1.2 m over its root on its node, its emitters with it",
+  fly.nodes.length === 1 && fly.nodes[0].name === "flight" && fly.nodes[0].position.join() === "0,0,1.2" && fly.nodes[0].orientation.join() === "0,0,0,0" &&
+  fly.planes[0].parent === "flight" && fly.planes[0].position.join() === "0,0,0" && fly.planes[0].orientation.join() === "0,0,0,0" &&
+  fly.emitters.every((e) => e.parent === "flight" && e.position.join() === "0,0,0"));
+// Every blade within the owner's reach in the VFX Bench (the owner, 2026-11-23: "I can't seem to affect the mesh in the
+// last one, only the glow and streak"): the bench gives a draft's plane (no `mesh`) no row of its own, so each one hangs
+// under a node of its draft - its row moves, turns and keys it - and every emitter has its own row (a beat).
+check("in the bench: every blade under a node of its draft (its row moves it), every emitter a beat of its own",
+  one.every((e) => e.fx.planes.length > 0 && e.fx.planes.every((p) => !p.mesh && e.fx.nodes.some((n) => n.name === p.parent)) &&
+    e.fx.emitters.every((x) => x.name && e.fx.emitters.filter((y) => y.name === x.name).length === 1)),
+  JSON.stringify(one.map((e) => e.fx.planes.map((p) => [e.name, p.parent]))));
 
 // --- the strike --------------------------------------------------------------------------------------------------------
 const hit = byName.n5_swp_hit.fx, swingKeys = hit.nodes[0].keys[0].orientation;

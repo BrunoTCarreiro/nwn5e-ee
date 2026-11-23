@@ -5,13 +5,18 @@ seconds = 2
 attach = root
 lengths = 0 2 1
 
+[node flight]
+position = 0 0 1.2
+orientation = 0 0 0 0
+
 [emitter glow]
 update = Fountain
 render = Normal
 blend = Lighten
 texture = n5_swp_glow
-position = 0 0 1.2
+position = 0 0 0
 orientation = 0 0 0 0
+parent = flight
 birthrate = 12
 emit_seconds = 0
 life = 0.5
@@ -38,8 +43,9 @@ update = Fountain
 render = Normal
 blend = Lighten
 texture = n5_swp_glow
-position = 0 0 1.2
+position = 0 0 0
 orientation = 0 0 0 0
+parent = flight
 birthrate = 60
 emit_seconds = 0
 life = 0.2
@@ -62,7 +68,8 @@ deadspace = 0
 flags =
 
 [plane blade]
-position = 0 0 1.2
+parent = flight
+position = 0 0 0
 orientation = 0 0 0 0
 bitmap = n5_swp_blade
 selfillum = 1 1 1

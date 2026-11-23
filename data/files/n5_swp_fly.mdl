@@ -8,8 +8,13 @@ beginmodelgeom n5_swp_fly
 node dummy n5_swp_fly
   parent NULL
 endnode
-node emitter n5_swp_fly_0_glow
+node dummy n5_swp_fly_n0_flight
   parent n5_swp_fly
+  position 0 0 1.2
+  orientation 0 0 0 0
+endnode
+node emitter n5_swp_fly_0_glow
+  parent n5_swp_fly_n0_flight
   p2p 0
   p2p_sel 1
   affectedByWind 0
@@ -34,7 +39,7 @@ node emitter n5_swp_fly_0_glow
   twosidedtex 0
   blastRadius 0
   blastLength 0
-  position 0 0 1.2
+  position 0 0 0
   orientation 0 0 0 0
   colorStart 0.55 0.75 1
   colorEnd 0.45 0.65 1
@@ -69,7 +74,7 @@ node emitter n5_swp_fly_0_glow
   threshold 0
 endnode
 node emitter n5_swp_fly_1_streak
-  parent n5_swp_fly
+  parent n5_swp_fly_n0_flight
   p2p 0
   p2p_sel 1
   affectedByWind 0
@@ -94,7 +99,7 @@ node emitter n5_swp_fly_1_streak
   twosidedtex 0
   blastRadius 0
   blastLength 0
-  position 0 0 1.2
+  position 0 0 0
   orientation 0 0 0 0
   colorStart 0.82 0.93 1
   colorEnd 0.55 0.75 1
@@ -129,8 +134,8 @@ node emitter n5_swp_fly_1_streak
   threshold 0
 endnode
 node trimesh n5_swp_fly_p0_blade
-  parent n5_swp_fly
-  position 0 0 1.2
+  parent n5_swp_fly_n0_flight
+  position 0 0 0
   orientation 0 0 0 0
   wirecolor 1 1 1
   ambient 1 1 1
@@ -295,13 +300,16 @@ newanim impact n5_swp_fly
 node dummy n5_swp_fly
   parent NULL
 endnode
-node emitter n5_swp_fly_0_glow
+node dummy n5_swp_fly_n0_flight
   parent n5_swp_fly
+endnode
+node emitter n5_swp_fly_0_glow
+  parent n5_swp_fly_n0_flight
   birthratekey 1
     0 12
 endnode
 node emitter n5_swp_fly_1_streak
-  parent n5_swp_fly
+  parent n5_swp_fly_n0_flight
   birthratekey 1
     0 60
 endnode
@@ -314,13 +322,16 @@ newanim duration n5_swp_fly
 node dummy n5_swp_fly
   parent NULL
 endnode
-node emitter n5_swp_fly_0_glow
+node dummy n5_swp_fly_n0_flight
   parent n5_swp_fly
+endnode
+node emitter n5_swp_fly_0_glow
+  parent n5_swp_fly_n0_flight
   birthratekey 1
     0 12
 endnode
 node emitter n5_swp_fly_1_streak
-  parent n5_swp_fly
+  parent n5_swp_fly_n0_flight
   birthratekey 1
     0 60
 endnode
@@ -333,13 +344,16 @@ newanim cessation n5_swp_fly
 node dummy n5_swp_fly
   parent NULL
 endnode
-node emitter n5_swp_fly_0_glow
+node dummy n5_swp_fly_n0_flight
   parent n5_swp_fly
+endnode
+node emitter n5_swp_fly_0_glow
+  parent n5_swp_fly_n0_flight
   birthratekey 1
     0 0
 endnode
 node emitter n5_swp_fly_1_streak
-  parent n5_swp_fly
+  parent n5_swp_fly_n0_flight
   birthratekey 1
     0 0
 endnode
