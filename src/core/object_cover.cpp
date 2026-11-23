@@ -53,6 +53,7 @@
 #include "rules/area_origin.h"
 #include "rules/cover_objects.h"
 #include "rules/los_probe.h"
+#include "rules/reposition.h"
 #include "rules/spells2024.h"
 
 void* GameObjectById(uint32_t id);       // light_sources.cpp (the NWS object)
@@ -66,6 +67,7 @@ struct Vec3 {
 using ClearLineOfSightFn = int (*)(void* area, Vec3 from, Vec3 to, Vec3* hit, uint32_t* hit_object, uint32_t from_id,
                                    uint32_t to_id, int flag);
 using PlaceableByIdFn = void* (*)(void* app, uint32_t id);
+using ComputeHeightFn = float (*)(void* area, Vec3 at);
 constexpr const char* kGetPlaceableById = "?GetPlaceableByGameObjectID@CServerExoApp@@QEAAPEAVCNWSPlaceable@@I@Z";
 constexpr size_t kPlaceableAppearance = 0x32c;  // uint16 (placeables.2da; light_sources.cpp)
 constexpr size_t kSpellTargetX = 0x208;  // CNWSObject: the last spell's target location, float x y z (GetSpellTargetLocation)
@@ -100,6 +102,8 @@ std::unordered_map<uint64_t, Kept> g_kept;          // (observer, target) -> its
 std::unordered_map<uint64_t, uint64_t> g_told;      // (kind, a, b) -> when told
 ClearLineOfSightFn g_clear_line = nullptr;
 PlaceableByIdFn g_placeable_by_id = nullptr;
+ComputeHeightFn g_compute_height = nullptr;
+std::unordered_map<uint64_t, uint64_t> g_repositioned;  // (attacker, target) -> when its move was queued
 void** g_app_manager = nullptr;
 int g_logged = 0;
 
@@ -267,6 +271,77 @@ const char* CoverLogWords(rules::Cover cover) {
     case rules::Cover::kNone: break;
   }
   return "no cover";
+}
+
+bool IsPlayerCharacter(void* creature) {
+  void* stats = StatsOf(creature);
+  return stats && ReadCreatureFacts(stats).is_player;
+}
+
+// #166 decision 3 (owner, 2026-11-23): an AI attacker refused by Total Cover moves - a ranged one sideways to a spot its
+// own sight test finds a line from (rules::SidestepSpots: 1.5, 3, 4.5 m to either side; no Total Cover from there),
+// else closer; a melee one round the obstacle to its target (the engine's path). Queued once a round per attacker and
+// target - its actions cleared, the move, then the attack - outside the engine's action processing (DelayCommand).
+void Reposition(void* creature, void* target, bool ranged) {
+  const uint32_t a = IdOf(creature), t = IdOf(target);
+  const uint64_t now = GetTickCount64();
+  if (g_repositioned.size() > 512) g_repositioned.clear();
+  uint64_t& queued = g_repositioned[Pair(a, t)];
+  if (queued && now < queued + kTellEveryMs) return;  // its move is under way: the attack dropped, nothing new
+  queued = now;
+  void* area = engine::AreaOf(creature);
+  const float ax = Field<float>(creature, ee::kObjectPositionX), ay = Field<float>(creature, ee::kObjectPositionY);
+  const float tx = Field<float>(target, ee::kObjectPositionX), ty = Field<float>(target, ee::kObjectPositionY);
+  const float eye = rules::EyeHeight(Field<int32_t>(creature, ee::kCreatureSize));
+  std::vector<rules::Sidestep> spots;
+  std::vector<bool> clear;
+  std::vector<float> heights;
+  if (ranged && area) {
+    spots = rules::SidestepSpots(ax, ay, tx, ty);
+    for (const rules::Sidestep& spot : spots) {
+      float ground = Field<float>(creature, ee::kObjectPositionZ);
+      if (g_compute_height) ground = g_compute_height(area, Vec3{spot.x, spot.y, ground});
+      heights.push_back(ground);
+      if (ground <= ee::kAreaOffGridHeight + 0.01f) {
+        clear.push_back(false);
+        continue;
+      }
+      const float from[3] = {spot.x, spot.y, ground + eye};
+      CoverPoint points[rules::kLosBodyPoints];
+      clear.push_back(CoverFrom(area, a, a, from, target, points, nullptr, nullptr) != rules::Cover::kTotal);
+    }
+  }
+  int pick = -1;
+  const rules::Reposition choice = rules::ChooseReposition(ranged, clear, &pick);
+  char code[700];
+  char what[160];
+  if (choice == rules::Reposition::kSidestep) {
+    const rules::Sidestep& spot = spots[static_cast<size_t>(pick)];
+    sprintf_s(code,
+              "object t = StringToObject(\"%x\");"
+              "location at = Location(GetArea(OBJECT_SELF), Vector(%.2f, %.2f, %.2f), GetFacing(OBJECT_SELF));"
+              "DelayCommand(0.10, ClearAllActions());"
+              "DelayCommand(0.11, ActionMoveToLocation(at, TRUE));"
+              "DelayCommand(0.12, ActionAttack(t));",
+              t, spot.x, spot.y, heights[static_cast<size_t>(pick)]);
+    sprintf_s(what, "steps %.1f m aside to (%.1f, %.1f) - a line from there", sqrtf((spot.x - ax) * (spot.x - ax) +
+                                                                                   (spot.y - ay) * (spot.y - ay)),
+              spot.x, spot.y);
+  } else {
+    sprintf_s(code,
+              "object t = StringToObject(\"%x\");"
+              "DelayCommand(0.10, ClearAllActions());"
+              "DelayCommand(0.11, ActionMoveToObject(t, TRUE, %.1f));"
+              "DelayCommand(0.12, ActionAttack(t));",
+              t, choice == rules::Reposition::kCloseIn ? 2.0f : 1.0f);
+    sprintf_s(what, "%s", choice == rules::Reposition::kCloseIn
+                              ? "closes in (no spot within 5 m to either side has a line)"
+                              : "walks round the obstacle to it");
+  }
+  RunScriptChunk(code, a);
+  if (LogSlotHere()) {
+    Log("cover: 0x%08X's %s attack on 0x%08X refused - Total Cover; it %s", a, ranged ? "ranged" : "melee", t, what);
+  }
 }
 
 }  // namespace
@@ -443,6 +518,7 @@ bool TotalCoverHoldsAttack(void* creature, void* node) {
     }
     TellPlayer(a, PlayerText("cover.total_no_attack", {{"target", NameOf(a, t)}, {"by", ByWords(a, by_id)}}));
   }
+  if (!IsPlayerCharacter(creature)) Reposition(creature, target, ranged);
   return true;
 }
 
@@ -632,6 +708,7 @@ int SaveCoverBonus(void* creature, uint32_t versus, uint32_t script_self, int sp
 void InstallCoverObjects() {
   g_clear_line = reinterpret_cast<ClearLineOfSightFn>(EngineExport(ee::kClearLineOfSight));
   g_placeable_by_id = reinterpret_cast<PlaceableByIdFn>(EngineExport(kGetPlaceableById));
+  g_compute_height = reinterpret_cast<ComputeHeightFn>(EngineExport(ee::kComputeHeight));
   g_app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
   if (!g_config.cover_objects) {
     Log("cover objects: off (cover_objects=0) - sight and cover are the engine's: walls and shut doors only");

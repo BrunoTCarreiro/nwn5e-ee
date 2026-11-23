@@ -7019,6 +7019,16 @@ Burning Hands, Color Spray, Thunderwave, Sleep, Shatter, Ice Knife's burst, Enta
 Half and Three-Quarters: +2 / +5 on a Dexterity save as before (rules_save_roll.cpp's SaveCoverBonus, now from the
 same origin). NWN's own unconverted area spells keep the creature in, Total Cover giving +5 on a Dexterity save.
 Sacred Flame still gets none.
+*Built (decision 3, a refused attacker repositions; rules/reposition.{h,cpp}, test RepositionSpotsAndChoice):* when
+Total Cover refuses an AI creature's attack (object_cover.cpp's TotalCoverHoldsAttack), it moves instead of trying
+again in place - a ranged attacker tries spots square to its line to the target, 1.5, 3 and 4.5 m to either side
+(nearest first, its left first), each with nwn5e's own sight test from its eyes there (off the area's grid: no), and
+steps to the first without Total Cover; none: it closes in (to 2 m, the engine's path); a melee attacker walks round
+the obstacle to its target (to 1 m, the engine's path). Queued once a round for each attacker and target (its actions
+cleared, the move, then the attack, by DelayCommand - outside the engine's action processing); while it's under way a
+new attack order is dropped without new orders. Logged "cover: 0x...'s ranged attack on 0x... refused - Total Cover;
+it steps 3.0 m aside to (x, y) - a line from there" / "closes in ..." / "walks round the obstacle to it". Player
+characters are only told, as before.
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms

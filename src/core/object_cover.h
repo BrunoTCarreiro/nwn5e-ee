@@ -45,7 +45,8 @@ std::string CoverWords(rules::Cover cover);
 // (c) attacks: both sides told, once a round, the cover and its AC (`creature`: a creature in the way).
 void TellAttackCover(void* attacker, void* target, rules::Cover cover, int bonus, uint32_t by_id, bool creature);
 // Total Cover from the attacker's eyes refuses its attack (ranged anywhere, melee within reach): the attack action
-// dropped before it's spent, the attacker told (action_order.cpp).
+// dropped before it's spent, the attacker told (action_order.cpp); an AI attacker then repositions (#166 decision 3:
+// sideways for a line, else closer; melee round the obstacle), queued once a round.
 bool TotalCoverHoldsAttack(void* creature, void* node);
 // (c) Dexterity saves: the bonus `creature` has from cover from the effect's origin - `script_self` the running
 // script's object (the caster, or an area of effect) else `versus`; a creature's sphere spell (spells.2da
