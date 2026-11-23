@@ -5993,7 +5993,7 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   searching enemy's cone on its real facing, moved only when it turns to look); 2: light shortens each slice to the
   farthest point it could spot a hider, contiguous out to a lit patch. Then (owner, 2026-11-22): "and if the player
   is outside the cone of vision they cannot be seen" - strict: no sight check finds a hider outside the drawn cone.
-  *Built (#9, glances):* the sweep is retired (search_sweep_* gone; SearchSweep / SweepAngle out of
+  *Built 0.99.125 (#9, glances):* the sweep is retired (search_sweep_* gone; SearchSweep / SweepAngle out of
   rules/cone_slices). A searching enemy keeps `search_cone` (now 90, the calm width) on its real facing, drawn and
   cut as the calm one, and glances while it stands still (300 ms): SetFacing at once, outside its action queue, by
   `search_glance_min_degrees` .. `_max_degrees` (45-90) - the first glance toward where it last heard the hider when
@@ -6006,7 +6006,7 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   undrawn, search_cone on its facing). Only while a player character hides, within 40 m. The log: "glances (toward
   where it heard you / about) - facing a -> b, holds n s" (300 lines), "stands but doesn't glance - busy (action
   n)" (20).
-  *Built (#9, light shortens the cones):* with `cone_light` (on; with cone_walls and stealth_light) each slice
+  *Built 0.99.125 (#9, light shortens the cones):* with `cone_light` (on; with cone_walls and stealth_light) each slice
   reaches only to the farthest point along it where this guard could spot a hider - ground in dim light or brighter
   by the light estimate the rules and the light gem use (the same sources and reaches: lit placeables by their own
   reach, tile flames 7.5 / 4 m, light effects 153-180 at their radius, each with a clear line from the light to the
@@ -6025,7 +6025,7 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   detectability"); outside it, safe. A guard not drawn (beyond the nearest stealth_rings) keeps the old light rule
   (darkness unseen but for darkvision). Logged: "lights for the cones - n within 60 m, the area's own light l"
   when they change (20 lines), and the launch line.
-  *Built (#9, outside the cone never seen):* every sight check of a hider finds it only inside the observer's cone
+  *Built 0.99.125 (#9, outside the cone never seen):* every sight check of a hider finds it only inside the observer's cone
   as drawn - cut at walls, shortened by light; for a guard not drawn, its cone's angle (vision_cone, or search_cone
   for a searching one) on its facing - calm or searching, in combat or not (rules::HiderSeen, tested: no input
   outside the cone finds). Up close (B: in front within 2 m, a clear line) finds only where that spot is inside the
