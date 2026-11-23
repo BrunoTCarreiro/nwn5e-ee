@@ -7067,6 +7067,58 @@ with Total Cover out of a cone's or line's area. The picture's flames still pass
 collide only with the ground plane. Sliced looks, sub-cones with pre-built reaches picked at cast time as the vision cones
 do, wait for the look pass on the cone and line spells: #184.
 
+**#184, the particle mask.** The research spike (owner, 2026-11-23: "is there a way to make a "mask" effect? an effect
+that makes particles from other effects disappear", then "run the research spike now") found a mask in place of the
+slices: an emitter whose texture is a material of nwn5e's draws with `fsn5pmask.shd`, the game's own particle fragment
+shader (`fsparticle.shd`, read from the player's game at build time) with a mask added, and the mask reads EE's
+per-player scriptable uniforms (`SetShaderUniformVec`). Proved by `!maskproof` (0.99.129, `[debug] mask_proof`; MP-1).
+*Decided (owner, 2026-11-23):* "maskproof seems good!"; then "how does this combine with damage? for example a bookcase
+eventually breaking from damage, will that remove the maska s well?"; then "wire it, lets test it out". The walls
+(owner, the same day: "regarding walls and other tileset obstacles, can you figure out where they are and use some sort
+of an invisible mesh in the spell itself to simulate the barrier?"): a mesh in the spell would mask from the camera,
+and particles don't collide, so they're measured as the vision cones' are.
+*Built (branch `mask`, parts 1-5):*
+- **The mask** (`rules/particle_mask.h`, `tools/data/particle_mask.js`): a fragment within the reach of the point of
+  origin is dropped when it lies past the wall in its direction, or the line from the origin to it passes through a
+  placeable's box (the cover rule's own line). The 16 uniforms: the origin and reach; the ring - 32 directions' wall
+  nearness (1 / (metres + 0.25)), taken in proportion between the two either side; four boxes, 7 numbers each back to
+  back (two whole vectors a box held only three). Past the reach, nothing is dropped. The walls: the engine's sight
+  line (`CNWSArea::ClearLineOfSight`: the tileset's walls, shut doors) in each direction at the origin's height over
+  the ground (held to 0.5-2 m: a falling column's top is measured near the ground), the area's edge a wall. The boxes:
+  the four that hide the most from the origin (the widest angle across them).
+- **The looks** (`tools/data/spell_mask.js`, built from the player's game, nothing of it committed): 34 copies of the
+  area spells' effect models (`n5k_*`: every emitter's texture named as a masked material `n5x_*.mtr`, the model
+  renamed, every other byte the game's) - the cones (Burning Hands, Color Spray, Dragon's Breath's acid, cold, fire and
+  poison exhales; NWN's Cone of Cold, Prismatic Spray), the bursts (Thunderwave's and Shatter's sound burst, Ice Knife's
+  frost; NWN's Fireball, Ice Storm, Fire Storm, Meteor Swarm, Sunburst, Sunbeam, Flame Strike), the lasting areas (Fog
+  Cloud, Entangle, Grease; NWN's Cloudkill, Stinking Cloud, Incendiary Cloud, Web) and their low-quality models. With no
+  mask set a copy draws as the game's. The rows that name them (`data/rows/*.if_spellmask.txt`): the cones' spells.2da
+  rows; visualeffects 4200-4209 and vfx_persistent 120-123, copies of the game's rows, handed to the spell's script in
+  place of the game's effect (`EffectVisualEffect` / `EffectAreaOfEffect`, swapped while its impact script runs); nwn5e's
+  own areas' rows (105-115) name the copies. The originals stay for everything else. Not masked: Lightning Bolt (a
+  beam), Ice Storm's and Meteor Swarm's thrown chunks (meshes), Delayed Blast Fireball and Storm of Vengeance (their
+  looks are their areas' scripts'), Sleep and Faerie Fire (their looks are on the creatures).
+- **When** (`core/spell_mask.cpp`, `rules/spell_masks.h`): a cone's as its cast begins (its look plays with the cast),
+  from the caster's eyes; a burst's or a falling column's as its impact script starts; a lasting area's once its area
+  object is there, held while it lasts; Ice Knife's burst from the creature it struck. The origin is the area code's
+  (the cover rule's: the caster's eyes, 1 m over a sphere's point, a falling column's top, Thunderwave's cube face); the
+  reach the area's size and 3 m. Held for its look's time (4-7 s), then cleared.
+- **To whom:** every player character in the area (the uniforms are each client's own), reconciled four times a second
+  while any mask is up - a player arriving gets it, one leaving loses it. Overlapping: a client shows the newest mask
+  up in its area; an older one still up comes back when the newer ends. While a burst's mask shows, a Fog Cloud's
+  particles within the burst's reach are masked by the burst's walls and boxes, those past it whole, for the burst's
+  few seconds.
+- **Breaking:** an instant spell reads its obstacles as it takes effect - a bookcase its own blast broke still masks it
+  and still shields the creatures behind it (that order is the rule's: the area is decided as the spell takes effect).
+  Cover drops a broken placeable on the next server frame (after the spell resolving: `CoverPlaceableBroken`, from
+  the destruction hook), not 3 s later, so attacks, hiding and the cones stop counting it at once; a placeable destroyed
+  outright blocks nothing once it's gone. A lasting area's mask re-reads its boxes then (and every second) and is
+  re-sent when they changed: a Fog Cloud fills in behind a bookcase that broke.
+- **Off switch:** `spell_mask=1` in `[rules]` (faithful; the rows served only when the shader and every copy they name
+  were built). `[debug] mask_proof` and `!maskproof` stay for diagnosis, through the same registry. The log: "spell
+  masks: on ...", each mask's set ("spell mask: set for Fireball (58) from 0x..., as it took effect - origin ..., reach
+  ...; walls in n of 32 directions ...; n box(es) ..."), its clear, a script's swap and a re-send.
+
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms
 for a blind, stunned or prone target, an invisible attacker and an unseen

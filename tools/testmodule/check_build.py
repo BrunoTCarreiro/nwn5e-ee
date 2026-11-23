@@ -68,7 +68,8 @@ else:
     obstacles += [(d["TemplateResRef"][1], d["X"][1], d["Y"][1]) for d in hall["Door List"][1]]
     braziers = [(p["X"][1], p["Y"][1]) for p in hall["Placeable List"][1] if p["TemplateResRef"][1] == "plc_brazier"]
     cover = [w for w in hall["WaypointList"][1] if w["Tag"][1].startswith("n5test_cast_cover_")]
-    check("the hall: 12 cover marks", len(cover) == 12, [w["Tag"][1] for w in cover])
+    # (#184: the 13th, "breakable" - a bookcase that isn't plot, among the lower hall's pillars, to break under a spell.)
+    check("the hall: 13 cover marks", len(cover) == 13, [w["Tag"][1] for w in cover])
     import math
     for w in cover:
         tag, x, y = w["Tag"][1], w["XPosition"][1], w["YPosition"][1]

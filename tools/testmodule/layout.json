@@ -58,6 +58,8 @@
         {"template": "x2_plc_bcrate1", "x": 44, "y": 19, "bearing": 15, "plot": 1},
         {"template": "x2_plc_bcrate1", "x": 46, "y": 21, "bearing": 45, "plot": 1},
         {"template": "x2_plc_bcrate1", "x": 45, "y": 17.5, "bearing": 75, "plot": 1},
+        {"template": "plc_bookshelf", "x": 38.25, "y": 20, "bearing": 90, "plot": 0},
+        {"template": "plc_brazier", "x": 36, "y": 23, "bearing": 0},
         {"template": "plc_statue1", "x": 10.25, "y": 44, "bearing": 0, "plot": 1},
         {"template": "plc_brazier", "x": 10.25, "y": 47, "bearing": 0},
         {"template": "plc_bookshelf", "x": 30.25, "y": 44, "bearing": 90, "plot": 1},
@@ -97,7 +99,8 @@
         {"tag": "n5test_cast_cover_portcullis", "name": "Cover mark: portcullis", "x": 48, "y": 66, "facing": 0},
         {"tag": "n5test_cast_cover_table_dim", "name": "Cover mark: table dim", "x": 8, "y": 77, "facing": 0},
         {"tag": "n5test_cast_cover_crate", "name": "Cover mark: crate", "x": 28, "y": 77, "facing": 0},
-        {"tag": "n5test_cast_cover_barrel", "name": "Cover mark: barrel", "x": 48, "y": 77, "facing": 0}
+        {"tag": "n5test_cast_cover_barrel", "name": "Cover mark: barrel", "x": 48, "y": 77, "facing": 0},
+        {"tag": "n5test_cast_cover_breakable", "name": "Cover mark: breakable bookcase", "x": 36, "y": 20, "facing": 0}
       ]
     },
     {

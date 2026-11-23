@@ -46,6 +46,8 @@ In the game: **New Game → Other Modules → nwn5e Test Grounds**.
     narrow: your shoulders show). Standing there: none (a 0.9 m table covers up to about 0.85 m of you - just under
     half).
   - door_open, portcullis: no cover (the session of 2026-11-23: clear).
+  - breakable (#184): in the lower hall among the pillars, a bookcase that isn't plot (15 HP) - to break under a spell
+    or a weapon: cover from it drops at once, and a lasting spell's look (a Fog Cloud) fills in behind it.
 - The Spell & Attack Bench's Play in game stands you on the area's mark first.
 
 ## Change it
