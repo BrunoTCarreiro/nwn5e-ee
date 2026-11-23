@@ -157,6 +157,16 @@ quoted here, as in PLAN.md.
   blade in the three drafts, and build_derived.js builds the three models with it at build time over the committed
   generated-blade fallback (the game's geometry never committed). The Composer's parts gained Blend (Normal, Additive) for
   it - the stage, Play in game and Save and build honouring it.
+  *Texture (the owner, 2026-11-23, on the brass texture times the blue tint reading blue-green: "cas we just use the mesh,
+  change the texture to something white and tint that?" - answered yes, with a per-part Texture choice and Greyscale as
+  the sword's, keeping the detail):* a Composer part's Texture - Own (as before; never written), Greyscale (each texture's
+  copy with its colour removed - Rec. 601 luminance, its alpha kept - an n5l_ copy with greyscale in its hash, a TGA
+  whatever the source, its TXI the source's lines minus decal, plus "blending additive" when Additive) or White (our own
+  plain white, n5s_ names; a white copy with the source's alpha only where the alpha shapes the mesh - w_metal_tex's is an
+  environment map's shine, so the sword's White would be the plain one). It combines with Blend: Additive + Greyscale is
+  the spectral look. A dyed part may be White, not Greyscale (its bake has no copy key). The card, the stage, Play in
+  game and Save and build honour it; built from the player's game, never committed. The sword now Greyscale, tint
+  0.6 0.8 1, Additive.
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 

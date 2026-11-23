@@ -2418,6 +2418,14 @@ monster AC by CR.
         axe), built under its own names (n5_sw<code>_idle...) with rows of its own beside 4180 / 4182 and projectiles
         beside 1279; the game side then picks the row by the look chosen. `--look sword --saved <the bench's saved>`
         writes the look's drafts (n5_sws_idle, _fly, _hit) for the bench's Yours tab.
+    - *Decided (owner, 2026-11-23):* the sword's colour. On the brass texture times the blue tint reading blue-green: "cas
+      we just use the mesh, change the texture to something white and tint that?" - answered yes, with a per-part Texture
+      choice for the Composer's parts and Greyscale as the sword's, keeping the metal's detail.
+    - *Built (Texture: Own, Greyscale, White):* see TOOLS-PLAN.md. The sword (tools/data/composer/swpsword.json) is now
+      Texture Greyscale, tinted a clean pale spectral blue (0.6 0.8 1), Blend Additive: its grey copy of w_metal_tex
+      (n5l_964217b999f6, luminance, the shine alpha kept, "blending additive"), built from the player's game with the
+      three Spiritual Weapon models at build time, as before. On the stage it reads pale blue-white, the blade's grain,
+      the banded grip and the crossguard kept in grey under the tint.
     - *Decided (owner, 2026-11-22):* Heat Metal's rework. The owner on S2-25b: "the axe becomes on fire (the vfx need
       to be adjusted so the weapon just glows red) but isn't visually dropped. Ah, a second time it was put away but the
       orc immediately brought it back out AND attacked the same turn so testing S2-26b is very hard as they orc equips

@@ -265,9 +265,9 @@ check("looks: the sword the default look, its own names n5_sws_*, the blade the 
 {
   const proj = JSON.parse(lf(path.join(ROOT, "tools", "data", "composer", "swpsword.json")));
   const part = proj.variants[0].parts[0];
-  check("looks: the sword's project - shortsword 012's three pieces named, upright, about 0.9 m, tinted blue, Additive",
+  check("looks: the sword's project - shortsword 012's three pieces named, upright, about 0.9 m, its texture greyscale, tinted pale blue, Additive",
     proj.kind === "spellmesh" && proj.name === "swpsword" && proj.variants.length === 1 && part.model.join() === "wswss_b_012,wswss_m_012,wswss_t_012" &&
-    part.tilt.join() === "90,0" && part.scale === 1.2 && part.blend === "additive" && part.tint[2] === 1 && part.tint[0] < part.tint[1] && part.tint[1] < 1);
+    part.tilt.join() === "90,0" && part.scale === 1.2 && part.blend === "additive" && part.texture === "greyscale" && part.tint[2] === 1 && part.tint[0] < part.tint[1] && part.tint[1] < 1);
 }
 // build_derived.js builds it: the Spiritual Weapon's default look a generator of its own.
 {

@@ -5,7 +5,7 @@
     "throws or a mesh beat in an effect.",
     "#39's Spiritual Weapon (the owner, 2026-11-23: \"for these effects can I pick an existing weapon mesh instead of using a custom one?\",",
     "then \"set it up and make 1 handed swords the first weapon, you can pick one at random\"): shortsword 012 of the game's 99 one-handed",
-    "swords, drawn by a random draw; standing upright, point up, about 0.9 m, tinted blue, added light and self-lit (Blend:",
+    "swords, drawn by a random draw; standing upright, point up, about 0.9 m, its texture Greyscale and tinted pale blue, added light and self-lit (Blend:",
     "Additive). tools/data/spiritweapon/build.js turns it into the force's three effects at build time - nothing of the game's is kept here."
   ],
   "kind": "spellmesh",
@@ -13,7 +13,7 @@
   "guide": { "shape": "circle", "diameter": 0.5, "height": 0 },
   "variants": [
     { "name": "1", "parts": [
-      { "note": "shortsword 012, upright, point up", "model": ["wswss_b_012", "wswss_m_012", "wswss_t_012"], "at": [0, 0, 0], "scale": 1.2, "tilt": [90, 0], "tint": [0.45, 0.7, 1], "blend": "additive" }
+      { "note": "shortsword 012, upright, point up", "model": ["wswss_b_012", "wswss_m_012", "wswss_t_012"], "at": [0, 0, 0], "scale": 1.2, "tilt": [90, 0], "tint": [0.6, 0.8, 1], "texture": "greyscale", "blend": "additive" }
     ] }
   ]
 }
