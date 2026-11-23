@@ -29,6 +29,14 @@ One module, **nwn5e Test Grounds** (`n5test.mod`), with three areas:
    - two rows of pillars down its length, and two groups of crates (plot, so they don't break), for obstacles, line of
      sight and cover;
    - a cast mark 11 m in from the west wall facing east.
+   - The cover zone (#166's research step, 2026-11-23: "fix the hall map to have more obstacles that will allow the
+     testing of the cones with different covers"): the hall grew north to 6 by 9 tiles; past its old north wall,
+     twelve stations in three columns (marks at x 8, 28, 48) and four rows (y 44, 55, 66, 77). Each: a mark
+     `n5test_cast_cover_<name>` facing east, its obstacle 2.25 m ahead, a brazier 3 m beside the obstacle (the mark
+     bright; the dim table's 8.3 m off), and room for a guard 5 m ahead (`!spawn nw_orcb`, facing the mark through
+     the obstacle). The obstacles are base blueprints, plot: a statue, a bookshelf, a broken pillar, a table, a
+     bench, rubble, a wooden door shut and one open, a portcullis shut (free-standing generic doors), the table
+     again in dim light, a crate and a barrel. The layout's checks prove each station's spacing and light.
 3. **The Dark Wing** (dungeon, `tde01`; the mines tileset `tdm01` builds no plain rooms):
    - one floored room inside walls, 4 by 7 tiles (a long room, so formations fit round its mark);
    - no light at all: the tiles' main and source lights off, the ambient and diffuse colours black, the area flagged

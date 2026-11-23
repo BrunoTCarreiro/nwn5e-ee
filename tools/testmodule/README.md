@@ -6,7 +6,7 @@ A module for repeatable tests: the same light, the same ground and the same dist
 | Area | Tileset | What it's for |
 |---|---|---|
 | **The Field** | rural (`ttr01`) | Flat grass, always day, bright sun. Flags 10, 20 and 30 m ahead of the mark. |
-| **The Hall** | castle interior (`tic01`) | A lit stone hall: two rows of pillars, two groups of crates, four braziers. |
+| **The Hall** | castle interior (`tic01`) | A lit stone hall: two rows of pillars, two groups of crates, four braziers; past them the cover zone (#166): twelve obstacles to look through. |
 | **The Dark Wing** | dungeon (`tde01`) | A long room with no light at all, for light-based stealth and light spells. |
 
 Each area has a cast mark: a waypoint tagged `n5test_cast_field`, `n5test_cast_hall` or `n5test_cast_dark`. The module
@@ -31,6 +31,10 @@ In the game: **New Game → Other Modules → nwn5e Test Grounds**.
 - `!test` profiles and `!spawn` work there as anywhere.
 - `!go field`, `!go hall` and `!go dark` jump to a mark.
 - `!reset` clears the spawns and puts you back on the mark. These two commands are the game session's.
+- The Hall's cover zone (#166): `!go cover_<name>` stands you on a cover mark, its obstacle 2.25 m ahead; `!spawn
+  nw_orcb` puts a guard 5 m ahead, beyond the obstacle, facing you; `!los` says which points of your body its sight
+  line reaches. The names: statue, bookcase, brokenpillar, table, bench, rubble, door_closed, door_open, portcullis,
+  table_dim (the table in dim light), crate, barrel.
 - The Spell & Attack Bench's Play in game stands you on the area's mark first.
 
 ## Change it
@@ -38,7 +42,7 @@ In the game: **New Game → Other Modules → nwn5e Test Grounds**.
 - Edit `layout.json`:
   - the areas' corner grids (one letter a corner, row 0 the south, 10 m a tile);
   - their light;
-  - their placeables (any base blueprint resref);
+  - their placeables (any base blueprint resref) and free-standing doors (a door blueprint, shut or `"open": 1`);
   - their marks.
 - Then rebuild.
 - `python -I tools/testmodule/check.py` runs the checks.

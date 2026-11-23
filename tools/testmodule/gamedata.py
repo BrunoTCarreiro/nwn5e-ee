@@ -5,8 +5,8 @@
 import os
 import struct
 
-SET, UTP = 2013, 2044
-EXT = {SET: "set", UTP: "utp", 2012: "are", 2023: "git", 2014: "ifo"}
+SET, UTP, UTD = 2013, 2044, 2042
+EXT = {SET: "set", UTP: "utp", UTD: "utd", 2012: "are", 2023: "git", 2014: "ifo"}
 CANDIDATES = [r"X:\SteamLibrary\steamapps\common\Neverwinter Nights",
               r"C:\Program Files (x86)\Steam\steamapps\common\Neverwinter Nights"]
 

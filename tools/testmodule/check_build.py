@@ -49,6 +49,7 @@ else:
         check("%s: its cast mark" % area, marks[area] in tags, tags)
         gic = gffjson.read_gff(entries[(area, 2046)])["root"]
         check("%s: a comment for each placeable" % area, len(gic["Placeable List"][1]) == len(git["Placeable List"][1]))
+        check("%s: a comment for each door" % area, len(gic["Door List"][1]) == len(git["Door List"][1]))
     dark = gffjson.read_gff(entries[("n5test_dark", 2012)])["root"]
     lights = [t[k][1] for t in dark["Tile_List"][1] for k in ("Tile_MainLight1", "Tile_MainLight2", "Tile_SrcLight1", "Tile_SrcLight2")]
     check("the dark wing: every tile light off", set(lights) == {0}, sorted(set(lights)))
@@ -56,7 +57,38 @@ else:
                                                                                 "MoonAmbientColor", "MoonDiffuseColor")))
     hall = gffjson.read_gff(entries[("n5test_hall", 2023)])["root"]
     templates = sorted({p["TemplateResRef"][1] for p in hall["Placeable List"][1]})
-    check("the hall: pillars, crates and braziers", templates == ["plc_brazier", "plc_pillar1", "x2_plc_bcrate1"], templates)
+    check("the hall: pillars, crates and braziers", {"plc_brazier", "plc_pillar1", "x2_plc_bcrate1"} <= set(templates),
+          templates)
+    # #166's cover zone (the research step; owner, 2026-11-23: "fix the hall map to have more obstacles that will allow
+    # the testing of the cones with different covers"): each cover mark faces its obstacle 2-2.5 m ahead; !spawn nw_orcb
+    # stands a guard 5 m ahead, beyond it, facing the mark. Lit (a brazier within 4 m of the mark) but the dim one (4-9
+    # m); no other mark in a guard's 90-degree cone within 20 m; its name fits !go (20 characters).
+    obstacles = [(p["TemplateResRef"][1], p["X"][1], p["Y"][1]) for p in hall["Placeable List"][1]
+                 if p["TemplateResRef"][1] not in ("plc_brazier",)]
+    obstacles += [(d["TemplateResRef"][1], d["X"][1], d["Y"][1]) for d in hall["Door List"][1]]
+    braziers = [(p["X"][1], p["Y"][1]) for p in hall["Placeable List"][1] if p["TemplateResRef"][1] == "plc_brazier"]
+    cover = [w for w in hall["WaypointList"][1] if w["Tag"][1].startswith("n5test_cast_cover_")]
+    check("the hall: 12 cover marks", len(cover) == 12, [w["Tag"][1] for w in cover])
+    import math
+    for w in cover:
+        tag, x, y = w["Tag"][1], w["XPosition"][1], w["YPosition"][1]
+        fx, fy = w["XOrientation"][1], w["YOrientation"][1]
+        ahead = [o for o in obstacles if 2.0 <= (o[1] - x) * fx + (o[2] - y) * fy <= 2.5
+                 and abs(-(o[1] - x) * fy + (o[2] - y) * fx) <= 0.3]
+        check("%s: its obstacle 2-2.5 m ahead" % tag, len(ahead) == 1, ahead)
+        near = min(math.hypot(bx - x, by - y) for bx, by in braziers)
+        dim = tag.endswith("_dim")
+        check("%s: %s (the nearest brazier %.1f m)" % (tag, "dim" if dim else "bright", near),
+              (4.0 < near <= 9.0) if dim else near <= 4.0)
+        gx, gy = x + 5 * fx, y + 5 * fy  # its guard, facing the mark
+        seen = [o["Tag"][1] for o in cover if o is not w and math.hypot(o["XPosition"][1] - gx, o["YPosition"][1] - gy) <= 20
+                and ((o["XPosition"][1] - gx) * -fx + (o["YPosition"][1] - gy) * -fy) >=
+                math.cos(math.radians(45)) * math.hypot(o["XPosition"][1] - gx, o["YPosition"][1] - gy)]
+        check("%s: its guard's cone holds no other mark" % tag, not seen, seen)
+        check("%s: a name !go takes" % tag, len(tag) - len("n5test_cast_") <= 20)
+    doors = [(d["TemplateResRef"][1], d["AnimationState"][1]) for d in hall["Door List"][1]]
+    check("the hall: a wooden door shut, one open, a portcullis shut",
+          sorted(doors) == [("nw_door_grate", 0), ("nw_door_normal", 0), ("nw_door_normal", 1)], doors)
     fac = gffjson.read_gff(entries[("repute", 2038)])["root"]
     names = [f["FactionName"][1] for f in fac["FactionList"][1]]
     check("repute.fac has PC, Hostile, Commoner, Merchant, Defender", names == ["PC", "Hostile", "Commoner", "Merchant", "Defender"], names)

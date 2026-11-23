@@ -6828,6 +6828,20 @@ shoulder, right shoulder clear"; the catalogue's test_commands.los_*, generated)
 ("los: ..."). And the cones' log says what cut a slice: "stealth watch: 0x... slice n (+d degrees) cut at L m by
 placeable plc_bookshelf 'Bookshelf' - no hit point" or "by the tileset - hit x m out, h m over its feet", when it
 changes for a creature's slice (80 lines at most).
+*Built (#166 part 2's cover zone, tools/testmodule):* the Test Grounds' hall grew north to 6 x 9 tiles, and past its
+old north wall twelve cover stations, three columns (marks at x 8 / 28 / 48) by four rows (y 44 / 55 / 66 / 77):
+a mark `n5test_cast_cover_<name>` facing east (`!go cover_<name>`, no rebuild of the DLL), its obstacle 2.25 m
+ahead, a brazier 3 m beside the obstacle (the mark bright, so light doesn't shorten the cones), room for a guard 5
+m ahead (`!spawn nw_orcb`: beyond the obstacle, facing the mark) and no other mark in that guard's cone. The
+obstacles, base blueprints, plot (heights measured from their models' meshes, roughly): statue plc_statue1 (2.8 m,
+1.2 m wide), bookcase plc_bookshelf (2.5 m, 2 m wide, turned across the line), brokenpillar x0_brokenpillar (1.6 m,
+0.85 m wide: chest-high), table plc_table (0.9 m, 2 m wide, open below its top), bench plc_bench (0.5 m), rubble
+plc_rubble (0.5 m, 1.9 m wide), door_closed and door_open (nw_door_normal, the generic wooden door, BlockSight 1;
+free-standing - build.py now places doors, shut or open), portcullis (nw_door_grate shut, BlockSight 0),
+table_dim (the table again, its nearest brazier 8.3 m off: dim light), crate x2_plc_bcrate1 (1.0 m) and barrel
+plc_barrel (0.9 m). Not done: a tileset's own furniture or low-wall mesh - the tiler places terrain tiles only (no
+feature tiles yet). check_build.py proves each station: its obstacle 2-2.5 m ahead, bright (dim for the dim one),
+no other mark in its guard's 90-degree cone within 20 m, a name !go takes.
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms

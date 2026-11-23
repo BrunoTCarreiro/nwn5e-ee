@@ -1,6 +1,6 @@
 # Builds nwn5e Test Grounds (n5test.mod; #156, docs/superpowers/specs/2026-11-10-test-module-design.md) from layout.json:
-# each area's .are (its tiles from the auto-tiler, its light), .git (placeables from the game's own blueprints, the cast
-# marks) and .gic, module.ifo and the standard factions' repute.fac, packed as an ERF. The game's tilesets and blueprints
+# each area's .are (its tiles from the auto-tiler, its light), .git (placeables and free-standing doors from the game's
+# own blueprints - a door open or shut, #166's cover zone - the cast marks) and .gic, module.ifo and the standard factions' repute.fac, packed as an ERF. The game's tilesets and blueprints
 # are read from the install at build time; nothing of the game's is in the repo.
 #   python -I tools/testmodule/build.py [--game DIR] [--layout FILE] [--out FILE]
 import argparse
@@ -85,6 +85,25 @@ def placeable(game, p):
     return out
 
 
+def door(game, d):
+    """A free-standing door from the game's own .utd (a generic door: its GenericType), shut or open."""
+    raw = game.resource(d["template"], gamedata.UTD)
+    if raw is None:
+        raise ValueError("no door blueprint " + d["template"] + " in the game")
+    root = gffjson.read_gff(raw)["root"]
+    out = {"__struct_id": 8}
+    for key, value in root.items():
+        if key != "__struct_id" and key not in BLUEPRINT_ONLY:
+            out[key] = value
+    out["TemplateResRef"] = [11, d["template"]]
+    out.update({"X": [8, float(d["x"])], "Y": [8, float(d["y"])], "Z": [8, 0.0],
+                "Bearing": [8, math.radians(d.get("bearing", 0))], "LinkedTo": [10, ""], "LinkedToFlags": [0, 0],
+                "AnimationState": [0, 1 if d.get("open") else 0]})
+    if "plot" in d:
+        out["Plot"] = [0, int(d["plot"])]
+    return out
+
+
 def waypoint(w):
     a = math.radians(w["facing"])
     return {"__struct_id": 5, "Appearance": [0, 1], "LinkedTo": [10, ""], "TemplateResRef": [11, "nw_waypoint001"],
@@ -94,8 +113,8 @@ def waypoint(w):
             "XOrientation": [8, round(math.cos(a), 6)], "YOrientation": [8, round(math.sin(a), 6)]}
 
 
-def lists(placeables, waypoints):
-    return {"Creature List": [15, []], "Door List": [15, []], "Encounter List": [15, []], "List": [15, []],
+def lists(placeables, waypoints, doors=()):
+    return {"Creature List": [15, []], "Door List": [15, list(doors)], "Encounter List": [15, []], "List": [15, []],
             "SoundList": [15, []], "StoreList": [15, []], "TriggerList": [15, []], "WaypointList": [15, waypoints],
             "Placeable List": [15, placeables]}
 
@@ -105,13 +124,15 @@ def git_file(game, area):
              "AmbientSndNitVol": [5, 0], "EnvAudio": [5, 0], "MusicBattle": [5, 0], "MusicDay": [5, 0],
              "MusicNight": [5, 0], "MusicDelay": [5, 0]}
     root = {"AreaProperties": [14, props]}
-    root.update(lists([placeable(game, p) for p in area["placeables"]], [waypoint(w) for w in area["waypoints"]]))
+    root.update(lists([placeable(game, p) for p in area["placeables"]], [waypoint(w) for w in area["waypoints"]],
+                      [door(game, d) for d in area.get("doors", [])]))
     return gff("GIT ", root)
 
 
 def gic_file(area):
     return gff("GIC ", lists([{"__struct_id": 9, "Comment": [10, ""]} for _ in area["placeables"]],
-                             [{"__struct_id": 5, "Comment": [10, ""]} for _ in area["waypoints"]]))
+                             [{"__struct_id": 5, "Comment": [10, ""]} for _ in area["waypoints"]],
+                             [{"__struct_id": 8, "Comment": [10, ""]} for _ in area.get("doors", [])]))
 
 
 def ifo_file(layout):
