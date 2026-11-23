@@ -6065,7 +6065,7 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   wider glances, to where it last heard the hider (within about 12 s) or scanning in place, a shout to hostile
   creatures within about 20 m, fading 12 s after the last harm.
   *Decided (owner, 2026-11-23):* "yes to both, go with your recommendations".
-  *Built (#9, the Hide's end; rules/hide_end.{h,cpp}, tested):* attack_ends_hiding=1 (faithful perception; 0 = NWN's
+  *Built 0.99.127 (#9, the Hide's end; rules/hide_end.{h,cpp}, tested):* attack_ends_hiding=1 (faithful perception; 0 = NWN's
   own - stealth mode ends as a swing or any cast starts). rules::HideAfterAct: an attack roll ends the hide right
   after it; a cast with a Verbal component (spells.2da VS) ends it right after the cast; one without, or one flagged
   as cast without its Verbal component (CastWithoutVerbal - Subtle Spell's hook, false until Subtle Spell exists),
@@ -6083,7 +6083,7 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   Grenades (#132) and non-Verbal casts keep the hide as before; so does a spell's later use, which isn't a cast
   (rules::SpellRowIsALaterUse: Spiritual Weapon's Strike - its attack roll still ends it - Flame Blade evoked again,
   Heat Metal's Again, a Dragon's Breath exhale). Not modelled: "a sound louder than a whisper".
-  *Built (#9, the emergency search; rules/emergency_search.{h,cpp}, tested; emergency_watch.cpp):* a damage listener
+  *Built 0.99.127 (#9, the emergency search; rules/emergency_search.{h,cpp}, tested; emergency_watch.cpp):* a damage listener
   (OnApplyDamage): damage to a creature - not a player's character - from a creature in stealth mode that it doesn't
   see, hostile to it (Heat Metal's Again, a moved Moonbeam or Flaming Sphere, Spiritual Weapon's Strike, a trap's
   damage naming the hider) starts or keeps up its emergency search: search mode (an active Perception roll in its
@@ -6905,7 +6905,7 @@ sight line and by the walk-blocking boxes (NoNonWalkPolysInDoors: doors only). T
 tileset's walls and shut doors; the statue, the bookcase and the pillar block nothing.
 *Decided (owner, 2026-11-23):* "A, and apply cover to all three" - nwn5e's own sight test against the placeables,
 and its cover in the cones and hiding, in attacks and in Dexterity saves.
-*Built (part 2a, the bounds table):* made at build time, nothing of the game's committed. tools/data/placeable_bounds.js,
+*Built 0.99.127 (part 2a, the bounds table):* made at build time, nothing of the game's committed. tools/data/placeable_bounds.js,
 from build_derived.js beside the one-burst step: each placeables.2da row's model (ModelName) read from the player's
 game (game_data.js's resources, as build_derived reads the rest) through mdlmesh --bounds (a new mode of
 tools/data/floatdisk/mdlmesh.cpp: every drawn mesh's vertices through its node's and its parents' positions and turns
@@ -6916,7 +6916,7 @@ rows naming no model in the game ("user", "os_reserved") counted on the last lin
 sight and cover; the walkmesh footprint is recorded only (the engine walks by it, sight doesn't). It needs
 NWN5E_TOOLS and Node at build time, as build_derived does; NWN5E_DERIVED=skip makes no table, and the DLL then logs
 it and gives no cover from objects.
-*Built (part 2b, nwn5e's sight test):* rules/cover_objects.{h,cpp} (tests CoverBoundsTableLines,
+*Built 0.99.127 (part 2b, nwn5e's sight test):* rules/cover_objects.{h,cpp} (tests CoverBoundsTableLines,
 CoverSegmentAgainstABox, CoverDegreesFromBlockedPoints): ParseBoundsLine, BoundsCount (0.3 m tall at least), BoxOf
 (the bounds scaled and turned so the model's +Y is the object's facing, at its place), SegmentHitsBox (a slab test
 in the box's frame), SegmentNearBox (the cull: the segment's bounds against the box's), PointInBox.
@@ -6930,14 +6930,14 @@ inside doesn't count (the looker's own table edge). The cost is capped at 50,000
 together (past it, lines count as clear for the rest of that second), the first second's cost logged once ("cover
 objects: in a second, n lines against the boxes - ... ms"). Config cover_objects=1 (faithful; 0 = NWN's sight only:
 walls and shut doors, cover only from creatures), nwn5e.ini.
-*Built (part 2c, the cover degree):* the six !los body points from the eyes (+1 m): 0-2 blocked none, 3-4 Half, 5
+*Built 0.99.127 (part 2c, the cover degree):* the six !los body points from the eyes (+1 m): 0-2 blocked none, 3-4 Half, 5
 Three-Quarters, 6 Total (rules::CoverFromBlocked); kept a second while neither moves. `!los` blocks a line on a
 placeable's box too (the log: "(its box: cover_objects)") and ends with the degree and what gives most of it: "los
 from Orc: ... - Total Cover (plc_bookshelf)", or "... - no cover" (test_commands.los_summary_cover / _no_cover,
 generated; the degrees cover.degree.*, the SRD's terms). What it means for low obstacles: five of the six points are
 at 1.0 m or higher, so anything under about 1 m - the table (0.9 m), the crate (0.97), the barrel, the bench, the
 rubble - blocks the feet at most and gives no cover wherever you stand (an open question, below).
-*Built (part 2d, the uses):* (a) The cones (stealth_watch.cpp): a slice's line (the eyes, +1 m, to 1 m over the
+*Built 0.99.127 (part 2d, the uses):* (a) The cones (stealth_watch.cpp): a slice's line (the eyes, +1 m, to 1 m over the
 ground) is cut by a box too; the cut log names it ("slice n (+d degrees) cut at 2.5 m by placeable plc_bookshelf
 '...' (its box: cover_objects) - hit 2.5 m out, 1.00 m over its feet"). (b) Hiding (rules_perception.cpp's
 Detection): behind Three-Quarters or Total Cover from the observer, a hider isn't seen by it - inside its cone or up
@@ -6961,7 +6961,7 @@ spell target location (CNWSObject +0x208, GetSpellTargetLocation's: Fireball), a
 their saves through scripts on the caster, so they follow the same. The lines start 1 m over the origin. Both told
 once a round ("nwn5e: Total Cover from the effect (<name>) - +5 to your Dexterity save." / "nwn5e: <target> has
 ...", generated), logged "cover: 0x... has ... from the spell's point ...".
-*Built (part 2e, the Test Grounds):* the cover stations stay; tools/testmodule/README.md gives each one's expected
+*Built 0.99.127 (part 2e, the Test Grounds):* the cover stations stay; tools/testmodule/README.md gives each one's expected
 cover from its guard: statue, bookcase, brokenpillar Total (all six points; the middle slices cut at about 2.2, 2.5
 and 2.3 m); door_closed Total (the engine's line); table, table_dim, bench, rubble, crate, barrel none (the feet at
 most); door_open, portcullis none. Rows CV3-*.
