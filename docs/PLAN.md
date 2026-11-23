@@ -6903,6 +6903,17 @@ spell target location (CNWSObject +0x208, GetSpellTargetLocation's: Fireball), a
 their saves through scripts on the caster, so they follow the same. The lines start 1 m over the origin. Both told
 once a round ("nwn5e: Total Cover from the effect (<name>) - +5 to your Dexterity save." / "nwn5e: <target> has
 ...", generated), logged "cover: 0x... has ... from the spell's point ...".
+*Built (part 2e, the Test Grounds):* the cover stations stay; tools/testmodule/README.md gives each one's expected
+cover from its guard: statue, bookcase, brokenpillar Total (all six points; the middle slices cut at about 2.2, 2.5
+and 2.3 m); door_closed Total (the engine's line); table, table_dim, bench, rubble, crate, barrel none (the feet at
+most); door_open, portcullis none. Rows CV3-*.
+*Open (the owner's):* (1) low obstacles - keep the six points (a waist-high table or crate gives no cover), or spread
+the points over the body's height so one right behind such an obstacle gives Half; (2) Total Cover in an area -
+SRD 5.2.1: "If all straight lines extending from the point of origin to a location in the area of effect are blocked,
+that location isn't included in the area of effect. To block a line, an obstruction must provide Total Cover." Here
+such a creature is still in the area (the engine's shapes see through placeables) and saves at +5; leaving it out
+would need the area scripts; (3) an AI attacker refused by Total Cover tries again each round (it
+doesn't move to find a line).
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms

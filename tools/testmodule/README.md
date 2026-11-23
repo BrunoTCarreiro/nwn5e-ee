@@ -33,8 +33,14 @@ In the game: **New Game → Other Modules → nwn5e Test Grounds**.
 - `!reset` clears the spawns and puts you back on the mark. These two commands are the game session's.
 - The Hall's cover zone (#166): `!go cover_<name>` stands you on a cover mark, its obstacle 2.25 m ahead; `!spawn
   nw_orcb` puts a guard 5 m ahead, beyond the obstacle, facing you; `!los` says which points of your body its sight
-  line reaches. The names: statue, bookcase, brokenpillar, table, bench, rubble, door_closed, door_open, portcullis,
-  table_dim (the table in dim light), crate, barrel.
+  line reaches and the cover it gives you. The names, with the cover a guard there sees you behind (cover_objects=1:
+  its eyes 1 m up to your six body points; 3-4 blocked Half, 5 Three-Quarters, 6 Total):
+  - statue, bookcase, brokenpillar: Total Cover - all six points blocked; the guard's middle slices cut at the
+    obstacle (about 2.2, 2.5 and 2.3 m).
+  - door_closed: Total Cover - the engine's own sight line (a shut door).
+  - table, table_dim (the table in dim light), bench, rubble, crate, barrel: no cover - at most your feet are blocked
+    (each is under 1 m tall, below the waist point); the slices aren't cut.
+  - door_open, portcullis: no cover (the session of 2026-11-23: clear).
 - The Spell & Attack Bench's Play in game stands you on the area's mark first.
 
 ## Change it
