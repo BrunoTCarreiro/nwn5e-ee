@@ -63,3 +63,6 @@ __pycache__/
 /data/files/px2_c10.mdl
 /data/files/px2_e01.mdl
 /data/files/px2_g02.mdl
+# The particle mask's shader (#184's spike; tools/data/particle_mask.js): the game's fsparticle.shd with nwn5e's mask
+# added, built from the player's own game - the game's shader text, so never committed:
+/data/files/fsn5pmask.shd

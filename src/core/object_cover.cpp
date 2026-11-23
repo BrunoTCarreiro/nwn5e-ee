@@ -21,7 +21,8 @@
 //   neither moves.
 // - Uses: !los (los_command.cpp), the cones' slices (stealth_watch.cpp), a hider behind Three-Quarters or Total Cover
 //   unseen (rules_perception.cpp), attacks' AC and Total Cover's refusal (rules_cover.cpp, action_order.cpp), and
-//   Dexterity saves from the effect's origin (here: SaveCoverBonus, from rules_save_roll.cpp).
+//   Dexterity saves from the effect's origin (here: SaveCoverBonus, from rules_save_roll.cpp); #184's spike: the
+//   boxes near a creature for !maskproof's particle mask (mask_proof.cpp, ObjectBoxesNear).
 
 #include "object_cover.h"
 
@@ -32,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <algorithm>
 #include <fstream>
 #include <map>
 #include <set>
@@ -353,6 +355,25 @@ bool CoverObjectsOn() {
 std::string ObjectName(uint32_t id) {
   const auto it = g_names.find(id);
   return it == g_names.end() ? "" : it->second;
+}
+
+std::vector<NearObjectBox> ObjectBoxesNear(void* creature, float metres) {
+  std::vector<NearObjectBox> out;
+  void* area = creature ? engine::AreaOf(creature) : nullptr;
+  if (!CoverObjectsOn() || !area) return out;
+  const float x = Field<float>(creature, ee::kObjectPositionX), y = Field<float>(creature, ee::kObjectPositionY);
+  for (const Box& box : BoxesOf(area, IdOf(creature))) {
+    const float d = hypotf(box.box.centre[0] - x, box.box.centre[1] - y);
+    if (d > metres) continue;
+    NearObjectBox found;  // not "near": windows.h's macro
+    found.id = box.id;
+    found.name = ObjectName(box.id);
+    found.box = box.box;
+    found.metres = d;
+    out.push_back(found);
+  }
+  std::sort(out.begin(), out.end(), [](const NearObjectBox& a, const NearObjectBox& b) { return a.metres < b.metres; });
+  return out;
 }
 
 bool ObjectsBlockLine(void* area, uint32_t self, const float a[3], const float b[3], uint32_t* blocker, float* t) {

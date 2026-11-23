@@ -51,6 +51,9 @@
 //   was, in the form the game has it (compiled, or ASCII for two) - written into --out under its own name, which nwn5e
 //   serves over the game's. Owned there by its name (only this makes them; the game's model fixes the bytes); git-ignored.
 //   One the game hasn't, or whose "dead" has no detonate now, is skipped and said.
+// - The particle mask's shader (#184's spike): fsn5pmask.shd, the game's own fsparticle.shd with nwn5e's mask added
+//   (particle_mask.js), written into --out under that name and owned there by it; git-ignored. Skipped, and said, when
+//   the game's text hasn't the anchors it needs.
 //
 // Exit codes: 0 done; 2 a prerequisite missing - nwn5e-tools, the game, the mesh reader - one line saying which and how
 // to fix it; 1 anything else (a refused build, rows that disagree, a file in the way). build.bat stops on either, unless
@@ -264,6 +267,15 @@ function main() {
     `doesn't have (placeholders) - ${CHECK ? "would write" : "written"} ${boundsFile}`);
   const ONE_BURST = new Set(O.MODELS.map((m) => m.toLowerCase() + ".mdl"));
   built.push({ gen: { label: "one burst", oneBurst: true }, files: burst.files.map((x) => ({ name: x.name, bytes: x.bytes })) });
+  // #184's spike: the particle mask's shader (tools/data/particle_mask.js) - the game's fsparticle.shd with nwn5e's mask
+  // added - as fsn5pmask.shd (data\files\n5_pmask.mtr names it; !maskproof tries it). Owned in --out by its name, as a
+  // one-burst copy is: only this makes it there, and the game's shader fixes the bytes. Skipped, and said, when the
+  // game's text hasn't its anchors (a game update): the build goes on, and !maskproof says the shader is missing.
+  const PM = require("./particle_mask.js");
+  const mask = PM.derive({ res });
+  say(`build_derived: particle mask (tools/data/particle_mask.js): ${mask.skipped ? "skipped - " + mask.skipped
+    : `${mask.name}, the game's ${PM.SOURCE}.shd with nwn5e's mask`}`);
+  if (!mask.skipped) built.push({ gen: { label: "particle mask", owns: new Set([mask.name.toLowerCase()]) }, files: [{ name: mask.name, bytes: mask.bytes }] });
 
   // The files into --out, under the generators' ownership rule: a model or .pwk carrying its generator's mark, a texture
   // its made.txt lists in data\files, a baked texture by its name (files.js's "baked"), a shape's soft texture - or an
@@ -284,6 +296,7 @@ function main() {
   const writes = [], byName = new Map();
   for (const { gen, files } of built) {
     const owned = gen.oneBurst ? (w) => ONE_BURST.has(path.basename(w.file).toLowerCase())
+      : gen.owns ? (w) => gen.owns.has(path.basename(w.file).toLowerCase())
       : W.ownership({ repo: REPO, manifest: gen.made, mark: gen.mark, kinds: { texture: (w) => gen.made.has("data/files/" + path.basename(w.file)),
         // (the Spiritual Weapon's: one of its three models, carrying the model writer's line for its own name)
         swpmodel: (w, old) => SWP_MODEL.test(path.basename(w.file)) && F.carriesMark(old, SWP_MARK + path.basename(w.file).replace(/\.mdl$/i, "")) } });
@@ -293,7 +306,7 @@ function main() {
         if (!had.bytes.equals(f.bytes)) throw new Error(`${f.name}: ${had.gen.label} and ${gen.label} both make it, differently`);
         continue;
       }
-      const kind = gen.oneBurst ? "oneburst" : gen.swp && SWP_MODEL.test(f.name) ? "swpmodel" : gen.mark && F.carriesMark(f.bytes, gen.mark) ? "text"
+      const kind = gen.oneBurst ? "oneburst" : gen.owns ? "byname" : gen.swp && SWP_MODEL.test(f.name) ? "swpmodel" : gen.mark && F.carriesMark(f.bytes, gen.mark) ? "text"
         : isBake(f.name) ? "baked" : isShape(f.name) ? "shape"
         : isMaterial(f.name) ? "material" : isCopy(f.name) ? "copy" : isShader(f.name) ? "shader" : "texture";
       const w = { file: path.join(OUT, f.name), bytes: f.bytes, kind, owned, gen };

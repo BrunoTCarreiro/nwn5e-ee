@@ -8,9 +8,11 @@
 #include <stdint.h>
 
 #include <string>
+#include <vector>
 
 #include "rules/area_origin.h"
 #include "rules/cover.h"
+#include "rules/cover_objects.h"
 #include "rules/los_probe.h"
 
 // The table read and the launch line (InstallPerceptionRules calls it).
@@ -23,6 +25,16 @@ bool CoverObjectsOn();
 bool ObjectsBlockLine(void* area, uint32_t self, const float a[3], const float b[3], uint32_t* blocker, float* t);
 // A placeable's resref as listed ("" when not known).
 std::string ObjectName(uint32_t id);
+
+// #184's spike (mask_proof.cpp): the placeables' boxes in `creature`'s area whose centres are within `metres` of it
+// across the ground, nearest first - the cover's own list. None when cover_objects is off.
+struct NearObjectBox {
+  uint32_t id = 0;
+  std::string name;
+  rules::ObjectBox box;
+  float metres = 0;
+};
+std::vector<NearObjectBox> ObjectBoxesNear(void* creature, float metres);
 
 // One body point's line: clear, or blocked by the engine's line (walls, shut doors: `blocker` kObjectInvalid) or by
 // a placeable's box (`object` true, `blocker` its id).

@@ -422,6 +422,7 @@ struct Config {
   bool debug_nui_test = false;           // NUI test: the test window opens when a player character arrives
   bool debug_client_nui_test = false;    // B1: nwn5e's client test window opens on the main menu
   bool debug_test_commands = false;      // !give <blueprint>, !feat add / remove: for testing
+  bool debug_mask_proof = false;         // #184's spike: !maskproof (with test_commands) - the particle mask's proof
 };
 
 extern Config g_config;

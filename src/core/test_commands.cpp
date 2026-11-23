@@ -135,6 +135,7 @@ bool SkillTotal2024(void* creature, int nwn_skill, int* total, int* ability_modi
                     bool* rage_strength);                         // rules_skills.cpp (#96)
 
 std::vector<std::string> LosCommand(void* creature, const std::string& args);  // los_command.cpp (#166)
+std::vector<std::string> MaskProofCommand(void* creature, const std::string& args);  // mask_proof.cpp (#184's spike)
 void BoostTestCreatureById(uint32_t id, bool ally);  // rules_debug.cpp (0.72.1 / 0.73.1: the test hit point floor)
 void ClearLongRestWait(void* creature);              // rules_rest.cpp (#135: a test's rest starts no wait)
 
@@ -1199,8 +1200,9 @@ void InstallTestCommands() {
   AddChatCommand("!go", &GoCommand);        // #156
   AddChatCommand("!reset", &ResetCommand);  // #156
   AddChatCommand("!los", &LosCommand);      // #166's research step
+  AddChatCommand("!maskproof", &MaskProofCommand);  // #184's spike (it says so while [debug] mask_proof is off)
   Log("config: [debug] test_commands=1 - !test [profile] (data\\tests), !give <blueprint>, !feat add / remove <feat>, "
       "!export, !spawn <blueprint> [ally | neutral], !prone [s], !save <ability> <dc>, !skill <skill> <dc>, !reflex <dc> <damage>, "
       "!level <n> [class], !time [hours], !fear [charm] [s], !go <field | hall | dark | cover_...>, !reset, !los [tag], "
-      "!castat <spell row> [self], !petrify");
+      "!castat <spell row> [self], !petrify, !maskproof [off] (with mask_proof=1)");
 }

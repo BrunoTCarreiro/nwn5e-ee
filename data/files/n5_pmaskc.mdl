@@ -1,0 +1,92 @@
+#MAXMODEL ASCII
+# nwn5e (#184's spike, !maskproof; written by hand): a ball of flames about 9 m across, from a point 1.2 m over its
+# spot, for 20 s - drawn through nwn5e's material n5_pmask (data\files\n5_pmask.mtr: the game's vsparticle and the
+# masked particle shader fsn5pmask, the game's flame texture fxpa_flame00 by name). The game's own texture and shader
+# are named, never copied.
+newmodel n5_pmaskc
+setsupermodel n5_pmaskc NULL
+classification effect
+setanimationscale 1
+beginmodelgeom n5_pmaskc
+node dummy n5_pmaskc
+  parent NULL
+endnode
+node emitter n5_pmaskc_fire
+  parent n5_pmaskc
+  p2p 0
+  p2p_sel 1
+  affectedByWind 0
+  m_isTinted 0
+  bounce 0
+  random 1
+  inherit 0
+  inheritvel 0
+  inherit_local 0
+  splat 0
+  inherit_part 0
+  renderorder 0
+  spawntype 0
+  update Fountain
+  render Normal
+  blend Additive
+  texture n5_pmask
+  xgrid 4
+  ygrid 4
+  loop 0
+  deadspace 0
+  twosidedtex 0
+  blastRadius 0
+  blastLength 0
+  position 0 0 1.2
+  orientation 0 0 0 0
+  colorStart 1 1 1
+  colorEnd 1 0.7 0.4
+  alphaStart 1
+  alphaEnd 0.2
+  sizeStart 0.6
+  sizeEnd 0.9
+  sizeStart_y 0
+  sizeEnd_y 0
+  frameStart 0
+  frameEnd 15
+  birthrate 250
+  lifeExp 1.5
+  mass 0
+  spread 6.28
+  particleRot 0
+  velocity 3
+  randvel 0.3
+  fps 12
+  xsize 0
+  ysize 0
+  bounce_co 0
+  blurlength 0
+  lightningDelay 0
+  lightningRadius 0
+  lightningScale 0
+  p2p_bezier2 0
+  p2p_bezier3 0
+  combinetime 0
+  drag 0
+  grav 0
+  threshold 0
+endnode
+endmodelgeom n5_pmaskc
+
+newanim impact n5_pmaskc
+  length 22
+  transtime 0
+  animroot n5_pmaskc
+node dummy n5_pmaskc
+  parent NULL
+endnode
+node emitter n5_pmaskc_fire
+  parent n5_pmaskc
+  birthratekey 3
+    0 250
+    20 250
+    20.01 0
+endnode
+doneanim impact n5_pmaskc
+
+donemodel n5_pmaskc

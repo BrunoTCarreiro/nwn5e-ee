@@ -771,6 +771,13 @@ test_commands.los_right_shoulder | generated | right shoulder
 test_commands.los_summary_cover | generated | nwn5e: los from {observer}: {points} - {cover} ({by})
 test_commands.los_summary_no_cover | generated | nwn5e: los from {observer}: {points} - no cover
 test_commands.spawn_away | generated | , its back to you
+# #184's research spike: !maskproof (core/mask_proof.cpp), the particle mask's proof ([debug] mask_proof=1).
+test_commands.maskproof_disabled | generated | nwn5e: !maskproof is off - set mask_proof=1 under [debug] in nwn5e.ini, then restart the game.
+test_commands.maskproof_usage | generated | nwn5e: !maskproof [off] - a ball of flames round you: those behind the nearest obstacle should vanish, a plain flame behind it should stay. !maskproof off turns the mask off.
+test_commands.maskproof_no_shader | generated | nwn5e: !maskproof - the masked particle shader (fsn5pmask.shd) wasn't built: build_derived's "particle mask" line says why.
+test_commands.maskproof_no_box | generated | nwn5e: !maskproof - no obstacle with a box within {metres} m (cover_objects=1 and the 2024 rules; !go cover_statue has one).
+test_commands.maskproof_on | generated | nwn5e: !maskproof - flames round you for 20 s: those behind {name} ({metres} m away) should vanish, and the plain flame just behind it stay. !maskproof off turns the mask off.
+test_commands.maskproof_cleared | generated | nwn5e: !maskproof off - the mask is off: flames still burning are whole again.
 # #39 Part 2, level 2, build 1a: Prayer of Healing's 10 minutes and its creatures; Mind Spike's knowledge.
 spells2024.takes_minutes_to_cast | generated | nwn5e: {spell_name} takes {minutes} minutes to cast - not in a fight.
 spells2024.prayer_of_healing_heals | generated | nwn5e: Prayer of Healing - {name} regains {healed} Hit Points.

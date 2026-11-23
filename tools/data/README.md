@@ -85,6 +85,12 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
 - **The one-burst models** (`oneburst.js`, "One burst" below): the game's 16 placeable models whose looping "dead"
   re-fires a detonate, each without it, under its own name - owned in `--out` by that name. It says how many, and which
   it skipped.
+- **The particle mask's shader** (`particle_mask.js`, #184's research spike): `fsn5pmask.shd`, the game's own particle
+  fragment shader (`fsparticle.shd`) with nwn5e's mask added before its `main` and one call before its last line -
+  nothing else changed (`node tools\data\check_particle_mask.js [--game <folder> --tools <nwn5e-tools>]` checks it,
+  the game's text back byte for byte once the added lines are out). Owned in `--out` by its name; git-ignored. The
+  material `data\files\n5_pmask.mtr` names it; `!maskproof` (`[debug] mask_proof=1`) tries it. Skipped, and said, when
+  the game's text hasn't one `void main` line and one `gl_FragColor = FragmentColor;` line.
 - **Spell meshes are skipped**, and it says so. Their drafts live in the VFX Bench's saved folder, and the dev layer
   writes their models when the game runs.
 - **A project never built is skipped**, and it says so. That's one with no `data\rows\placeables.<name>.txt` and no

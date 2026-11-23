@@ -1,0 +1,91 @@
+#MAXMODEL ASCII
+# nwn5e (#184's spike, !maskproof; written by hand): the control - a small flame column, like a torch's, for 20 s, drawn
+# with the game's own particle shader (its texture fxpa_flame00 named directly, no material): another effect's
+# particles, which the mask must leave alone. The game's own texture is named, never copied.
+newmodel n5_pmaskt
+setsupermodel n5_pmaskt NULL
+classification effect
+setanimationscale 1
+beginmodelgeom n5_pmaskt
+node dummy n5_pmaskt
+  parent NULL
+endnode
+node emitter n5_pmaskt_flame
+  parent n5_pmaskt
+  p2p 0
+  p2p_sel 1
+  affectedByWind 0
+  m_isTinted 0
+  bounce 0
+  random 1
+  inherit 0
+  inheritvel 0
+  inherit_local 0
+  splat 0
+  inherit_part 0
+  renderorder 0
+  spawntype 0
+  update Fountain
+  render Normal
+  blend Additive
+  texture fxpa_flame00
+  xgrid 4
+  ygrid 4
+  loop 0
+  deadspace 0
+  twosidedtex 0
+  blastRadius 0
+  blastLength 0
+  position 0 0 0.1
+  orientation 0 0 0 0
+  colorStart 1 1 1
+  colorEnd 1 0.6 0.3
+  alphaStart 1
+  alphaEnd 0
+  sizeStart 0.7
+  sizeEnd 0.3
+  sizeStart_y 0
+  sizeEnd_y 0
+  frameStart 0
+  frameEnd 15
+  birthrate 40
+  lifeExp 1.2
+  mass 0
+  spread 0.4
+  particleRot 0
+  velocity 1.2
+  randvel 0.2
+  fps 12
+  xsize 20
+  ysize 20
+  bounce_co 0
+  blurlength 0
+  lightningDelay 0
+  lightningRadius 0
+  lightningScale 0
+  p2p_bezier2 0
+  p2p_bezier3 0
+  combinetime 0
+  drag 0
+  grav 0
+  threshold 0
+endnode
+endmodelgeom n5_pmaskt
+
+newanim impact n5_pmaskt
+  length 22
+  transtime 0
+  animroot n5_pmaskt
+node dummy n5_pmaskt
+  parent NULL
+endnode
+node emitter n5_pmaskt_flame
+  parent n5_pmaskt
+  birthratekey 3
+    0 40
+    20 40
+    20.01 0
+endnode
+doneanim impact n5_pmaskt
+
+donemodel n5_pmaskt

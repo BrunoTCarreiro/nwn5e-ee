@@ -1,0 +1,10 @@
+# visualeffects.2da - #184's research spike (the owner, 2026-11-23: "is there a way to make a "mask" effect? an effect
+# that makes particles from other effects disappear", then "run the research spike now"): !maskproof's two effects
+# (core/mask_proof.cpp; [debug] test_commands and mask_proof). One-shot effects (F) the game session plays at a location
+# (ApplyEffectAtLocation), each nwn5e's own model (data\files) in all four root columns, flat (OrientWithGround 0):
+# - 1848 a ball of flames round the speaker through the masked particle shader (n5_pmaskc: its texture is the material
+#   n5_pmask);
+# - 1849 the control, a small flame column behind the obstacle through the game's own particle shader (n5_pmaskt).
+Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node
+1848 NWN5E_MASKPROOF_FIRE F 0 n5_pmaskc n5_pmaskc n5_pmaskc n5_pmaskc
+1849 NWN5E_MASKPROOF_PLAIN F 0 n5_pmaskt n5_pmaskt n5_pmaskt n5_pmaskt
