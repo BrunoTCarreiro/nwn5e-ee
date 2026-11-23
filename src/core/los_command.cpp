@@ -101,9 +101,11 @@ std::vector<std::string> LosCommand(void* creature, const std::string& args) {
     return {PlayerText("test_commands.los_usage")};
   }
   const uint32_t self = IdOf(creature);
-  // The observer: the creature tagged so, or the nearest enemy.
+  // The observer: the creature tagged so, or the nearest enemy - else the nearest creature (the owner, 2026-11-23, SM-5:
+  // "!los doesn't work here because the orc is neutral").
   const std::string find =
       tag.empty() ? "object o = GetNearestCreature(CREATURE_TYPE_REPUTATION, REPUTATION_TYPE_ENEMY);"
+                    "if (!GetIsObjectValid(o)) o = GetNearestObject(OBJECT_TYPE_CREATURE);"
                   : "object o = GetNearestObjectByTag(\"" + tag + "\"); if (GetObjectType(o) != OBJECT_TYPE_CREATURE) "
                                                                   "o = OBJECT_INVALID;";
   RunScriptChunk((find + "SetLocalString(OBJECT_SELF, \"nwn5e_los_o\", GetIsObjectValid(o) ? ObjectToString(o) : \"\");"

@@ -754,7 +754,7 @@ concentration.why_rest | generated | the rest outlasts it
 test_commands.spawn_usage | generated | nwn5e: !spawn <creature blueprint> [ally | neutral] [dr] [away] - e.g. !spawn nw_gntfrost (Frost Giant, Huge), nw_gnthill (Hill Giant, Large), nw_orcb (Orc); ally: as your henchman; neutral: not hostile (the commoners' faction); dr: damage reduction 10/+5; away: with its back to you (for stealth tests).
 test_commands.los_usage | generated | nwn5e: !los [tag] - the sight line from the nearest enemy (or the creature with that tag) to your feet, waist, chest, head and shoulders; the detail is in nwn5e.log.
 test_commands.los_none | generated | nwn5e: !los - no {tag} in this area.
-test_commands.los_an_enemy | generated | enemy
+test_commands.los_an_enemy | generated | creature
 test_commands.los_no_engine | generated | nwn5e: !los - the engine's sight line wasn't found (see nwn5e.log).
 test_commands.los_summary | generated | nwn5e: los from {observer}: {points}
 test_commands.los_clear | generated | {points} clear
