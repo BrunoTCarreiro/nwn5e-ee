@@ -2334,7 +2334,7 @@ monster AC by CR.
         attack the weapon, I cannot walk through it" (NWN lets a player right-click and attack any creature, and the
         force blocked movement); then "A, make the draft look". The force becomes an effect on an invisible marker, not
         a creature; the look agent makes its models.
-      - *Built (the force an effect):*
+      - *Built 0.99.124 (the force an effect):*
         - **The marker:** the game's invisible object (`plc_invisobj`: an invisible model whose walkmesh is a use node
           only, so nothing bumps into it) at the force's spot. It's made not useable (it can't be clicked, highlighted,
           targeted or attacked), plot (no damage), with no UI discovery, tagged n5s_spiritforce. Not static: a static
@@ -2370,7 +2370,7 @@ monster AC by CR.
       doesn't look very "spiritual", is it possible to customize the look and idle animation?" and "I can right click and
       attack the weapon, I cannot walk through it"; then "A, make the draft look": the force an effect of nwn5e's own on
       an invisible, unclickable marker, its look a VFX Bench draft the owner refines (the game side: the swfx work).
-    - *Built (the draft look; tools/data/spiritweapon/build.js, its check.js):* original art, nothing of the game's:
+    - *Built 0.99.124 (the draft look; tools/data/spiritweapon/build.js, its check.js):* original art, nothing of the game's:
       - **The blade:** a generated mesh, 0.915 m from its pommel to its point (a diamond-section blade 11 cm wide at a
         28 cm crossguard, a grip, a pommel), its texture n5_swp_blade (blue-white, its edges and ridge bright; its TXI
         `blending additive` - the game adds a mesh's light only by its texture's TXI), lit by itself (selfillum 1); a soft
