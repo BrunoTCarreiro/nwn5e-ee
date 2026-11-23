@@ -111,8 +111,7 @@ TEST(CoverSegmentAgainstABox) {
 
 // The degrees and what they do. Breaks caught: the counts' boundaries one off (six points or seven), an eye height
 // wrong for a size, the slices ending anywhere but a crouched hider's shoulders, Half hiding, Three-Quarters not
-// hiding, the save bonuses swapped or Total's missing, a melee attack refused from afar, a ranged one let through, a
-// cone's origin at the target point, a sphere's at the caster, Sacred Flame's save getting cover.
+// hiding, the save bonuses swapped or Total's missing, a melee attack refused from afar, a ranged one let through, Sacred Flame's save getting cover.
 TEST(CoverDegreesFromBlockedPoints) {
   CHECK_EQ(CoverFromBlocked(0, 6) == Cover::kNone, true);
   CHECK_EQ(CoverFromBlocked(2, 6) == Cover::kNone, true);
@@ -142,10 +141,4 @@ TEST(CoverDegreesFromBlockedPoints) {
   CHECK_EQ(CoverRefusesAttack(Cover::kTotal, false, 3.0f), true);
   CHECK_EQ(CoverRefusesAttack(Cover::kTotal, false, 3.5f), false);  // it walks on
   CHECK_EQ(CoverRefusesAttack(Cover::kThreeQuarters, true, 5.0f), false);
-  CHECK_EQ(SaveOriginForShape("sphere") == SaveOrigin::kTargetPoint, true);
-  CHECK_EQ(SaveOriginForShape("hsphere") == SaveOrigin::kTargetPoint, true);
-  CHECK_EQ(SaveOriginForShape("Cone") == SaveOrigin::kCaster, true);
-  CHECK_EQ(SaveOriginForShape("rectangle") == SaveOrigin::kCaster, true);
-  CHECK_EQ(SaveOriginForShape("****") == SaveOrigin::kVersus, true);
-  CHECK_EQ(SaveOriginForShape("") == SaveOrigin::kVersus, true);
 }

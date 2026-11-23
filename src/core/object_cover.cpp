@@ -50,8 +50,10 @@
 #include "hooks.h"
 #include "log.h"
 #include "player_text.h"
+#include "rules/area_origin.h"
 #include "rules/cover_objects.h"
 #include "rules/los_probe.h"
+#include "rules/spells2024.h"
 
 void* GameObjectById(uint32_t id);       // light_sources.cpp (the NWS object)
 bool HoldsRangedWeapon(void* creature);  // light_sources.cpp (baseitems.2da RangedWeapon)
@@ -71,7 +73,6 @@ constexpr uint64_t kRefreshMs = 3000;
 constexpr uint64_t kKeepMs = 1000;       // a cover kept while neither moves
 constexpr uint64_t kTellEveryMs = 6000;  // a round
 constexpr int kBoxTestsPerSecond = 50000;
-constexpr float kOriginHeight = 1.0f;  // an effect's lines start 1 m over its origin, as a creature's eyes
 
 struct Box {
   uint32_t id = 0;
@@ -445,49 +446,181 @@ bool TotalCoverHoldsAttack(void* creature, void* node) {
   return true;
 }
 
+namespace {
+
+// #166 decision 2 (owner, 2026-11-23): the spell's area by its shape (rules/area_origin.h) - nwn5e's own by its
+// Spell2024 shape, NWN's own by spells.2da TargetShape and, for one that comes down, its Label. `own`: nwn5e's own;
+// `feet`: the area's size.
+rules::AreaOrigin AreaKindOf(int spell, bool* own, int* feet) {
+  *own = false;
+  *feet = 0;
+  if (const rules::Spell2024* mine = rules::Spell2024Of(spell)) {
+    *own = true;
+    *feet = mine->feet;
+    return rules::OriginOf2024(mine->shape);
+  }
+  static const std::vector<std::string> shapes = GameTableColumn("spells", "TargetShape");
+  static const std::vector<std::string> labels = GameTableColumn("spells", "Label");
+  const size_t row = static_cast<size_t>(spell);
+  const std::string shape = spell >= 0 && row < shapes.size() ? shapes[row] : "";
+  const std::string label = spell >= 0 && row < labels.size() ? labels[row] : "";
+  return rules::OriginOfNwn(shape, rules::ComesFromAbove(label));
+}
+
+struct Origin {
+  float at[3] = {0, 0, 0};
+  rules::AreaOrigin kind = rules::AreaOrigin::kCaster;
+  bool own = false;
+  const char* from = "its source";
+  void* caster = nullptr;  // the creature behind it (told), when known
+};
+
+thread_local bool t_forced = false;  // ScopedAreaOrigin's
+thread_local float t_forced_at[3] = {0, 0, 0};
+thread_local rules::AreaOrigin t_forced_kind = rules::AreaOrigin::kCentre;
+thread_local int t_forced_feet = 0;
+
+// Where an effect's lines start: `origin_id` the object it comes from (the caster, an area of effect), `spell` its
+// spells.2da row; ScopedAreaOrigin's spot when one is set. False when it can't be placed.
+bool OriginOf(uint32_t origin_id, int spell, Origin* out) {
+  void* object = GameObjectById(origin_id);
+  if (!object) return false;
+  const uint8_t type = Field<uint8_t>(object, ee::kGameObjectType);
+  int feet = 0;
+  out->kind = AreaKindOf(spell, &out->own, &feet);
+  out->caster = type == ee::kObjectTypeCreature ? object : nullptr;
+  float anchor[3] = {Field<float>(object, ee::kObjectPositionX), Field<float>(object, ee::kObjectPositionY),
+                     Field<float>(object, ee::kObjectPositionZ)};
+  void* eyes_of = out->caster;
+  if (t_forced) {
+    out->kind = t_forced_kind;
+    feet = t_forced_feet;
+    for (int k = 0; k < 3; ++k) anchor[k] = t_forced_at[k];
+    out->from = "the burst's centre";
+  } else if (type == ee::kObjectTypeAreaOfEffect) {
+    // A lasting area (Entangle, Web, Grease, Cloudkill ...): by its spell's shape - from its creator for a cone or a
+    // line, else from its own place (its centre, or the top over it).
+    int area_spell = Field<int32_t>(object, ee::kAoeEffectSpellId);
+    if (area_spell < 0) area_spell = spell;
+    out->kind = AreaKindOf(area_spell, &out->own, &feet);
+    void* creator = CreatureById(Field<uint32_t>(object, ee::kAoeCreator));
+    out->caster = creator;
+    if (rules::OriginAtCaster(out->kind) && creator && engine::AreaOf(creator) == engine::AreaOf(object)) {
+      anchor[0] = Field<float>(creator, ee::kObjectPositionX);
+      anchor[1] = Field<float>(creator, ee::kObjectPositionY);
+      anchor[2] = Field<float>(creator, ee::kObjectPositionZ);
+      eyes_of = creator;
+      out->from = "its caster";
+    } else {
+      eyes_of = nullptr;
+      out->from = out->kind == rules::AreaOrigin::kTop ? "the top of the area" : "the area's centre";
+    }
+  } else if (type == ee::kObjectTypeCreature) {
+    out->from = "the caster";
+    if (!rules::OriginAtCaster(out->kind)) {
+      const float px = Field<float>(object, kSpellTargetX), py = Field<float>(object, kSpellTargetX + 4),
+                  pz = Field<float>(object, kSpellTargetX + 8);
+      if (!(px == 0.0f && py == 0.0f && pz == 0.0f)) {
+        anchor[0] = px;
+        anchor[1] = py;
+        anchor[2] = pz;
+        out->from = out->kind == rules::AreaOrigin::kTop ? "the top of the area" : "the spell's point";
+      } else {
+        out->kind = rules::AreaOrigin::kCaster;  // no point known: the caster, as before
+      }
+    }
+  } else {
+    out->kind = rules::AreaOrigin::kCentre;  // a trap, a door: its own place
+  }
+  const float eye = rules::EyeHeight(eyes_of ? Field<int32_t>(eyes_of, ee::kCreatureSize) : 3);
+  for (int k = 0; k < 3; ++k) out->at[k] = anchor[k];
+  out->at[2] += rules::OriginHeight(out->kind, eye, feet);
+  return true;
+}
+
+const char* OriginWords(rules::AreaOrigin kind) {
+  switch (kind) {
+    case rules::AreaOrigin::kCaster: return "cone/line from the caster";
+    case rules::AreaOrigin::kCasterFace: return "cube from the caster";
+    case rules::AreaOrigin::kCentre: return "sphere from its centre";
+    case rules::AreaOrigin::kTop: return "from above";
+    case rules::AreaOrigin::kCreature: return "emanation";
+  }
+  return "?";
+}
+
+}  // namespace
+
+ScopedAreaOrigin::ScopedAreaOrigin(const float ground[3], rules::AreaOrigin kind, int feet) : outer_(t_forced) {
+  for (int k = 0; k < 3; ++k) {
+    outer_at_[k] = t_forced_at[k];
+    t_forced_at[k] = ground[k];
+  }
+  outer_kind_ = static_cast<int>(t_forced_kind);
+  outer_feet_ = t_forced_feet;
+  t_forced = true;
+  t_forced_kind = kind;
+  t_forced_feet = feet;
+}
+
+ScopedAreaOrigin::~ScopedAreaOrigin() {
+  t_forced = outer_;
+  for (int k = 0; k < 3; ++k) t_forced_at[k] = outer_at_[k];
+  t_forced_kind = static_cast<rules::AreaOrigin>(outer_kind_);
+  t_forced_feet = outer_feet_;
+}
+
+bool LeftOutOfArea(void* caster, int spell, uint32_t target_id) {
+  if (!CoverObjectsOn() || !caster) return false;
+  void* target = CreatureById(target_id);
+  void* area = engine::AreaOf(caster);
+  if (!target || target == caster || !area || engine::AreaOf(target) != area) return false;
+  Origin origin;
+  if (!OriginOf(IdOf(caster), spell, &origin)) return false;
+  CoverPoint points[rules::kLosBodyPoints];
+  std::string by;
+  uint32_t by_id = ee::kObjectInvalid;
+  const rules::Cover cover = CoverFrom(area, IdOf(caster), target_id, origin.at, target, points, &by, &by_id);
+  if (rules::AreaCoverEffectFor(cover, true, false) != rules::AreaCoverEffect::kLeftOut) return false;
+  const uint32_t c = IdOf(caster);
+  if (TellNow(4, c, target_id)) {
+    if (LogSlotHere()) {
+      Log("cover: 0x%08X behind Total Cover from spell %d's point of origin (%s, %s, at %.1f, %.1f, %.1f) - left out "
+          "of the area: no save, no effect - %s", target_id, spell, OriginWords(origin.kind), origin.from,
+          origin.at[0], origin.at[1], origin.at[2], by.c_str());
+    }
+    const std::string what = ByWords(target_id, by_id);
+    TellPlayer(target_id, PlayerText("cover.area_you", {{"by", what}}));
+    TellPlayer(c, PlayerText("cover.area_target", {{"target", NameOf(c, target_id)}, {"by", what}}));
+  }
+  return true;
+}
+
 int SaveCoverBonus(void* creature, uint32_t versus, uint32_t script_self, int spell) {
   if (!CoverObjectsOn() || !creature || rules::SpellIgnoresCover(spell)) return 0;  // Sacred Flame
   void* area = engine::AreaOf(creature);
   const uint32_t origin_id = script_self != ee::kObjectInvalid ? script_self : versus;
-  void* origin = GameObjectById(origin_id);
-  if (!area || !origin || origin == creature || engine::AreaOf(origin) != area) return 0;
-  float eye[3] = {Field<float>(origin, ee::kObjectPositionX), Field<float>(origin, ee::kObjectPositionY),
-                  Field<float>(origin, ee::kObjectPositionZ)};
-  const char* from = "its source";
-  const uint8_t kind = Field<uint8_t>(origin, ee::kGameObjectType);
-  if (kind == ee::kObjectTypeAreaOfEffect) {
-    from = "the area's centre";
-  } else if (kind == ee::kObjectTypeCreature) {
-    static const std::vector<std::string> shapes = GameTableColumn("spells", "TargetShape");
-    const std::string shape = spell >= 0 && static_cast<size_t>(spell) < shapes.size() ? shapes[spell] : "";
-    from = "the caster";
-    if (rules::SaveOriginForShape(shape) == rules::SaveOrigin::kTargetPoint) {
-      const float px = Field<float>(origin, kSpellTargetX), py = Field<float>(origin, kSpellTargetX + 4),
-                  pz = Field<float>(origin, kSpellTargetX + 8);
-      if (!(px == 0.0f && py == 0.0f && pz == 0.0f)) {
-        eye[0] = px;
-        eye[1] = py;
-        eye[2] = pz;
-        from = "the spell's point";
-      }
-    }
-  }
-  eye[2] += kOriginHeight;
+  void* origin_object = GameObjectById(origin_id);
+  if (!area || !origin_object || origin_object == creature || engine::AreaOf(origin_object) != area) return 0;
+  Origin origin;
+  if (!OriginOf(origin_id, spell, &origin)) return 0;
   CoverPoint points[rules::kLosBodyPoints];
   std::string by;
   uint32_t by_id = ee::kObjectInvalid;
-  const rules::Cover cover = CoverFrom(area, origin_id, IdOf(creature), eye, creature, points, &by, &by_id);
+  const rules::Cover cover = CoverFrom(area, origin_id, IdOf(creature), origin.at, creature, points, &by, &by_id);
+  if (rules::AreaCoverEffectFor(cover, origin.own, true) == rules::AreaCoverEffect::kNone) return 0;
   const int bonus = rules::CoverSaveBonus(cover);
   if (!bonus) return 0;
   const uint32_t t = IdOf(creature);
   if (TellNow(3, origin_id, t)) {
     if (LogSlotHere()) {
-      Log("cover: 0x%08X has %s from %s (0x%08X, spell %d, at %.1f, %.1f, %.1f): +%d to its Dexterity save - %s", t,
-          CoverLogWords(cover), from, origin_id, spell, eye[0], eye[1], eye[2] - kOriginHeight, bonus, by.c_str());
+      Log("cover: 0x%08X has %s from %s (0x%08X, spell %d, %s, at %.1f, %.1f, %.1f): +%d to its Dexterity save - %s",
+          t, CoverLogWords(cover), origin.from, origin_id, spell, OriginWords(origin.kind), origin.at[0],
+          origin.at[1], origin.at[2], bonus, by.c_str());
     }
     const std::string degree = CoverWords(cover), plus = std::to_string(bonus), what = ByWords(t, by_id);
     TellPlayer(t, PlayerText("cover.save_you", {{"cover", degree}, {"bonus", plus}, {"by", what}}));
-    void* caster = kind == ee::kObjectTypeCreature ? origin : CreatureById(versus);
+    void* caster = origin.caster ? origin.caster : CreatureById(versus);
     if (caster && caster != creature) {
       TellPlayer(IdOf(caster), PlayerText("cover.save_target", {{"target", NameOf(t, t)}, {"cover", degree},
                                                                 {"bonus", plus}, {"by", what}}));

@@ -147,6 +147,9 @@ cover.you_have_cover | generated | nwn5e: {cover} (+{bonus} AC) - {by} is betwee
 cover.total_no_attack | generated | nwn5e: {target} has Total Cover ({by}) - you can't attack it from here.
 cover.save_you | generated | nwn5e: {cover} from the effect ({by}) - +{bonus} to your Dexterity save.
 cover.save_target | generated | nwn5e: {target} has {cover} from the effect ({by}) - +{bonus} to its Dexterity save.
+# #166 decision 2 (owner, 2026-11-23): Total Cover from an area's point of origin leaves a creature out of it.
+cover.area_you | generated | nwn5e: Total Cover from the spell's point of origin ({by}) - it doesn't reach you.
+cover.area_target | generated | nwn5e: {target} has Total Cover from the spell's point of origin ({by}) - it isn't in the area.
 
 # --- src/core/rules_perception.cpp: the 2024 Hide's end (#9, #33 T3; owner, 2026-11-23: "yes to both") ------------
 hide_end.attack | generated | nwn5e: you attack - you are no longer hidden.

@@ -83,10 +83,6 @@ bool SpellIgnoresCover(int spell);
 constexpr float kMeleeCoverReach = 3.0f;
 bool CoverRefusesAttack(Cover cover, bool ranged, float metres);
 
-// Where a Dexterity save's area starts (spells.2da TargetShape): a sphere (or hsphere) at the point the spell targets; a cone or
-// a line (rectangle) at the caster; anything else, or none, at what the save is against (the caster, or an area of
-// effect's own place).
-enum class SaveOrigin { kVersus, kCaster, kTargetPoint };
-SaveOrigin SaveOriginForShape(const std::string& target_shape);
+// Where an area's lines start: rules/area_origin.h (#166 decision 2).
 
 }  // namespace rules

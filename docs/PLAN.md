@@ -7000,6 +7000,25 @@ Three-Quarters (6 of 7: unseen while hiding) and the table Half (4); the barrel 
 against the table: none - it covers about 0.85 m of 1.8, just under half. The tall ones: statue and bookcase Total,
 the broken pillar Three-Quarters standing (the head over it) and Total crouched. Tests LosProbeBodyBySizeAndCrouch,
 CoverDegreesFromBlockedPoints (the counts, the eyes, the slices' end).
+*Built (decision 2, areas from their point of origin; rules/area_origin.{h,cpp}, tests AreaOriginPerShape,
+AreaCoverInOrOut):* each area's lines start at its shape's point of origin - a Cone or a Line (Burning Hands, Color
+Spray, a Dragon's Breath exhale; NWN's cones and spell cylinders: Cone of Cold, Lightning Bolt) at the caster's (the
+breather's) eyes; a Cube from the caster (Thunderwave) at the centre of the face on it (half the side up, 2.3 m for 15
+feet); a Sphere (Shatter, Sleep, Fog Cloud, Ice Knife's burst - its centre the creature it struck; NWN's spheres,
+hspheres and cubes: Fireball, Meteor Swarm ...) 1 m over the point aimed at; a Cylinder that comes down from the
+centre of its top - NWN's Flame Strike, Ice Storm, Call Lightning and Storm of Vengeance (by spells.2da Label; nwn5e has
+no cylinder spell yet, and Moonbeam would join them), 40 feet up - so only overhead cover counts; nwn5e's ground areas
+(Entangle, Grease, Faerie Fire's floor) from the top of the area too (they cover the ground under you); an Emanation
+from its creature (none yet). A lasting area object (Entangle, Web, Grease, Cloudkill ...) by its spell's shape the same
+way: a cone's or a line's from its creator, the others from its own place (centre, or the top over it) - not "its
+centre on the ground". Total Cover from the origin (all seven points blocked) leaves a creature out of nwn5e's own area
+spells - no save, no effect - logged "cover: ... behind Total Cover from spell n's point of origin (...) - left out of
+the area" and both told once ("nwn5e: Total Cover from the spell's point of origin (<name>) - it doesn't reach you." /
+"nwn5e: <target> has Total Cover from the spell's point of origin (<name>) - it isn't in the area.", generated): in
+Burning Hands, Color Spray, Thunderwave, Sleep, Shatter, Ice Knife's burst, Entangle, Faerie Fire and the exhales.
+Half and Three-Quarters: +2 / +5 on a Dexterity save as before (rules_save_roll.cpp's SaveCoverBonus, now from the
+same origin). NWN's own unconverted area spells keep the creature in, Total Cover giving +5 on a Dexterity save.
+Sacred Flame still gets none.
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms

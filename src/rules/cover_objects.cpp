@@ -139,12 +139,4 @@ bool CoverRefusesAttack(Cover cover, bool ranged, float metres) {
   return cover == Cover::kTotal && (ranged || metres <= kMeleeCoverReach);
 }
 
-SaveOrigin SaveOriginForShape(const std::string& target_shape) {
-  std::string s;
-  for (char c : target_shape) s += static_cast<char>(tolower(static_cast<unsigned char>(c)));
-  if (s == "sphere" || s == "hsphere") return SaveOrigin::kTargetPoint;
-  if (s == "cone" || s == "rectangle") return SaveOrigin::kCaster;
-  return SaveOrigin::kVersus;
-}
-
 }  // namespace rules

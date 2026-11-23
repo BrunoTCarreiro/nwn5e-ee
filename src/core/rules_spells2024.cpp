@@ -117,6 +117,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -138,6 +139,7 @@
 #include "effects.h"
 #include "engine.h"
 #include "feat_use.h"
+#include "object_cover.h"
 #include "records.h"
 #include "game_clock.h"
 #include "hooks.h"
@@ -644,6 +646,10 @@ void FromCaster(uint32_t self, void* caster, const rules::Spell2024& spell, int 
                         ? rules::InCone(entry.along, entry.side, edge, kSlack)
                         : rules::InCubeFromCaster(entry.along, entry.side, edge, kSlack);
     if (!in) continue;
+    if (LeftOutOfArea(caster, spell.row, ParseId(entry.target))) {  // #166: Total Cover from the caster
+      log += "; 0x" + entry.target + " behind Total Cover - left out";
+      continue;
+    }
     ++inside;
     int dealt = 0;
     int save = 0;
@@ -728,7 +734,20 @@ void Attack(uint32_t self, void* caster, const rules::Spell2024& spell, int slot
       const int dice = rules::IceKnifeExplosionDice(slot);
       const int cold = RollEngineDice(dice, rules::kIceKnifeExplosionDie);
       log += "; the explosion " + Dice(dice, rules::kIceKnifeExplosionDie) + " = " + std::to_string(cold) + " Cold:";
+      // #166: the burst's point of origin is the creature it struck (a 5-foot sphere's centre).
+      void* struck = CreatureById(ParseId(hit.target));
+      const float burst[3] = {struck ? Field<float>(struck, ee::kObjectPositionX) : 0.0f,
+                              struck ? Field<float>(struck, ee::kObjectPositionY) : 0.0f,
+                              struck ? Field<float>(struck, ee::kObjectPositionZ) : 0.0f};
+      std::unique_ptr<ScopedAreaOrigin> burst_origin;
+      if (struck) {
+        burst_origin.reset(new ScopedAreaOrigin(burst, rules::AreaOrigin::kCentre, rules::kIceKnifeExplosionFeet));
+      }
       for (const Entry& other : Entries(caster)) {
+        if (struck && other.target != hit.target && LeftOutOfArea(caster, spell.row, ParseId(other.target))) {
+          log += " 0x" + other.target + " left out (Total Cover)";
+          continue;
+        }
         const int save = SaveOf(self, spell, rules::Ability::kDexterity, other.target);
         if (save < 0) continue;
         const int dealt = rules::DamageAfterSave(cold, save != 0, false);
@@ -2293,6 +2312,7 @@ void ColorSpray(uint32_t self, void* caster, const rules::Spell2024& spell, int 
   int inside = 0;
   for (const Entry& entry : Entries(caster)) {
     if (!rules::InCone(entry.along, entry.side, edge, kSlack)) continue;
+    if (LeftOutOfArea(caster, spell.row, ParseId(entry.target))) continue;  // #166: Total Cover from the caster
     ++inside;
     const int save = SaveOf(self, spell, rules::Ability::kConstitution, entry.target);
     if (save < 0) continue;
@@ -2332,6 +2352,10 @@ void SleepSpell(uint32_t self, void* caster, const rules::Spell2024& spell, int 
   const uint64_t now = GameMs();
   std::string log;
   for (const Entry& one : Entries(caster)) {
+    if (LeftOutOfArea(caster, spell.row, ParseId(one.target))) {  // #166: Total Cover from the sphere's centre
+      log += "; 0x" + one.target + " behind Total Cover - left out";
+      continue;
+    }
     if (!rules::PickedAgainst(true, CharmedBy(one.target, self))) {  // the script's: enemies (0.99.24)
       log += "; 0x" + one.target + " charmed by you - not chosen";
       continue;
@@ -2666,6 +2690,7 @@ void Entangle(uint32_t self, void* caster, const rules::Spell2024& spell, int ro
   const uint64_t now = GameMs();
   std::string log;
   for (const Entry& one : InSquare(self, caster, spell, false)) {  // "each creature (other than you)"
+    if (LeftOutOfArea(caster, spell.row, ParseId(one.target))) continue;  // #166: from above - overhead cover only
     const int save = SaveOf(self, spell, rules::Ability::kStrength, one.target);
     if (save < 0) continue;
     log += "; 0x" + one.target + " " + SaveWord(save);
@@ -2911,6 +2936,7 @@ void FaerieFire(uint32_t self, void* caster, const rules::Spell2024& spell, int 
   const int dc = SpellSaveDcForClassSlot(caster, -1);
   std::string log;
   for (const Entry& one : InSquare(self, caster, spell, true)) {  // "each creature in the Cube"
+    if (LeftOutOfArea(caster, spell.row, ParseId(one.target))) continue;  // #166: from above - overhead cover only
     const int save = SaveOf(self, spell, rules::Ability::kDexterity, one.target);
     if (save < 0) continue;
     log += "; 0x" + one.target + " " + SaveWord(save);
@@ -4882,6 +4908,9 @@ void Shatter(uint32_t self, void* caster, const rules::Spell2024& spell, int slo
   int creatures = 0;
   int objects = 0;
   for (const Entry& one : Entries(caster)) {
+    if (one.value >= 0 && LeftOutOfArea(caster, spell.row, ParseId(one.target))) {  // #166: from the sphere's centre
+      continue;
+    }
     if (one.value < 0) {  // a door or a placeable: the damage, no save
       Damage(self, spell, one.target, full, spell.damage_type, look.vis, Look());
       ++objects;
@@ -5959,6 +5988,7 @@ void Exhale(uint32_t self, void* breather, const rules::Spell2024& spell, int ro
   int inside = 0;
   for (const Entry& entry : Entries(breather)) {
     if (!rules::InCone(entry.along, entry.side, edge, kSlack)) continue;
+    if (LeftOutOfArea(breather, spell.row, ParseId(entry.target))) continue;  // #166: Total Cover from the breather
     ++inside;
     const int dealt = ReflexHalfAgainst(self, spell.script, row, entry.target, full, breath.dc);
     if (dealt < 0) continue;

@@ -9,6 +9,7 @@
 
 #include <string>
 
+#include "rules/area_origin.h"
 #include "rules/cover.h"
 #include "rules/los_probe.h"
 
@@ -50,3 +51,24 @@ bool TotalCoverHoldsAttack(void* creature, void* node);
 // script's object (the caster, or an area of effect) else `versus`; a creature's sphere spell (spells.2da
 // TargetShape) from its target point. Both told once a round.
 int SaveCoverBonus(void* creature, uint32_t versus, uint32_t script_self, int spell);
+
+// #166 decision 2 (owner, 2026-11-23): an area's point of origin by its shape (rules/area_origin.h) - the caster's eyes
+// for a cone or a line, the face's centre for a cube from the caster, 1 m over the point aimed at for a sphere, the
+// top for an area that comes down or covers the ground. nwn5e's own area spells leave out a creature behind Total
+// Cover from it - no save, no effect - both told once (rules_spells2024.cpp asks for each creature in the area).
+bool LeftOutOfArea(void* caster, int spell, uint32_t target);
+// An area whose origin isn't the caster's or the point aimed at (Ice Knife's burst around the creature it struck):
+// set while its creatures are gathered and saved.
+class ScopedAreaOrigin {
+ public:
+  ScopedAreaOrigin(const float ground[3], rules::AreaOrigin kind, int feet);
+  ~ScopedAreaOrigin();
+  ScopedAreaOrigin(const ScopedAreaOrigin&) = delete;
+  ScopedAreaOrigin& operator=(const ScopedAreaOrigin&) = delete;
+
+ private:
+  bool outer_;
+  float outer_at_[3];
+  int outer_kind_;
+  int outer_feet_;
+};
