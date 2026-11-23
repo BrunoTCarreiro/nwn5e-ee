@@ -3406,3 +3406,7 @@ checked against the committed one), and each check puts it back as it found it a
 shader" step left it broken for the rest). M2, DC and MV failed on main before; now all pass. Two of three
 deliberate breaks of the new lines are caught (the shader not put back: W1 fails; the shader expected written
 though it was there: M2 fails); never comparing the shader is equivalent while a committed project makes it.
+The proof on the rebased tree: **the same bytes - 2,996 files** (the edits compiled 163 of the DLL's 253 sources and 63
+of the tests' 197; the derived build 7 of 7 reused, the spell mask among them). Its first run there differed in
+nwn5e.ini alone: build.bat only creates a build's ini, and B's was from before main's spell_mask line - B's is now
+removed before its steps.

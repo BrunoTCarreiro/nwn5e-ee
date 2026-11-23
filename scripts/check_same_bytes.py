@@ -171,8 +171,12 @@ def main():
     copy_tree(tree)
     test_exe = os.path.join(tree, "build", "rules_test.exe")
 
-    # B: as they build now, a step at a time (its objects and records kept from the last run of this check).
+    # B: as they build now, a step at a time (its objects and records kept from the last run of this check). Its
+    # nwn5e.ini goes first: build.bat only creates a build's ini, never overwrites it (the player's settings), so one
+    # left from a run before nwn5e.ini changed would differ from A's for that alone.
     t = time.time()
+    if os.path.exists(os.path.join(out_b, "nwn5e.ini")):
+        os.remove(os.path.join(out_b, "nwn5e.ini"))
     inc = dict(env, NWN5E_OUT=out_b, NWN5E_DERIVED_CACHE_DIR=os.path.join(ROOT, "build", "derived_cache"))
     def build_b(what):
         said = run(["cmd", "/d", "/c", os.path.join(tree_b, "build.bat")], tree_b, inc, log)
