@@ -3395,3 +3395,14 @@ the private layer in):* **the same bytes - 2,936 files**: nwn5e.dll, nwn5e.exe a
 stamps and checksum are zeroed (the link writes its time there), core_stamp.txt, nwn5e.ini, every file of data\ with the
 game-derived ones from the cache and placeable_bounds.txt. With the edits the DLL and the stamp changed (162 of 251
 sources compiled, 63 of 195 tests'), so they reached it; undone, 162 again and the bytes back to A's.
+
+**Onto main** (2026-11-23, rebased onto 1280505 - the spells' masks, the Composer's Texture, tmocrate): the spells'
+masked looks (spell_mask.js) go through the cache as the one-burst models do - it reads the game's models through
+res and runs the reader on its own copies (its code, the game's keys and the reader its inputs); the particle mask
+already did. check_derived.js's M2, W1, DC and MV take the moving textures' shared shader (vsn5uvmove.shd) as they
+find it: the owner's tmocrate - a committed project with a moving texture - makes it in the first build, before a
+check's own project does, so a check's "written" list leaves it out when it was there already (its bytes still
+checked against the committed one), and each check puts it back as it found it after (M2's own "someone's
+shader" step left it broken for the rest). M2, DC and MV failed on main before; now all pass. Two of three
+deliberate breaks of the new lines are caught (the shader not put back: W1 fails; the shader expected written
+though it was there: M2 fails); never comparing the shader is equivalent while a committed project makes it.

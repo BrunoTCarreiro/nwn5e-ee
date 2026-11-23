@@ -242,6 +242,24 @@ const project = (name, json) => {
 };
 const CIRCLE = { shape: "circle", diameter: 1, height: 0.3 };
 const THROUGH = { copy: null, use: null, walk: "through" };
+// The moving textures' shader (M2) is shared: a committed project with a moving texture (the owner's tmocrate) makes it
+// too, in the first build, before a check's own project does. A check takes --out's shader as it finds it: when it was
+// there already, the check's "written" list leaves it out (the build may leave it or write it - the committed bytes
+// either way, checked on their own), and the check puts it back as it found it after, for the next.
+function sharedShader() {
+  const file = path.join(OUT, SHADER), was = fs.existsSync(file) ? fs.readFileSync(file) : null;
+  return {
+    was,
+    changed: (st) => Object.entries(st).filter(([n, s]) => s !== "unchanged" && !(n === SHADER && was)).sort(),
+    written: (own) => own.filter((f) => f !== SHADER || !was).map((f) => [f, "written"]).sort(),
+    restore: () => (was ? fs.writeFileSync(file, was) : fs.rmSync(file, { force: true })),
+  };
+}
+// A check's own files out of the copy's data\files and --out (the shared shader in --out put back as it was).
+const removeOwn = (own, sh) => {
+  for (const f of own) for (const dir of [FILES, OUT]) if (!(dir === OUT && f === SHADER)) fs.rmSync(path.join(dir, f), { force: true });
+  sh.restore();
+};
 
 // --- the checks -----------------------------------------------------------------------------------------------------------
 let failed = 0;
@@ -838,6 +856,7 @@ try {
     const file = project("chkuv", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14155, parts: [
       { shape: { type: "dome", radius: 1, colour }, at: [0, 0, 0], motion }] }] });
     const own = ["plc_n5chkuv.mdl", "plc_n5chkuv.pwk", GOLD + ".tga", MAT + ".mtr", SHADER];
+    const sh = sharedShader();
     try {
       const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
         { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
@@ -846,7 +865,7 @@ try {
       assert.ok(ignored(MAT + ".mtr") && !ignored(SHADER), "the material git-ignored, the shader not");
       const r = derive(["--out", OUT]);
       done(r);
-      assert.deepStrictEqual(Object.entries(states(r)).filter(([, s]) => s !== "unchanged").sort(), own.map((f) => [f, "written"]).sort());
+      assert.deepStrictEqual(sh.changed(states(r)), sh.written(own));
       assert.match(r.out, /the Composer's project chkuv \(tools\/data\/composer\/chkuv\.json\): 5 files; its rows agree/);
       assert.ok(fs.readFileSync(path.join(OUT, "plc_n5chkuv.mdl"), "latin1").includes(`\r\n  bitmap ${MAT}\r\n`), "plc_n5chkuv.mdl doesn't name " + MAT);
       assert.strictEqual(fs.readFileSync(path.join(OUT, MAT + ".mtr"), "latin1"), F.motionMaterialText({ texture: GOLD, motion, pivot }));
@@ -870,7 +889,7 @@ try {
     } finally {
       fs.rmSync(file, { force: true });
       fs.rmSync(path.join(ROWS, "placeables.chkuv.txt"), { force: true });
-      for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
+      removeOwn(own, sh);
     }
   });
 
@@ -882,6 +901,7 @@ try {
     const file = project("chkclmp", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14162, parts: [
       { shape: { type: "dome", radius: 1, mapping: "above", texture: SYM, colour: [1, 0.502, 0] }, at: [0, 0, 0], motion }] }] });
     const own = ["plc_n5chkclmp.mdl", "plc_n5chkclmp.pwk", MAT + ".mtr", MAT + ".tga", MAT + ".txi", SHADER];
+    const sh = sharedShader();
     try {
       const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
         { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
@@ -890,7 +910,7 @@ try {
       for (const f of [MAT + ".mtr", MAT + ".tga", MAT + ".txi"]) assert.ok(ignored(f), f + " isn't git-ignored");
       const r = derive(["--out", OUT]);
       done(r);
-      assert.deepStrictEqual(Object.entries(states(r)).filter(([, s]) => s !== "unchanged").sort(), own.map((f) => [f, "written"]).sort());
+      assert.deepStrictEqual(sh.changed(states(r)), sh.written(own));
       assert.match(r.out, /the Composer's project chkclmp \(tools\/data\/composer\/chkclmp\.json\): 6 files; its rows agree/);
       assert.ok(fs.readFileSync(path.join(OUT, "plc_n5chkclmp.mdl"), "latin1").includes(`\r\n  bitmap ${MAT}\r\n`), "plc_n5chkclmp.mdl doesn't name " + MAT);
       assert.strictEqual(fs.readFileSync(path.join(OUT, MAT + ".mtr"), "latin1"), F.motionMaterialText({ texture: SYM, motion, pivot, clamp: true }));
@@ -908,7 +928,7 @@ try {
     } finally {
       fs.rmSync(file, { force: true });
       fs.rmSync(path.join(ROWS, "placeables.chkclmp.txt"), { force: true });
-      for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
+      removeOwn(own, sh);
     }
   });
 
@@ -923,6 +943,7 @@ try {
       { shape: { type: "dome", radius: 1, mapping: "above", texture: SYM, colour: [1, 0.502, 0] }, at: [0, 0, 0] },
       { shape: { type: "dome", radius: 0.5, colour }, at: [2, 0, 0] }] }] });
     const own = ["plc_n5chkdc.mdl", "plc_n5chkdc.pwk", COPY + ".tga", COPY + ".txi", SOFT + ".tga", SOFT + ".txi"];
+    const sh = sharedShader();  // (not this project's: a still dome needs no shader - another project's, as it was)
     try {
       const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
         { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
@@ -931,7 +952,7 @@ try {
       for (const f of [COPY + ".tga", COPY + ".txi", SOFT + ".txi"]) assert.ok(ignored(f), f + " isn't git-ignored");
       const r = derive(["--out", OUT]);
       done(r);
-      assert.deepStrictEqual(Object.entries(states(r)).filter(([, s]) => s !== "unchanged").sort(), own.map((f) => [f, "written"]).sort());
+      assert.deepStrictEqual(sh.changed(states(r)), sh.written(own));
       assert.match(r.out, /the Composer's project chkdc \(tools\/data\/composer\/chkdc\.json\): 6 files; its rows agree/);
       const mdl = fs.readFileSync(path.join(OUT, "plc_n5chkdc.mdl"), "latin1");
       assert.ok(mdl.includes(`\r\n  bitmap ${COPY}\r\n`) && mdl.includes(`\r\n  bitmap ${SOFT}\r\n`) && !mdl.includes(`\r\n  bitmap ${SYM}\r\n`), "plc_n5chkdc.mdl doesn't name " + COPY + " and " + SOFT);
@@ -950,7 +971,7 @@ try {
     } finally {
       fs.rmSync(file, { force: true });
       fs.rmSync(path.join(ROWS, "placeables.chkdc.txt"), { force: true });
-      for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
+      removeOwn(own, sh);
     }
   });
 
@@ -963,6 +984,7 @@ try {
     const file = project("chkmv", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14164, parts: [
       { shape: { type: "cylinder", radius: 1, height: 0.6, top: 1.17, texture: FLAME, colour: [0.137, 0.922, 0.314] }, at: [0, 0, 0], motion }] }] });
     const own = ["plc_n5chkmv.mdl", "plc_n5chkmv.pwk", COPY + ".tga", COPY + ".txi", MAT + ".mtr", MAT + ".txi", SHADER];
+    const sh = sharedShader();
     try {
       const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
         { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
@@ -971,7 +993,7 @@ try {
       for (const f of [COPY + ".tga", COPY + ".txi", MAT + ".mtr", MAT + ".txi"]) assert.ok(ignored(f), f + " isn't git-ignored");
       const r = derive(["--out", OUT]);
       done(r);
-      assert.deepStrictEqual(Object.entries(states(r)).filter(([, s]) => s !== "unchanged").sort(), own.map((f) => [f, "written"]).sort());
+      assert.deepStrictEqual(sh.changed(states(r)), sh.written(own));
       assert.match(r.out, /the Composer's project chkmv \(tools\/data\/composer\/chkmv\.json\): 7 files; its rows agree/);
       assert.ok(fs.readFileSync(path.join(OUT, "plc_n5chkmv.mdl"), "latin1").includes(`\r\n  bitmap ${MAT}\r\n`), "plc_n5chkmv.mdl doesn't name " + MAT);
       assert.strictEqual(fs.readFileSync(path.join(OUT, MAT + ".mtr"), "latin1"), F.motionMaterialText({ texture: COPY, motion, pivot }));
@@ -989,7 +1011,7 @@ try {
     } finally {
       fs.rmSync(file, { force: true });
       fs.rmSync(path.join(ROWS, "placeables.chkmv.txt"), { force: true });
-      for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
+      removeOwn(own, sh);
     }
   });
 
