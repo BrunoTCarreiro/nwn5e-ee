@@ -117,6 +117,7 @@ void IllusionReactionResume(uint32_t creature);                   // rules_utili
 bool MindSpikeKnows(void* observer, void* target);                // rules_spells2024.cpp (#39 level 2 build 1a)
 int DrawnConeSees(void* observer, void* hider, float* metres, float* reach);  // stealth_watch.cpp (#9 c)
 bool SearchConesOn();                                                        // stealth_watch.cpp (#9)
+bool LightDrawnCones();                                                      // stealth_watch.cpp (#9)
 extern "C" __declspec(dllimport) unsigned short __stdcall RtlCaptureStackBackTrace(unsigned long skip, unsigned long count,
                                                                                  void** frames, unsigned long* hash);
 extern "C" __declspec(dllimport) unsigned long long __stdcall GetTickCount64();
@@ -646,16 +647,21 @@ int CarriedLightTerm(void* hider) {
   return rules::CarriedLightSpotBonus(CarriedLightRadiusOf(hider));
 }
 
-// What the hider's light does to this observer's sight: 0, -5 (dim), or unseen.
-constexpr int kUnseen = -1000;
+// What the hider's light does to this observer's sight: 0, -5 (dim), or unseen. #9 (2026-11-22): in darkness inside
+// the observer's cone as light drew it (it reaches through the dark to a lit patch: "a contiguous slice of
+// detectability"), -5 as in dim light (rules::HiderLightTerm).
+constexpr int kUnseen = rules::kLightUnseen;
 int LightTerm(void* observer, void* hider) {
   if (!LightRule() || !hider || !Hiding(hider)) return 0;
   // #39 build 2c (Q2 A): Fog Cloud is Heavily Obscured - a hider in it, or an observer in it, unseen.
   if (InFogCloud(hider) || (observer && InFogCloud(observer))) return kUnseen;
   const int level = HiderLight(hider);
-  if (level >= 2) return 0;
-  if (level == 1) return -5;
-  return SeesInDark(observer, hider) ? -5 : kUnseen;
+  bool inside = false;
+  if (level == 0 && observer && LightDrawnCones()) {
+    float metres = 0.0f, reach = 0.0f;
+    inside = DrawnConeSees(observer, hider, &metres, &reach) == 1;
+  }
+  return rules::HiderLightTerm(level, level == 0 && observer && SeesInDark(observer, hider), inside);
 }
 
 int PerceptionSkill(const SkillQuery& query, int value) {
@@ -1077,6 +1083,15 @@ void FindUnseenHider(void* context, uint32_t id, void* other) {
   check->hider = other;
 }
 }  // namespace
+
+// #9 (stealth_watch.cpp's light-shortened slices): how far its darkvision reaches - feat 228 or the darkvision
+// visual 182: kDarkvisionMetres; 0 without.
+float DarkvisionReach(void* creature) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  return (stats && engine::HasFeat(stats, kFeatDarkvision)) || (creature && HasDarkvisionVisual(creature))
+             ? kDarkvisionMetres
+             : 0.0f;
+}
 
 // #9 (stealth_watch.cpp's glances): where `observer` last heard `hider`, if it has.
 bool HeardSpot(uint32_t observer, uint32_t hider, float* x, float* y) {

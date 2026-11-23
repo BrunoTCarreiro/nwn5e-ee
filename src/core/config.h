@@ -99,6 +99,11 @@ struct Config {
   // middle, measured once a second (stealth_watch.cpp) - and the rule agrees: it doesn't see past where a slice is
   // cut (rules_perception.cpp). Off: whole cones, drawn through walls.
   bool cone_walls = true;
+  // #9 (owner, 2026-11-22: "2. Mostly A, but if there's an illuminated patch further out, there should not be an
+  // island of vision, it should form a contiguous slice of detectability"): with cone_walls and stealth_light, each
+  // slice reaches only as far as the creature could spot a hider - lit ground, or darkness within its darkvision -
+  // contiguous out to a lit patch; inside, darkness is seen at -5 (stealth_watch.cpp, rules_perception.cpp).
+  bool cone_light = true;
   // #9 (owner, 2026-11-22: "if idle being lowest alert mode has a cone, any mode should have it as well"; then "the
   // sweeping 120 cone is very very annoying" - "1.A"): a searching creature (detect mode, investigating, alert in
   // combat) keeps a cone, search_cone degrees wide on its real facing, and glances about while it stands - turns of

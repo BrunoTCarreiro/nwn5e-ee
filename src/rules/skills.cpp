@@ -598,6 +598,12 @@ bool LightReachByIntensity(float intensity, float* bright_m, float* dim_m) {
   return true;
 }
 
+int HiderLightTerm(int light_level, bool darkvision_reaches, bool inside_light_cone) {
+  if (light_level >= 2) return 0;
+  if (light_level == 1) return -5;
+  return darkvision_reaches || inside_light_cone ? -5 : kLightUnseen;
+}
+
 bool WithinVisionCone(float dx, float dy, float fx, float fy, float degrees) {
   if (degrees >= 360.0f) return true;
   if (degrees <= 0.0f) return false;

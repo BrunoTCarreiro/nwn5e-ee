@@ -168,6 +168,18 @@ TEST(VisionConeIsCentredOnTheFacing) {
   CHECK_EQ(WithinVisionCone(0.0f, 0.0f, 1.0f, 0.0f, 120.0f), true);  // on top of it
 }
 
+// SK5 G and #9 (2026-11-22, light-drawn cones). Breaks caught: bright or dim off their terms, darkness seen without
+// darkvision or the light-drawn cone, darkvision or the cone not seeing darkness (at -5).
+TEST(HiderLightTermInsideTheLightCone) {
+  CHECK_EQ(HiderLightTerm(2, false, false), 0);
+  CHECK_EQ(HiderLightTerm(1, false, false), -5);
+  CHECK_EQ(HiderLightTerm(1, true, true), -5);
+  CHECK_EQ(HiderLightTerm(0, false, false), kLightUnseen);
+  CHECK_EQ(HiderLightTerm(0, true, false), -5);   // darkvision: as dim
+  CHECK_EQ(HiderLightTerm(0, false, true), -5);   // inside its cone, light drawn through the dark: Disadvantage
+  CHECK_EQ(HiderLightTerm(0, true, true), -5);
+}
+
 // RB2. Breaks caught: the floor before level 7 or without proficiency; a 10+
 // roll lowered; 9 or lower left alone (an off-by-one at the edge).
 TEST(ReliableTalentFloorsTheD20AtTen) {

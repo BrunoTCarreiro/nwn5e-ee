@@ -191,6 +191,14 @@ bool InFrontWithin(float dx, float dy, float fx, float fy, float metres);
 // there; 360 = all round, 0 = nowhere. On top of it, or with no facing: yes.
 bool WithinVisionCone(float dx, float dy, float fx, float fy, float degrees);
 
+// The light's term on a sight check of a hider (SK5 G, the 2024 way: dim light lightly obscures, darkness heavily):
+// 0 in bright light (`light_level` 2), -5 in dim (1); in darkness (0) -5 when the observer's darkvision reaches the
+// hider or the hider is inside the observer's cone as light drew it (#9, 2026-11-22: it reaches through a dark
+// stretch to a lit patch beyond, "a contiguous slice of detectability" - inside it a hider can be seen, at
+// Disadvantage), else kLightUnseen.
+constexpr int kLightUnseen = -1000;
+int HiderLightTerm(int light_level, bool darkvision_reaches, bool inside_light_cone);
+
 // Reliable Talent (SRD 5.2 Rogue 7; owner, 2026-10-25: "go with all your
 // recommendations" - RB2, for the Stealth roll): a rogue of level 7 or more
 // proficient in the skill treats a d20 of 9 or lower as a 10.

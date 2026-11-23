@@ -58,6 +58,20 @@
 //   (an investigation's 6 s at the noise, #133's 3 s) or it has none: never while it walks (its walk's own facing),
 //   plays the investigation's head turns, fights or casts - so it doesn't fight the investigation. Each glance logged
 //   (300 lines at most).
+//   Light shortens each slice (#9; owner, 2026-11-22: "If they can't see me because of the light level I'd expect the
+//   cone to be mush shorter to show where detection is possible" - "2. Mostly A, but if there's an illuminated patch
+//   further out, there should not be an island of vision, it should form a contiguous slice of detectability"): with
+//   cone_light (and the light rule, stealth_light), each slice reaches only to the farthest point along it where this
+//   creature could spot a hider - in dim light or brighter by the light estimate the rules use, or in darkness within
+//   its darkvision (feat 228 or the darkvision visual 182, 18 m; rules_perception.cpp DarkvisionReach) - capped by the
+//   wall's cut and its sight, and contiguous: a dark stretch before a lit patch is part of the slice
+//   (rules::SeeableReach). Sampled every metre along the slice's middle, from the far end in (the first lit sample is
+//   the reach; one sight line from a light to a sample only when that light reaches it). The lights: once a second
+//   the pass lists them (lit placeables with their own reach, tile flames, light effects 153-180 on creatures and
+//   placeables within 60 m, not the hider's own) into nwn5e_light_map; a change (a light put out, broken, lit)
+//   makes every slice stale. Full reach where the area itself is lit (outdoors, lit 30+: daylight, moonlight) or the
+//   hider carries a light. The rule follows it (rules_perception.cpp LightTerm): in darkness inside such a drawn
+//   cone a hider can be seen, at -5 (Disadvantage), as in dim light.
 //   Idle guards look about (#9 d; owner, 2026-11-15: "yes, sounds fun but we have to tune this"): while a player
 //   character hides, each calm hostile within 40 m of it looks about now and then - every idle_look_min_seconds ..
 //   idle_look_max_seconds (8-16) at random, it turns idle_look_min_degrees .. idle_look_max_degrees (40-120) left or
@@ -159,9 +173,11 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <random>
 #include <string>
+#include <vector>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -185,6 +201,7 @@ int CarriedLightRadius(void* creature);                      // rules_perception
 void SetStealthOpacity(uint32_t id, float opacity);          // stealth_ghost.cpp
 bool StealthGhostOn();                                       // stealth_ghost.cpp
 bool HeardSpot(uint32_t observer, uint32_t hider, float* x, float* y);  // rules_perception.cpp (#9)
+float DarkvisionReach(void* creature);                                    // rules_perception.cpp (#9)
 
 namespace {
 
@@ -239,6 +256,7 @@ int g_pass = 0;                     // the hiding player character's last pass (
 struct ConeState {
   int length[rules::kConeSlicePositions];    // each position's measured length (an index; -1 blocked at its feet)
   int epoch_of[rules::kConeSlicePositions];  // the anchor it was measured from (-1 never)
+  int light_of[rules::kConeSlicePositions];  // the light map it was measured with
   uint64_t at[rules::kConeSlicePositions];   // when
   int epoch = 0;
   bool anchored = false;
@@ -251,6 +269,7 @@ struct ConeState {
     for (int k = 0; k < rules::kConeSlicePositions; ++k) {
       length[k] = 0;
       epoch_of[k] = -1;
+      light_of[k] = -1;
       at[k] = 0;
       drawn[k] = 0;
     }
@@ -278,10 +297,25 @@ struct CostWindow {
   uint64_t start = 0;
   int tests = 0;
   int positions = 0;
+  int samples = 0;  // light samples (#9)
   double ms = 0.0;
   std::unordered_set<uint32_t> creatures;
 };
 CostWindow g_cost;
+// #9: the lights round the hiding player character (its pass's light map), for the light-shortened slices.
+struct LightSource {
+  float x, y, z;       // where its light comes from (a sight line starts half a metre out of it)
+  float dim;           // metres: its light reaches this far (dim at least)
+};
+struct LightMap {
+  bool known = false;   // read this hide
+  bool area_lit = false;  // the area lit (outdoors, 30+): no shortening
+  bool hider_lit = false;  // the hider carries a light: no shortening
+  std::vector<LightSource> sources;
+  std::string text;     // as listed (a change: every slice stale)
+  int epoch = 0;
+};
+LightMap g_lights;
 
 // #9 d: idle guards looking about.
 struct Looker {
@@ -310,6 +344,10 @@ bool ConesOn() {
 }
 // Their lengths cut at walls (#9 c).
 bool CutsOn() { return ConesOn() && g_config.cone_walls && g_clear_line_of_sight && g_compute_height; }
+// Light shortens them (#9, 2026-11-22): the 2024 light rule on, and the lights listed.
+bool LightConesOn() {
+  return CutsOn() && g_config.cone_light && g_config.stealth_light && g_config.perception == rules::RuleVariant::kFaithful;
+}
 // A searching creature keeps a cone (the rule and the drawing): off with search_cone 0 / 360+, or no calm cones (a
 // calm one seeing all round, a searching one would see less).
 bool SearchConeOn() {
@@ -398,14 +436,44 @@ int MeasurePosition(void* creature, uint32_t id, void* area, int position, int t
     if (blocked_at) *blocked_at = at;
     return open;
   };
-  if (clear(top, &hit)) return top;
-  // Where the engine found it blocked, if that is on the line short of its end: the length just short of it.
-  const float along = (hit.x - x) * cx + (hit.y - y) * cy;
-  const float across = fabsf((hit.y - y) * cx - (hit.x - x) * cy);
-  const int hint =
-      along >= 0.0f && along < rules::kConeSliceLengths[top] - 0.05f && across < 1.0f ? rules::ConeSliceLengthAtMost(along)
-                                                                                      : -1;
-  return rules::ConeSliceReach(top - 1, hint, [&](int i) { return clear(i, nullptr); });
+  int cut = top;
+  if (!clear(top, &hit)) {
+    // Where the engine found it blocked, if that is on the line short of its end: the length just short of it.
+    const float along = (hit.x - x) * cx + (hit.y - y) * cy;
+    const float across = fabsf((hit.y - y) * cx - (hit.x - x) * cy);
+    const int hint = along >= 0.0f && along < rules::kConeSliceLengths[top] - 0.05f && across < 1.0f
+                         ? rules::ConeSliceLengthAtMost(along)
+                         : -1;
+    cut = rules::ConeSliceReach(top - 1, hint, [&](int i) { return clear(i, nullptr); });
+  }
+  if (cut < 0 || !LightConesOn() || !g_lights.known || g_lights.area_lit || g_lights.hider_lit) return cut;
+  // #9: how far along it this creature could spot a hider - lit (dim or brighter) or within its darkvision.
+  const auto lit = [&](float d) {
+    ++g_cost.samples;
+    Vec3 at{x + cx * d, y + cy * d, z};
+    const float ground = g_compute_height(area, at);
+    if (ground > ee::kAreaOffGridHeight + 0.01f) at.z = ground;
+    const Vec3 chest{at.x, at.y, at.z + 1.0f};
+    for (const LightSource& light : g_lights.sources) {
+      const float lx = at.x - light.x, ly = at.y - light.y, lz = at.z - light.z;
+      if (lx * lx + ly * ly + lz * lz > light.dim * light.dim) continue;
+      // A clear line from the light to the spot's chest height (half a metre out of the light, as the estimate).
+      const float mx = chest.x - light.x, my = chest.y - light.y, mz = chest.z - light.z;
+      const float m = sqrtf(mx * mx + my * my + mz * mz);
+      const Vec3 from = m > 0.6f ? Vec3{light.x + mx / m * 0.5f, light.y + my / m * 0.5f, light.z + mz / m * 0.5f}
+                                 : Vec3{light.x, light.y, light.z};
+      ++*tests;
+      Vec3 blocked = chest;
+      uint32_t object = ee::kObjectInvalid;
+      if (m <= 0.6f || g_clear_line_of_sight(area, from, chest, &blocked, &object, ee::kObjectInvalid, ee::kObjectInvalid,
+                                             1) == 1) {
+        return true;
+      }
+    }
+    return false;
+  };
+  const float reach = rules::SeeableReach(rules::kConeSliceLengths[cut], 1.0f, DarkvisionReach(creature), lit);
+  return rules::ConeSliceLengthAtMost(reach);
 }
 
 // #9 c: measure the stalest of `range`'s positions - those shown first - up to kPositionsPerUpdate, inside the second's
@@ -431,15 +499,16 @@ void Measure(void* creature, uint32_t id, ConeState& s, const rules::SliceSpan& 
     static bool costed = false;
     if (!costed && g_cost.positions > 0) {
       costed = true;
-      Log("stealth watch: cone slices - in a second, %d positions measured for %d hostiles: %d line-of-sight tests, "
-          "%.2f ms in all, spread over their updates (at most %d positions an update and %d tests a second; logged "
-          "once)",
-          g_cost.positions, static_cast<int>(g_cost.creatures.size()), g_cost.tests, g_cost.ms, kPositionsPerUpdate,
-          kTestsPerSecond);
+      Log("stealth watch: cone slices - in a second, %d positions measured for %d hostiles: %d line-of-sight tests "
+          "(walls and lights), %d light samples, %.2f ms in all, spread over their updates (at most %d positions an "
+          "update and %d tests a second; logged once)",
+          g_cost.positions, static_cast<int>(g_cost.creatures.size()), g_cost.tests, g_cost.samples, g_cost.ms,
+          kPositionsPerUpdate, kTestsPerSecond);
     }
     g_cost.start = now;
     g_cost.tests = 0;
     g_cost.positions = 0;
+    g_cost.samples = 0;
     g_cost.ms = 0.0;
     g_cost.creatures.clear();
   }
@@ -448,7 +517,7 @@ void Measure(void* creature, uint32_t id, ConeState& s, const rules::SliceSpan& 
     uint64_t best = UINT64_MAX;
     for (int k = 0; k < rules::kConeSlicePositions; ++k) {
       if (!rules::InSliceSpan(range, k)) continue;
-      const bool other_anchor = s.epoch_of[k] != s.epoch;
+      const bool other_anchor = s.epoch_of[k] != s.epoch || s.light_of[k] != g_lights.epoch;
       if (!other_anchor && now - s.at[k] < kRemeasureMs) continue;
       // Shown before not, another anchor's before an old one's, then the oldest.
       const uint64_t key = (rules::InSliceSpan(shown, k) ? 0ull : 2ull << 60) + (other_anchor ? 0ull : 1ull << 60) +
@@ -468,6 +537,7 @@ void Measure(void* creature, uint32_t id, ConeState& s, const rules::SliceSpan& 
     ++g_cost.positions;
     g_cost.creatures.insert(id);
     s.epoch_of[pick] = s.epoch;
+    s.light_of[pick] = g_lights.epoch;
     s.at[pick] = now;
   }
 }
@@ -702,6 +772,39 @@ std::string LightPart(int carried, bool zones) {
   return code;
 }
 
+// #9: the pass's light map, read: a change (a light put out, lit, broken; the hider's own light) makes every slice
+// stale. Logged when it changes (20 lines at most).
+void ReadLights(void* hider, int carried) {
+  std::string text = engine::GetLocalString(hider, "nwn5e_light_map");
+  const bool hider_lit = rules::CarriedLightLevel(carried) >= 1;
+  text += hider_lit ? "|carried" : "";
+  if (g_lights.known && text == g_lights.text) return;
+  g_lights.known = true;
+  g_lights.text = text;
+  g_lights.hider_lit = hider_lit;
+  g_lights.sources.clear();
+  ++g_lights.epoch;
+  const int lum = atoi(text.c_str());
+  g_lights.area_lit = lum >= 30;
+  size_t at = text.find(';');
+  while (at != std::string::npos && at + 1 < text.size()) {
+    const size_t end = text.find(';', at + 1);
+    const std::string part = text.substr(at + 1, end == std::string::npos ? std::string::npos : end - at - 1);
+    LightSource light{};
+    if (sscanf_s(part.c_str(), "%f,%f,%f,%f", &light.x, &light.y, &light.z, &light.dim) == 4 && light.dim > 0.0f) {
+      g_lights.sources.push_back(light);
+    }
+    at = end;
+  }
+  static int logged = 0;
+  if (logged < 20) {
+    ++logged;
+    Log("stealth watch: lights for the cones - %d within 60 m, the area's own light %d%s%s", static_cast<int>(
+        g_lights.sources.size()), lum, g_lights.area_lit ? " (lit: full reach)" : "",
+        hider_lit ? "; the hider carries a light (full reach)" : "");
+  }
+}
+
 // The pass, on the hiding character.
 void Pass(uint32_t pc, int carried) {
   const int rings = g_config.stealth_rings;
@@ -711,7 +814,41 @@ void Pass(uint32_t pc, int carried) {
       "int pass = GetLocalInt(pc, \"nwn5e_watch_pass\") + 1; SetLocalInt(pc, \"nwn5e_watch_pass\", pass);"
       // A ranged Snuff's mark (light_sources.cpp) goes when it stops attacking.
       "if (GetLocalInt(pc, \"nwn5e_snuffing\") && GetCurrentAction(pc) != ACTION_ATTACKOBJECT) DeleteLocalInt(pc, \"nwn5e_snuffing\");";
-  if (g_config.stealth_light && g_config.perception == rules::RuleVariant::kFaithful) code += LightPart(carried, true);
+  if (g_config.stealth_light && g_config.perception == rules::RuleVariant::kFaithful) {
+    code += LightPart(carried, true);
+    if (LightConesOn()) {
+      // #9: the lights for the light-shortened slices - "lum;x,y,z,dim;..." (lum: the area's own light, 0 indoors).
+      code +=
+          "string lmap = IntToString(lum) + \";\";"
+          "object lmo = GetFirstObjectInShape(SHAPE_SPHERE, 60.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
+          "while (GetIsObjectValid(lmo)) {"
+          " float lmd = 0.0; vector lmp = GetPosition(lmo);"
+          " if (GetStringLeft(GetTag(lmo), 11) == \"nwn5e_flame\") {"
+          "  if (!GetLocalInt(lmo, \"nwn5e_torch_out\")) lmd = GetLocalInt(lmo, \"nwn5e_torch_colour\") % 2 == 1 ? 7.5 : 4.0;"
+          " } else {"
+          "  if (GetObjectType(lmo) == OBJECT_TYPE_PLACEABLE && GetPlaceableIllumination(lmo)"
+          "      && GetLocalInt(lmo, \"nwn5e_light_bright\") >= 0) {"
+          "   int lmr = GetLocalInt(lmo, \"nwn5e_light_dim\"); lmd = lmr > 0 ? IntToFloat(lmr) / 100.0 : 9.0;"
+          "  }"
+          "  if (lmo != pc) {"
+          "   effect lme = GetFirstEffect(lmo);"
+          "   while (GetIsEffectValid(lme)) {"
+          "    if (GetEffectType(lme, TRUE) == EFFECT_TYPE_VISUALEFFECT) {"
+          "     int lmv = GetEffectInteger(lme, 0);"
+          "     if (lmv >= 153 && lmv <= 180 && 5.0 * IntToFloat(1 + (lmv - 153) % 4) > lmd) lmd = 5.0 * IntToFloat(1 + (lmv - 153) % 4);"
+          "    }"
+          "    lme = GetNextEffect(lmo);"
+          "   }"
+          "  }"
+          "  lmp.z = lmp.z + 1.0;"
+          " }"
+          " if (lmd > 0.0) lmap += FloatToString(lmp.x, 0, 1) + \",\" + FloatToString(lmp.y, 0, 1) + \",\""
+          "  + FloatToString(lmp.z, 0, 1) + \",\" + FloatToString(lmd, 0, 1) + \";\";"
+          " lmo = GetNextObjectInShape(SHAPE_SPHERE, 60.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
+          "}"
+          "SetLocalString(pc, \"nwn5e_light_map\", lmap);";
+    }
+  }
   code +=
       // The nearest hostiles get rings.
       "int n = 1; object o = GetNearestCreature(CREATURE_TYPE_REPUTATION, REPUTATION_TYPE_ENEMY, pc, n);"
@@ -791,6 +928,7 @@ void Pass(uint32_t pc, int carried) {
       "}";
   Run(code, pc, "watch");
   if (hider) g_pass = engine::GetLocalInt(hider, "nwn5e_watch_pass");
+  if (hider && LightConesOn()) ReadLights(hider, carried);
 }
 
 // Every marker and ring in the character's area off.
@@ -819,6 +957,7 @@ void Clear(uint32_t pc) {
   SetStealthOpacity(pc, 0.0f);
   // #9 c: nothing drawn now - the next hide measures afresh.
   g_cones.clear();
+  g_lights.known = false;
   g_pass = 0;
 }
 
@@ -1222,6 +1361,8 @@ int DrawnConeSees(void* observer, void* hider, float* metres, float* reach) {
 
 // rules_perception.cpp: whether a searching creature keeps a cone (search_cone) rather than seeing all round.
 bool SearchConesOn() { return SearchConeOn(); }
+// rules_perception.cpp: whether the drawn cones are shortened by light (so darkness inside one is seen at -5).
+bool LightDrawnCones() { return LightConesOn(); }
 
 void InstallStealthWatch() {
   g_investigate = g_config.heard_investigates && g_config.perception == rules::RuleVariant::kFaithful;
@@ -1262,6 +1403,15 @@ void InstallStealthWatch() {
           rules::DrawnConeDegrees(g_config.vision_cone), rules::kConeSliceLengthCount, rules::kConeSliceRow,
           rules::kConeSliceRowLast, rules::kConeSliceRearRow, rules::kConeSliceRearRowLast, g_config.stealth_rings,
           kPositionsPerUpdate, kTestsPerSecond);
+    }
+    // #9's light-shortened slices: their launch line.
+    if (!LightConesOn()) {
+      Log("stealth watch: cones shortened by light off (cone_light=%d, stealth_light=%d) - full reach in any light",
+          g_config.cone_light ? 1 : 0, g_config.stealth_light ? 1 : 0);
+    } else {
+      Log("stealth watch: cones shortened by light - cone_light=1: each slice to the farthest point it could spot you "
+          "(dim light or brighter, or darkness within its darkvision - feat 228 or the darkvision visual 182, 18 m), "
+          "contiguous out to a lit patch, sampled every 1 m; full reach in a lit area outdoors or carrying a light");
     }
     // The searching cone's launch line.
     if (!SearchConeOn()) {

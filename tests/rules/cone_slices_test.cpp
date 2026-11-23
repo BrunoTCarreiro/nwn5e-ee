@@ -183,3 +183,52 @@ TEST(ConeSlicesDecideWhatTheRuleSees) {
   const int orange = ConeSliceSignature(rows);
   CHECK_EQ(orange != before && orange != 0, true);
 }
+
+// #9 (owner, 2026-11-22: "2. Mostly A, but if there's an illuminated patch further out, there should not be an island
+// of vision, it should form a contiguous slice of detectability"). Breaks caught: a lit patch beyond a dark stretch
+// not reached (an island dropped, or the slice cut at the dark), the farthest lit point not the one taken, darkvision
+// ignored or reaching past the wall, samples past the cut, a slice drawn where nothing is lit, sampling not from far
+// to near (more samples than needed).
+TEST(LightShortensASliceContiguously) {
+  const auto near = [](float a, float b) { return fabsf(a - b) < 0.001f; };
+  int samples = 0;
+  // A torch at the guard's feet (lit 0-4 m) and a lit patch at 12-14 m, dark between: the slice reaches 14 m.
+  const auto torch_and_patch = [&](float d) {
+    ++samples;
+    return d <= 4.0f || (d >= 12.0f && d <= 14.0f);
+  };
+  CHECK_EQ(near(SeeableReach(20.0f, 1.0f, 0.0f, torch_and_patch), 14.0f), true);
+  CHECK_EQ(samples, 7);  // 20, 19 ... 14: from far to near, stopping at the first lit
+  // Only the torch: 4 m.
+  const auto torch = [](float d) { return d <= 4.0f; };
+  CHECK_EQ(near(SeeableReach(20.0f, 1.0f, 0.0f, torch), 4.0f), true);
+  // The patch past the wall (cut at 10 m): only the torch counts.
+  CHECK_EQ(near(SeeableReach(10.0f, 1.0f, 0.0f, torch_and_patch), 4.0f), true);
+  // All dark: nothing; with darkvision, its 18 m.
+  const auto dark = [](float) { return false; };
+  CHECK_EQ(SeeableReach(20.0f, 1.0f, 0.0f, dark) == 0.0f, true);
+  CHECK_EQ(near(SeeableReach(20.0f, 1.0f, 18.0f, dark), 18.0f), true);
+  CHECK_EQ(near(SeeableReach(12.0f, 1.0f, 18.0f, dark), 12.0f), true);  // darkvision past the wall: the wall
+  CHECK_EQ(near(SeeableReach(20.0f, 1.0f, 18.0f, torch), 18.0f), true);  // a torch inside its darkvision: 18 m
+  // Darkvision and a lit patch beyond it: the patch.
+  const auto far_patch = [](float d) { return d >= 19.5f; };
+  CHECK_EQ(near(SeeableReach(20.0f, 1.0f, 18.0f, far_patch), 20.0f), true);
+  // Lit all along (daylight): the cut, one sample.
+  samples = 0;
+  const auto day = [&](float) {
+    ++samples;
+    return true;
+  };
+  CHECK_EQ(near(SeeableReach(20.0f, 1.0f, 0.0f, day), 20.0f), true);
+  CHECK_EQ(samples, 1);
+  // No samples past the cut, none at or under 0.
+  float farthest = 0.0f, nearest = 100.0f;
+  const auto record = [&](float d) {
+    farthest = d > farthest ? d : farthest;
+    nearest = d < nearest ? d : nearest;
+    return false;
+  };
+  SeeableReach(7.5f, 1.0f, 0.0f, record);
+  CHECK_EQ(near(farthest, 7.5f) && nearest > 0.0f, true);
+  CHECK_EQ(SeeableReach(0.0f, 1.0f, 18.0f, day) == 0.0f, true);  // a wall at its feet
+}

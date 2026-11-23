@@ -118,6 +118,18 @@ bool SeenInsideSlices(const int rows[kConeSlicePositions], float degrees_off_fac
   return metres <= kConeSliceLengths[length] + 1e-4f;
 }
 
+float SeeableReach(float cut, float step, float dark_reach, const std::function<bool(float)>& lit) {
+  if (!(cut > 0.0f)) return 0.0f;
+  if (dark_reach >= cut) return cut;
+  if (!(step > 0.0f)) step = 1.0f;
+  for (int i = 0;; ++i) {
+    const float d = cut - step * static_cast<float>(i);
+    if (d <= 0.0f || d <= dark_reach + 1e-4f) break;
+    if (lit(d)) return d;  // the farthest lit point: all of the slice up to it
+  }
+  return dark_reach > 0.0f ? dark_reach : 0.0f;
+}
+
 int ConeSliceSignature(const int rows[kConeSlicePositions]) {
   uint32_t hash = 2166136261u;
   bool any = false;

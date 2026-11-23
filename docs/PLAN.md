@@ -6005,6 +6005,25 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   undrawn, search_cone on its facing). Only while a player character hides, within 40 m. The log: "glances (toward
   where it heard you / about) - facing a -> b, holds n s" (300 lines), "stands but doesn't glance - busy (action
   n)" (20).
+  *Built (#9, light shortens the cones):* with `cone_light` (on; with cone_walls and stealth_light) each slice
+  reaches only to the farthest point along it where this guard could spot a hider - ground in dim light or brighter
+  by the light estimate the rules and the light gem use (the same sources and reaches: lit placeables by their own
+  reach, tile flames 7.5 / 4 m, light effects 153-180 at their radius, each with a clear line from the light to the
+  spot's chest height), or darkness within its darkvision - capped by the wall's cut and its sight, and contiguous:
+  a lit patch farther out makes the slice reach it, the dark stretch between drawn as part of it, no islands
+  (rules::SeeableReach, tested). Darkvision: what the light rule already reads (rules_perception.cpp) - NWN's feat
+  228 (FEAT_DARKVISION, the races' and monsters' own) or the darkvision visual 182 (the Darkvision spell, an item),
+  reaching kDarkvisionMetres, 18 m (60 feet, rounded as the rule has it). Sampled every metre along the slice's
+  middle from its far end in: the first lit sample is its reach, so a slice costs a few distance checks and one
+  sight line per light that reaches a sample (counted in the same 240-a-second budget; the cost line now gives the
+  light samples). The lights are listed once a second by the pass (within 60 m, not the hider's own) into
+  nwn5e_light_map; any change - a light put out, broken, lit, the hider's own light - makes every slice stale, as a
+  move or a turn does. Full reach where the area itself is lit (outdoors, 30+: daylight, moonlight) or the hider
+  carries a light (it's lit wherever it goes). The rule follows the drawing: inside the drawn slice a hider can be
+  seen - bright normally, dim at -5, darkness at -5 too (rules::HiderLightTerm: Disadvantage, "a contiguous slice of
+  detectability"); outside it, safe. A guard not drawn (beyond the nearest stealth_rings) keeps the old light rule
+  (darkness unseen but for darkvision). Logged: "lights for the cones - n within 60 m, the area's own light l"
+  when they change (20 lines), and the launch line.
 - **Light where you hide** (0.32.0; owner: "do the sensible distances, I'll add
   light queries down the line"). The !light readings (Training Halls, night,
   interior): moon ambient 58 (dim), braziers / torch brackets found lit by

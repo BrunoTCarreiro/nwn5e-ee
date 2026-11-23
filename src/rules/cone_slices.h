@@ -72,4 +72,13 @@ bool SeenInsideSlices(const int rows[kConeSlicePositions], float degrees_off_fac
 // A drawn set's signature: 0 when nothing is drawn, never 0 otherwise.
 int ConeSliceSignature(const int rows[kConeSlicePositions]);
 
+// Light shortens each slice (#9; owner, 2026-11-22: "If they can't see me because of the light level I'd expect the
+// cone to be mush shorter to show where detection is possible" - "2. Mostly A, but if there's an illuminated patch
+// further out, there should not be an island of vision, it should form a contiguous slice of detectability"): how
+// far along a slice the creature could spot a hider - the farthest point, sampled every `step` metres in from `cut`
+// (the wall's cut, its sight), that `lit(d)` finds in dim light or brighter, or else its darkvision's reach
+// (`dark_reach` metres, 0 without one; darkness within it it sees as dim). Contiguous: the whole slice up to that
+// point, a dark stretch before a lit patch included. 0 when it could spot a hider nowhere along it.
+float SeeableReach(float cut, float step, float dark_reach, const std::function<bool(float)>& lit);
+
 }  // namespace rules
