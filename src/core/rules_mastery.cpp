@@ -66,6 +66,8 @@
 // Blow set before Topple's save.
 void BrutalStaggerBeforeSave(void* attacker, void* target, const uint8_t* data);
 
+void HideOnRoundEnd(void* creature);  // rules_perception.cpp (#33 T3: Stealth Attack's hide at the round's end)
+
 namespace {
 
 // --- D3 ---------------------------------------------------------------------
@@ -456,6 +458,7 @@ void EndCombatRound(void* round) {
   }
   g_end_combat_round(round);
   if (owner) PushOnRoundEnd(owner);
+  if (owner) HideOnRoundEnd(owner);
 }
 
 // The attack's ability modifier (Graze, Topple).

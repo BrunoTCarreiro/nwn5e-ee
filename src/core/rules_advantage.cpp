@@ -295,6 +295,8 @@ int ProneTarget(int) {
 // kind is the spell's, not the caster's current attack's), the 2024
 // close-combat check for ranged, conditions (concealment included) — and
 // Halfling Luck. `note` gets the reasons for the log.
+void SpellAttackFromHiding(void* caster);  // rules_perception.cpp (#9)
+
 int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* note) {
   rules::RollMode mode = rules::RollMode::kNormal;
   void* stats = caster ? StatsOf(caster) : nullptr;
@@ -318,9 +320,12 @@ int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* not
     const MasteryRollSources warded = ProtectionRollSources(caster, target);  // #39 2a build 2a
     const MasteryRollSources outlined = FaerieFireRollSources(target, terms.cant_see_target);  // #39 2a build 2c
     const MasteryRollSources heated = HeatMetalRollSources(caster);  // #39 level 2 build 1b
+    // #9 (2026-11-23): a spell attack made from hiding - Spiritual Weapon's Strike, a spell cast hidden - has the
+    // hidden attacker's Advantage too (2024 Invisible), the hide ending just after (SpellAttackFromHiding).
+    const MasteryRollSources hidden = HiddenAttackerRollSources(caster, target);
     const bool elusive = ElusiveTarget(target);
     mode = rules::SituationalRollMode(terms, rules::RangedCloseCombat(ranged, point_blank_shot, threats),
-                                      conditions.advantage + guided.advantage + outlined.advantage,
+                                      conditions.advantage + guided.advantage + outlined.advantage + hidden.advantage,
                                       conditions.disadvantage + warded.disadvantage + heated.disadvantage, elusive);
     if (note) {
       *note = ModeName(mode);
@@ -331,9 +336,11 @@ int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* not
       if (!warded.note.empty()) *note += "; " + warded.note;
       if (!outlined.note.empty()) *note += "; " + outlined.note;
       if (!heated.note.empty()) *note += "; " + heated.note;
+      if (!hidden.note.empty()) *note += "; " + hidden.note;
       if (elusive) *note += "; Elusive: no Advantage";
     }
   }
+  SpellAttackFromHiding(caster);  // #9: the hide ends just after this roll (rules_perception.cpp)
   int kept = RollEngineDice(1, 20);
   if (mode != rules::RollMode::kNormal) {
     const int second = RollEngineDice(1, 20);

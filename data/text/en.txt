@@ -148,6 +148,13 @@ cover.total_no_attack | generated | nwn5e: {target} has Total Cover ({by}) - you
 cover.save_you | generated | nwn5e: {cover} from the effect ({by}) - +{bonus} to your Dexterity save.
 cover.save_target | generated | nwn5e: {target} has {cover} from the effect ({by}) - +{bonus} to its Dexterity save.
 
+# --- src/core/rules_perception.cpp: the 2024 Hide's end (#9, #33 T3; owner, 2026-11-23: "yes to both") ------------
+hide_end.attack | generated | nwn5e: you attack - you are no longer hidden.
+hide_end.cast_aloud | generated | nwn5e: you cast {spell} aloud - you are no longer hidden.
+hide_end.stealth_attack | generated | nwn5e: Stealth Attack - you stay hidden if you end the round behind Three-Quarters Cover or Total Cover.
+hide_end.stealth_attack_kept | generated | nwn5e: Stealth Attack - you end the round behind {cover}: still hidden.
+hide_end.stealth_attack_lost | generated | nwn5e: Stealth Attack - you end the round where an enemy can see you: you are no longer hidden.
+
 # --- src/core/rules_cunning_strike.cpp -----------------------------------------------------------------------
 cunning_strike.cunning_strike_comes_at_rogue | generated | Cunning Strike comes at Rogue 5.
 cunning_strike.comes_at_rogue_14_devious | generated | {effect} comes at Rogue 14 (Devious Strikes).

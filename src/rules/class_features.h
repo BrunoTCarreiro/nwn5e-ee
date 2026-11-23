@@ -235,13 +235,25 @@ bool HasStrokeOfLuck(int rogue_level);
 // on the radial (sub-radials, as Brutal Strike's); the choice is standing.
 constexpr int kFeatCunningStrike = 1315;
 constexpr int kFeatDeviousStrikes = 1316;
-enum class CunningEffect { kNone = 0, kPoison = 1, kTrip = 2, kWithdraw = 3, kDaze = 4, kKnockOut = 5, kObscure = 6 };
+// kStealthAttack (#33 T3, Thief 9's Supreme Sneak; 2026-11-23): no effect on the target - the attack doesn't end
+// the hide if the Rogue ends the turn behind Three-Quarters or Total Cover (rules/hide_end.h).
+enum class CunningEffect {
+  kNone = 0,
+  kPoison = 1,
+  kTrip = 2,
+  kWithdraw = 3,
+  kDaze = 4,
+  kKnockOut = 5,
+  kObscure = 6,
+  kStealthAttack = 7
+};
 bool HasCunningStrike(int rogue_level);
 bool HasDeviousStrikes(int rogue_level);
 int CunningStrikeEffectCount(int rogue_level);  // 0; 1 from 5; 2 from 11
-// Poison, Trip and Withdraw from 5; Daze, Knock Out and Obscure from 14.
+// Poison, Trip and Withdraw from 5; Stealth Attack from 9 (Thief: Supreme Sneak); Daze, Knock Out and Obscure
+// from 14.
 bool CunningEffectAvailable(CunningEffect effect, int rogue_level);
-// The Sneak Attack d6s an effect costs: Poison, Trip, Withdraw 1; Daze 2; Obscure 3; Knock Out 6.
+// The Sneak Attack d6s an effect costs: Poison, Trip, Withdraw, Stealth Attack 1; Daze 2; Obscure 3; Knock Out 6.
 int CunningEffectCost(CunningEffect effect);
 const char* CunningEffectName(CunningEffect effect);  // "Poison" ...
 int CunningStrikeDc(int dexterity_modifier, int proficiency_bonus);

@@ -117,6 +117,10 @@ const Option kOptions[] = {
     {"o_cs_daze", Kind::kCunning, 4, "Daze (2d6)", "Constitution save or Slowed for a round"},
     {"o_cs_ko", Kind::kCunning, 5, "Knock Out (6d6)", "Constitution save or asleep for a minute, until it takes damage"},
     {"o_cs_obsc", Kind::kCunning, 6, "Obscure (3d6)", "Dexterity save or Blinded for a round"},
+    // #33 T3 (2026-11-23): Thief 9's Supreme Sneak - its name and text the SRD's (5.2.1).
+    {"o_cs_stealth", Kind::kCunning, 7, "Stealth Attack (Cost: 1d6)",
+     "If you have the Hide action's Invisible condition, this attack doesn't end that condition on you if you end the "
+     "turn behind Three-Quarters Cover or Total Cover."},
     {"o_oh_topple", Kind::kOpenHand, 1, "Topple", "Dexterity save or knocked prone for a round"},
     {"o_oh_push", Kind::kOpenHand, 2, "Push", "Strength save or pushed 15 ft away from you"},
     {"o_oh_addle", Kind::kOpenHand, 3, "Addle", "no opportunity attacks until its next turn"},

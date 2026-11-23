@@ -104,12 +104,15 @@
 #include "rules/class_features.h"
 #include "rules/cover_objects.h"
 #include "rules/grenades.h"
+#include "rules/hide_end.h"
 #include "rules/skills.h"
 #include "data/twoda.h"
 #include "object_cover.h"
 #include "rules_loaded.h"
 #include "skill_rank.h"
 #include "player_text.h"
+#include "script_hooks.h"
+#include "spell_impact.h"
 
 bool StealthParts(void* creature, int* extra, bool* proficient);  // rules_skills.cpp
 int ReliableTalentRoll(void* creature, int nwn_skill, int d20);    // rules_skills.cpp (Rogue R9)
@@ -182,6 +185,18 @@ int64_t NowMs() {
 }
 ResolveAttackFn g_resolve_attack = nullptr;
 std::unordered_set<uint32_t> g_hide_ends_after_attack;  // ids: a swing started from hiding, its roll to come
+// #9 / #33 T3 (owner, 2026-11-23: "yes to both, go with your recommendations"; rules/hide_end.h): a Verbal cast from
+// hiding keeps the hide through its impact script (the spell's attack roll made hidden), then it ends; a Stealth
+// Attack's hide is decided at the end of the Rogue's round.
+struct CastReveal {
+  int spell = -1;
+  std::string impact;  // spells.2da ImpactScript, lower case
+  int64_t at = 0;
+};
+std::unordered_map<uint32_t, CastReveal> g_cast_reveal;   // id -> its Verbal cast from hiding
+std::unordered_map<uint32_t, int64_t> g_stealth_attack;   // id -> when its Sneak Attack took Stealth Attack
+std::unordered_set<uint32_t> g_turn_end_hide;              // ids: a Stealth Attack's hide decided at its round's end
+std::unordered_map<uint32_t, int64_t> g_revealed;          // id -> when RevealAfter last ended its hide
 
 // #129 (0.66.6): a hide checked for at once.
 using PerceptionUpdateFn = void (*)(void* observer, void* target, int flag);
@@ -238,6 +253,12 @@ bool IsPlayer(void* creature) {
   return stats && ReadCreatureFacts(stats).is_player;
 }
 bool Hiding(const void* creature) { return Field<uint8_t>(creature, ee::kCreatureStealthMode) == 1; }
+
+// #9 (owner, 2026-11-23): the 2024 Hide's end - an attack roll, a Verbal cast (attack_ends_hiding, faithful).
+bool HideRuleOn() { return g_config.attack_ends_hiding && g_config.perception == rules::RuleVariant::kFaithful; }
+
+// Subtle Spell's hook (#9; not in nwn5e yet): a cast made without its Verbal component doesn't end the hide.
+bool CastWithoutVerbal(void* /*creature*/) { return false; }
 // A player character's henchman.
 bool PlayersHenchman(void* creature) {
   if (!creature || Field<uint16_t>(creature, ee::kCreatureAssociateType) != ee::kAssociateTypeHenchman) return false;
@@ -441,9 +462,38 @@ void ActivityManager(void* creature, uint32_t action) {
   }
   // 2026-11-09 (owner: "go with A"): a spell without a Verbal component cast from hiding keeps the hide - its
   // cast's ActivityManager(1) leaves the stealth activity alone, as a grenade's.
+  // #9 (2026-11-23, attack_ends_hiding): a Verbal one keeps it too while it's cast, and it ends right after its impact
+  // script (ScriptStarted, below) - its attack roll made hidden.
   const int spell = action == kActivityForCast && !t_grenade_throw ? CastingSpellNow() : -1;
-  if (creature && spell >= 0 && g_spell_components_read &&
-      rules::CastKeepsHiding(Hiding(creature), g_spells_without_verbal.count(spell) == 0, true) &&
+  rules::HideActFacts cast;
+  cast.on = HideRuleOn();
+  cast.hiding = creature && Hiding(creature);
+  cast.act = rules::HideAct::kCast;
+  cast.verbal = spell >= 0 && g_spells_without_verbal.count(spell) == 0;
+  cast.without_verbal = creature && CastWithoutVerbal(creature);
+  const rules::HideAfter after_cast = rules::HideAfterAct(cast);
+  static const std::vector<std::string> impacts = GameTableColumn("spells", "ImpactScript");
+  const std::string impact = spell >= 0 && static_cast<size_t>(spell) < impacts.size() ? impacts[spell] : "";
+  if (creature && spell >= 0 && g_spell_components_read && after_cast == rules::HideAfter::kEndsAfter &&
+      !impact.empty() && impact != "****" && (Field<uint32_t>(creature, kCreatureActivityBits) & kActivityStealth)) {
+    const uint32_t left = Field<uint32_t>(creature, kCreatureActivitiesLeft);
+    SetField<uint32_t>(creature, kCreatureActivitiesLeft, left | kActivityStealth);
+    g_activity_manager(creature, action);
+    SetField<uint32_t>(creature, kCreatureActivitiesLeft, left);
+    CastReveal& reveal = g_cast_reveal[IdOf(creature)];
+    if (reveal.spell != spell || NowMs() - reveal.at > 10000) {
+      reveal.spell = spell;
+      reveal.impact = impact;
+      for (char& c : reveal.impact) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+      reveal.at = NowMs();
+      if (LogSlot()) {
+        Log("stealth: 0x%08X casts spell %d from hiding - a Verbal component: hidden through its cast, out of hiding "
+            "after its impact (%s; the 2024 Hide)", IdOf(creature), spell, reveal.impact.c_str());
+      }
+    }
+    return;
+  }
+  if (creature && spell >= 0 && g_spell_components_read && after_cast == rules::HideAfter::kStays &&
       (Field<uint32_t>(creature, kCreatureActivityBits) & kActivityStealth)) {
     const uint32_t left = Field<uint32_t>(creature, kCreatureActivitiesLeft);
     SetField<uint32_t>(creature, kCreatureActivitiesLeft, left | kActivityStealth);
@@ -459,7 +509,7 @@ void ActivityManager(void* creature, uint32_t action) {
     }
     return;
   }
-  if (!creature || action != kActivityForAttack ||
+  if (!creature || action != kActivityForAttack || !HideRuleOn() ||
       rules::WhenAttackEndsHide(Hiding(creature), true) != rules::HideAtAttack::kEndsAfterRoll ||
       !(Field<uint32_t>(creature, kCreatureActivityBits) & kActivityStealth)) {
     g_activity_manager(creature, action);
@@ -514,14 +564,61 @@ uint32_t AIActionItemCastSpell(void* creature, void* node) {
 }
 
 void ResolveAttack(void* creature, uint32_t target, int attacks, int animation) {
+  const int64_t start = NowMs();
   g_resolve_attack(creature, target, attacks, animation);
   if (!creature || g_hide_ends_after_attack.erase(IdOf(creature)) == 0 || !Hiding(creature)) return;
+  // #33 T3: a Sneak Attack that took Supreme Sneak's Stealth Attack - the hide decided at the round's end.
+  rules::HideActFacts attack;
+  attack.hiding = true;
+  const auto stealth = g_stealth_attack.find(IdOf(creature));
+  attack.stealth_attack = stealth != g_stealth_attack.end() && stealth->second >= start;
+  if (rules::HideAfterAct(attack) == rules::HideAfter::kAtTurnEnd) {
+    g_turn_end_hide.insert(IdOf(creature));
+    TellPlayer(IdOf(creature), PlayerText("hide_end.stealth_attack"));
+    if (LogSlot()) {
+      Log("stealth: 0x%08X attacked 0x%08X from hiding with Stealth Attack (Supreme Sneak) - hidden still; decided at "
+          "its round's end (Three-Quarters or Total Cover)", IdOf(creature), target);
+    }
+    return;
+  }
   static const auto set_activity = reinterpret_cast<SetActivityFn>(EngineExport(kSetActivity));
   if (set_activity) set_activity(creature, static_cast<int>(kActivityStealth), 0);
+  TellPlayer(IdOf(creature), PlayerText("hide_end.attack"));
   if (LogSlot()) {
     Log("stealth: 0x%08X attacked 0x%08X from hiding - the roll made hidden, out of stealth mode after it (the 2024 "
         "Hide)%s", IdOf(creature), target, Hiding(creature) ? " - STILL hiding: the engine kept it" : "");
   }
+}
+
+// #9: out of hiding just after what's running now (a script's DelayCommand), the player told `line`.
+void RevealAfter(void* creature, const std::string& line, const char* why) {
+  g_revealed[IdOf(creature)] = NowMs();
+  RunScriptChunk("DelayCommand(0.0, SetActionMode(OBJECT_SELF, ACTION_MODE_STEALTH, FALSE));", IdOf(creature));
+  TellPlayer(IdOf(creature), line);
+  if (LogSlot()) Log("stealth: 0x%08X %s - out of hiding right after it (the 2024 Hide)", IdOf(creature), why);
+}
+
+// #9: a Verbal cast from hiding - out of hiding once its impact script runs (its attack roll, if any, made hidden).
+void ScriptStarted(uint32_t self, const char* name, uint32_t length) {
+  if (g_cast_reveal.empty()) return;
+  const auto it = g_cast_reveal.find(self);
+  if (it == g_cast_reveal.end()) return;
+  if (NowMs() - it->second.at > 15000) {  // never came (an interrupted cast): no cast, still hidden
+    g_cast_reveal.erase(it);
+    return;
+  }
+  const std::string& impact = it->second.impact;
+  if (impact.empty() || impact.size() != length) return;
+  for (uint32_t i = 0; i < length; ++i) {
+    if (static_cast<char>(tolower(static_cast<unsigned char>(name[i]))) != impact[i]) return;
+  }
+  const int spell = it->second.spell;
+  g_cast_reveal.erase(it);
+  void* creature = CreatureById(self);
+  if (!creature || !Hiding(creature)) return;
+  char why[96];
+  sprintf_s(why, "cast spell %d (a Verbal component), its impact running", spell);
+  RevealAfter(creature, PlayerText("hide_end.cast_aloud", {{"spell", SpellNameOf(spell)}}), why);
 }
 
 int StealthDetection(void* creature, void* target, int spot, int* seen, int* heard, int flag) {
@@ -974,6 +1071,9 @@ void InstallPerceptionRules() {
   HookExport("CNWSCreature::ResolveAttack (an attack from hiding ends the hide after its roll)", kResolveAttack,
              reinterpret_cast<void*>(&ResolveAttack), reinterpret_cast<void**>(&g_resolve_attack));
   // 2026-11-09 (A): a spell without a Verbal component cast from hiding keeps the hide.
+  if (HideRuleOn() && !AddScriptStartListener(&ScriptStarted)) {
+    Log("SKIP stealth: a Verbal cast from hiding - no script hook: its hide ends as the engine's, at the cast");
+  }
   if (!HookCastAction() || !OnRulesLoaded(&ReadSpellComponents)) {
     Log("SKIP stealth: the cast action or the rules load isn't hooked - every cast ends stealth mode");
   }
@@ -1117,6 +1217,63 @@ bool HeardSpot(uint32_t observer, uint32_t hider, float* x, float* y) {
   *x = heard->second.x;
   *y = heard->second.y;
   return true;
+}
+
+// #9: a spell attack rolled by a hider (rules_advantage.cpp, after its d20): out of a Verbal cast (Spiritual Weapon's
+// Strike, a later strike of a spell) the hide ends right after it; inside one, at the cast's impact (ScriptStarted).
+void SpellAttackFromHiding(void* caster) {
+  if (!caster || !HideRuleOn() || !Hiding(caster) || g_cast_reveal.count(IdOf(caster))) return;
+  const auto revealed = g_revealed.find(IdOf(caster));
+  if (revealed != g_revealed.end() && NowMs() - revealed->second < 2000) return;  // its cast's impact is ending it
+  rules::HideActFacts attack;
+  attack.hiding = true;
+  if (rules::HideAfterAct(attack) != rules::HideAfter::kEndsAfter) return;
+  RevealAfter(caster, PlayerText("hide_end.attack"), "made a spell attack roll from hiding");
+}
+
+// #33 T3: Cunning Strike took Stealth Attack for this Sneak Attack (rules_cunning_strike.cpp).
+void NoteStealthAttack(uint32_t rogue) { g_stealth_attack[rogue] = NowMs(); }
+
+// #33 T3: the end of a Stealth Attacker's round (rules_mastery.cpp's EndCombatRound) - hidden still only behind
+// Three-Quarters or Total Cover from every enemy within 30 m (the SRD names no one).
+void HideOnRoundEnd(void* creature) {
+  if (!creature || g_turn_end_hide.erase(IdOf(creature)) == 0 || !Hiding(creature)) return;
+  struct Least {
+    void* rogue;
+    rules::Cover cover = rules::Cover::kTotal;
+    std::string by;
+    int enemies = 0;
+  } least{creature};
+  engine::ForEachOtherCreatureInArea(
+      creature,
+      [](void* context, uint32_t, void* other) {
+        Least* l = static_cast<Least*>(context);
+        if (engine::IsDeadOrDying(other) || !engine::IsEnemy(other, IdOf(l->rogue))) return;
+        if (engine::CentreDistanceSquared(other, l->rogue) > 30.0f * 30.0f) return;
+        ++l->enemies;
+        std::string by;
+        const rules::Cover c = CoverBetween(other, l->rogue, &by, nullptr);
+        if (static_cast<int>(c) < static_cast<int>(l->cover)) {
+          l->cover = rules::LessCover(l->cover, c);
+          l->by = by;
+        }
+      },
+      &least);
+  if (rules::SupremeSneakKeeps(least.cover)) {
+    TellPlayer(IdOf(creature), PlayerText("hide_end.stealth_attack_kept", {{"cover", CoverWords(least.cover)}}));
+    if (LogSlot()) {
+      Log("stealth: 0x%08X ends its round behind %s from all %d enemies within 30 m - Stealth Attack keeps the hide",
+          IdOf(creature), least.cover == rules::Cover::kTotal ? "Total Cover" : "Three-Quarters Cover", least.enemies);
+    }
+    return;
+  }
+  static const auto set_activity = reinterpret_cast<SetActivityFn>(EngineExport(kSetActivity));
+  if (set_activity) set_activity(creature, static_cast<int>(kActivityStealth), 0);
+  TellPlayer(IdOf(creature), PlayerText("hide_end.stealth_attack_lost"));
+  if (LogSlot()) {
+    Log("stealth: 0x%08X ends its round with less than Three-Quarters Cover from an enemy (%s) - Stealth Attack's hide "
+        "ends", IdOf(creature), least.by.empty() ? "in the open" : least.by.c_str());
+  }
 }
 
 bool UnseenHiderMove(void* creature, const float* to) {

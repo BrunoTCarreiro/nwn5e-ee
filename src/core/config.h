@@ -106,6 +106,12 @@ struct Config {
   // isn't seen by it, attacks get +2 / +5 AC (Total: no attack), Dexterity saves +2 / +5 from the effect's origin
   // (object_cover.cpp). Faithful only. 0: NWN's sight - placeables block nothing, cover only from creatures.
   bool cover_objects = true;
+  // #9 / #33 T3 (owner, 2026-11-23: "yes to both, go with your recommendations"): the 2024 Hide ends right after the
+  // hider's attack roll (made hidden: its Advantage) - weapon, spell (Spiritual Weapon's Strike, Flame Blade's) - or
+  // its cast of a spell with a Verbal component (hidden through the cast's impact); a spell without one keeps it;
+  // Supreme Sneak's Stealth Attack keeps it if the round ends behind Three-Quarters Cover (rules_perception.cpp).
+  // Faithful only. 0: NWN's own - stealth mode ends as a swing or any cast starts.
+  bool attack_ends_hiding = true;
   // #9 (owner, 2026-11-22: "2. Mostly A, but if there's an illuminated patch further out, there should not be an
   // island of vision, it should form a contiguous slice of detectability"): with cone_walls and stealth_light, each
   // slice reaches only as far as the creature could spot a hider - lit ground, or darkness within its darkvision -

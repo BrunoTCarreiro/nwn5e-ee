@@ -125,7 +125,8 @@ const std::vector<ClassFeature>& Rogue() {
       {7, "Reliable Talent", false, "built: a d20 of 9 or lower counts as 10 on proficient checks nwn5e rolls "
                                     "(hiding, searching, the scripts' skill checks; not the engine's locks and traps)"},
       {8, "Ability Score Improvement", false, "built (!asi)"},
-      {9, "Supreme Sneak", true, "later (an attacking-ends-hiding rule)"},
+      {9, "Supreme Sneak", true, "built: Cunning Strike's Stealth Attack (1d6) - the attack keeps your hide if "
+                                "you end the turn behind Three-Quarters or Total Cover"},
       {10, "Ability Score Improvement", false, "built (!asi)"},
       {11, "Improved Cunning Strike", false, "built: two effects per Sneak Attack"},
       {12, "Ability Score Improvement", false, "built (!asi)"},
@@ -759,6 +760,8 @@ bool CunningEffectAvailable(CunningEffect effect, int rogue_level) {
     case CunningEffect::kKnockOut:
     case CunningEffect::kObscure:
       return HasDeviousStrikes(rogue_level);
+    case CunningEffect::kStealthAttack:
+      return rogue_level >= 9;  // Supreme Sneak (Thief 9)
     default:
       return false;
   }
@@ -768,7 +771,8 @@ int CunningEffectCost(CunningEffect effect) {
   switch (effect) {
     case CunningEffect::kPoison:
     case CunningEffect::kTrip:
-    case CunningEffect::kWithdraw: return 1;
+    case CunningEffect::kWithdraw:
+    case CunningEffect::kStealthAttack: return 1;
     case CunningEffect::kDaze: return 2;
     case CunningEffect::kObscure: return 3;
     case CunningEffect::kKnockOut: return 6;
@@ -784,6 +788,7 @@ const char* CunningEffectName(CunningEffect effect) {
     case CunningEffect::kDaze: return "Daze";
     case CunningEffect::kKnockOut: return "Knock Out";
     case CunningEffect::kObscure: return "Obscure";
+    case CunningEffect::kStealthAttack: return "Stealth Attack";
     default: return "none";
   }
 }
@@ -799,8 +804,8 @@ CunningChoice DecodeCunningChoice(int stored) {
   if (stored <= 0) return choice;  // never chosen: off
   const int value = stored - 1;
   const int first = value % 8, second = (value / 8) % 8;
-  choice.first = first >= 1 && first <= 6 ? static_cast<CunningEffect>(first) : CunningEffect::kNone;
-  choice.second = second >= 1 && second <= 6 ? static_cast<CunningEffect>(second) : CunningEffect::kNone;
+  choice.first = first >= 1 && first <= 7 ? static_cast<CunningEffect>(first) : CunningEffect::kNone;
+  choice.second = second >= 1 && second <= 7 ? static_cast<CunningEffect>(second) : CunningEffect::kNone;
   if (choice.first == CunningEffect::kNone) std::swap(choice.first, choice.second);
   if (choice.first == choice.second) choice.second = CunningEffect::kNone;
   return choice;

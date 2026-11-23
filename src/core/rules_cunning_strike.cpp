@@ -203,6 +203,7 @@ std::vector<std::string> CunningCommand(void* creature, const std::string& args)
   static const Word kWords[] = {{"poison", rules::CunningEffect::kPoison},   {"trip", rules::CunningEffect::kTrip},
                                 {"withdraw", rules::CunningEffect::kWithdraw}, {"daze", rules::CunningEffect::kDaze},
                                 {"knock", rules::CunningEffect::kKnockOut},   {"obscure", rules::CunningEffect::kObscure},
+                                {"stealth", rules::CunningEffect::kStealthAttack},
                                 {"off", rules::CunningEffect::kNone}};
   bool picked = false;
   for (const Word& w : kWords) {
@@ -311,6 +312,9 @@ void ApplyEffects(void* rogue, void* target, const Pending& pending) {
         g_lasting[Key(target_id, Lasting::kKnockedOut)] = LastingEffect{rogue_id, dc, now + kMinuteMs, now + kRoundMs};
         break;
       }
+      case rules::CunningEffect::kStealthAttack:  // #33 T3: nothing on the target - the hide (rules_perception.cpp)
+        part += " (the hide kept if the round ends behind Three-Quarters Cover)";
+        break;
       case rules::CunningEffect::kObscure: {
         const uint8_t save = Save(target, rogue_id, dc, ee::kSaveReflex, 0, 1);
         part += " (" + dcs + " Dexterity save " + Outcome(save, "Blinded for a round") + ")";
@@ -411,6 +415,8 @@ void LastingUpdate(void* creature) {
 
 // rules_rogue.cpp's sneak dice (inside ResolveDamage): the dice the creature's
 // chosen effects cost for this Sneak Attack (0: none), remembered for its damage.
+void NoteStealthAttack(uint32_t rogue);  // rules_perception.cpp (#33 T3)
+
 int CunningStrikeForgo(void* stats, int dice) {
   if (!Faithful() || !stats || dice <= 0) return 0;
   void* rogue = CreatureOf(stats);
@@ -432,6 +438,9 @@ int CunningStrikeForgo(void* stats, int dice) {
                        EffectNames(rules::ActiveCunningEffects(choice, level), true).c_str(), dice,
                        CanTrip(target) ? "" : "; no Trip on a Huge target");
     return 0;
+  }
+  for (rules::CunningEffect e : effects) {
+    if (e == rules::CunningEffect::kStealthAttack) NoteStealthAttack(IdOf(rogue));  // #33 T3: the hide kept for now
   }
   Pending pending;
   pending.target = IdOf(target);

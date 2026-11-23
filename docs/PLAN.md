@@ -5107,6 +5107,20 @@ has nothing to keep.
 vision cone work as that will affect this"):* later, with perception, after the vision cones' work (#9).
 *Kept (owner, 2026-11-21: "A for now"):* still deferred - the "attacking ends hiding" rule changes every hidden attack,
 so it's decided with the perception work (#9), and Three-Quarters Cover comes with #166 part 2.
+*Decided (owner, 2026-11-23):* "yes to both, go with your recommendations" - with #9's Hide's end (attack_ends_hiding;
+the question and both recommendations quoted under #9), Supreme Sneak on the Cunning Strike machinery. SRD 5.2.1:
+"Level 9: Supreme Sneak. You gain the following Cunning Strike option. Stealth Attack (Cost: 1d6). If you have the
+Hide action's Invisible condition, this attack doesn't end that condition on you if you end the turn behind
+Three-Quarters Cover or Total Cover." The text names no one the cover is from; nwn5e reads it as from each enemy
+within 30 m.
+*Built:* CunningEffect::kStealthAttack (rules/class_features: from Rogue 9 - the Thief, the SRD's one subclass -
+cost 1d6, chosen as the others: the Combat options panel's "Stealth Attack (Cost: 1d6)", the SRD's text its
+description, or `!cunning stealth`; no radial entry yet). A Sneak Attack that takes it notes it
+(rules_cunning_strike.cpp); the attack from hiding then keeps the hide ("nwn5e: Stealth Attack - you stay hidden if
+you end the round behind Three-Quarters Cover or Total Cover."), and at the end of the Rogue's combat round
+(rules_mastery.cpp's EndCombatRound) the least cover it has from the enemies within 30 m (#166's degree, their eyes
+to its six body points) decides: Three-Quarters or Total - still hidden; less - out of hiding, told either way
+(rules::SupremeSneakKeeps, tested). With cover_objects=0 no cover is measured: Stealth Attack keeps nothing.
 
 **T4. Use Magic Device (13).** Attune up to four items (NWN has no
 attunement); a property that spends charges spends none on a 6 on 1d6; any
@@ -6037,6 +6051,36 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   themselves only send a creature to search; they find nothing. Exceptions kept: Mind Spike (its caster can't be
   hidden from - the spell's own rule, decided before the cone) and hearing, which never reveals a hider - it only
   sends the creature to investigate. The cone means nothing with hiders_need_search off (no cones: all round).
+  *Owner, 2026-11-23:* "I want your input regarding the spiritual weapon, should I be able to cast it from hiding? it
+  has a verbal component. Anyway, in a situation where I am hiding and have the spiritual weapon out with an enemy
+  that's unaware of where I am, I can sneak around, tell the weapon to keep attacking them and they will just slowly
+  and calmly search for me. SHould we implement a "emergency" search mode? In this case the enemy can't target the
+  weapon but they're still taking damage, the most they can do is try to find me as quickly as possible. what do you
+  think?" The recommendations: (1) the 2024 Hide's end - SRD 5.2.1: "You stop being hidden immediately after any of
+  the following occurs: you make a sound louder than a whisper, an enemy finds you, you make an attack roll, or you
+  cast a spell with a Verbal component" - right after any attack roll by the hider (weapon, spell, Spiritual Weapon's
+  Strike, Flame Blade's) or its cast of a Verbal spell (cantrips too), the attack still made hidden; Subtle Spell's
+  hook; Supreme Sneak (#33 T3) on the Cunning Strike machinery; attack_ends_hiding=1; (2) the emergency search - a
+  creature harmed by a hider it can't find searches urgently: a Perception roll each round in its cone, quicker and
+  wider glances, to where it last heard the hider (within about 12 s) or scanning in place, a shout to hostile
+  creatures within about 20 m, fading 12 s after the last harm.
+  *Decided (owner, 2026-11-23):* "yes to both, go with your recommendations".
+  *Built (#9, the Hide's end; rules/hide_end.{h,cpp}, tested):* attack_ends_hiding=1 (faithful perception; 0 = NWN's
+  own - stealth mode ends as a swing or any cast starts). rules::HideAfterAct: an attack roll ends the hide right
+  after it; a cast with a Verbal component (spells.2da VS) ends it right after the cast; one without, or one flagged
+  as cast without its Verbal component (CastWithoutVerbal - Subtle Spell's hook, false until Subtle Spell exists),
+  keeps it; a Stealth Attack decides at the round's end. How the order works in the engine: (a) a weapon attack -
+  ResolveAttack calls ActivityManager(4), which would end stealth mode before the roll; the stealth activity is left
+  alone for that call, the roll is made hidden (its Advantage, #129's HiddenAttackerRollSources), and stealth mode
+  ends when ResolveAttack returns, the player told "nwn5e: you attack - you are no longer hidden." (b) A spell
+  attack - every spell attack roll goes through RollSpellAttackD20 (the touch attack's d20): it now counts the hidden
+  attacker's Advantage too, and outside a Verbal cast (Spiritual Weapon's Strike, a later strike) the hide ends just
+  after it (a DelayCommand(0.0) on the caster: after the roll's script). (c) A Verbal cast - AIActionCastSpell's
+  ActivityManager(1) would end stealth mode as the cast starts; the stealth activity is left alone, and the hide ends
+  when the spell's impact script (spells.2da ImpactScript) starts running on the caster - a DelayCommand(0.0), so
+  the script's own attack roll is made hidden first - "nwn5e: you cast <spell> aloud - you are no longer hidden."; a
+  cast that never reaches its impact (interrupted) spoke no spell: still hidden (15 s later the mark is dropped).
+  Grenades (#132) and non-Verbal casts keep the hide as before. Not modelled: "a sound louder than a whisper".
 - **Light where you hide** (0.32.0; owner: "do the sensible distances, I'll add
   light queries down the line"). The !light readings (Training Halls, night,
   interior): moon ambient 58 (dim), braziers / torch brackets found lit by
