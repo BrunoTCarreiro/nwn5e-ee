@@ -1,5 +1,7 @@
 #include "rules/hide_end.h"
 
+#include "rules/spells2024.h"
+
 namespace rules {
 
 HideAfter HideAfterAct(const HideActFacts& facts) {
@@ -16,6 +18,11 @@ bool SupremeSneakKeeps(Cover least_cover) {
 }
 
 Cover LessCover(Cover a, Cover b) { return static_cast<int>(a) <= static_cast<int>(b) ? a : b; }
+
+bool SpellRowIsALaterUse(int row) {
+  return row == kSpiritualWeaponStrike || row == kFlameBladeEvoke || row == kHeatMetalAgain ||
+         (row >= kDragonsBreathExhaleFirst && row <= kDragonsBreathExhaleLast);
+}
 
 bool HasSupremeSneak(int rogue_level) { return rogue_level >= 9; }
 

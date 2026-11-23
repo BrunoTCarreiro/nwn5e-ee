@@ -32,6 +32,11 @@ bool SupremeSneakKeeps(Cover least_cover);
 // The least of two covers (the one an enemy sees the most of you through).
 Cover LessCover(Cover a, Cover b);
 
+// A spells.2da row that is a spell's later use, not a cast (its row's VS is the spell's): Spiritual Weapon's Strike,
+// Flame Blade evoked again, Heat Metal's damage again, a Dragon's Breath exhale. Using one isn't casting a spell - an
+// attack roll it makes still ends the hide.
+bool SpellRowIsALaterUse(int row);
+
 // Supreme Sneak: Thief 9 (the SRD's one Rogue subclass, as Thief's Reflexes).
 bool HasSupremeSneak(int rogue_level);
 

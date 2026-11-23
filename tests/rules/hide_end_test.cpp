@@ -1,6 +1,7 @@
 #include "check.h"
 #include "rules/class_features.h"
 #include "rules/hide_end.h"
+#include "rules/spells2024.h"
 
 using namespace rules;
 
@@ -20,7 +21,7 @@ HideActFacts Facts(HideAct act, bool verbal, bool without_verbal, bool stealth_a
 // #9 / #33 T3 (owner, 2026-11-23: "yes to both"): what ends the 2024 Hide. Breaks caught: an attack roll keeping the
 // hide, a Verbal cast keeping it, a cast without Verbal ending it, Subtle Spell's hook ignored, Stealth Attack ending
 // it at once, the key off still deciding, a creature not hiding decided for, Supreme Sneak keeping at Half, its
-// level off by one.
+// level off by one, a spell's later use (Heat Metal's Again) taken for a cast or a cast for a later use.
 TEST(HideEndsAfterAttackOrVerbalCast) {
   CHECK_EQ(HideAfterAct(Facts(HideAct::kAttackRoll, false, false, false)) == HideAfter::kEndsAfter, true);
   CHECK_EQ(HideAfterAct(Facts(HideAct::kCast, true, false, false)) == HideAfter::kEndsAfter, true);
@@ -39,6 +40,10 @@ TEST(HideEndsAfterAttackOrVerbalCast) {
   CHECK_EQ(LessCover(Cover::kTotal, Cover::kHalf) == Cover::kHalf, true);
   CHECK_EQ(LessCover(Cover::kNone, Cover::kThreeQuarters) == Cover::kNone, true);
   CHECK_EQ(HasSupremeSneak(9) && !HasSupremeSneak(8), true);
+  CHECK_EQ(SpellRowIsALaterUse(kHeatMetalAgain) && SpellRowIsALaterUse(kSpiritualWeaponStrike), true);
+  CHECK_EQ(SpellRowIsALaterUse(kFlameBladeEvoke) && SpellRowIsALaterUse(kDragonsBreathExhaleLast), true);
+  CHECK_EQ(SpellRowIsALaterUse(kHeatMetal) || SpellRowIsALaterUse(kSpiritualWeapon), false);
+  CHECK_EQ(SpellRowIsALaterUse(kDragonsBreath) || SpellRowIsALaterUse(kDragonsBreathExhaleLast + 1), false);
   CHECK_EQ(CunningEffectAvailable(CunningEffect::kStealthAttack, 9), true);
   CHECK_EQ(CunningEffectAvailable(CunningEffect::kStealthAttack, 8), false);
   CHECK_EQ(CunningEffectCost(CunningEffect::kStealthAttack), 1);

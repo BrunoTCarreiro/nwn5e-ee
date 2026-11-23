@@ -472,7 +472,8 @@ void ActivityManager(void* creature, uint32_t action) {
   cast.on = HideRuleOn();
   cast.hiding = creature && Hiding(creature);
   cast.act = rules::HideAct::kCast;
-  cast.verbal = spell >= 0 && g_spells_without_verbal.count(spell) == 0;
+  // A spell's later use (Heat Metal's Again, Spiritual Weapon's Strike ...) isn't a cast: no Verbal component.
+  cast.verbal = spell >= 0 && !rules::SpellRowIsALaterUse(spell) && g_spells_without_verbal.count(spell) == 0;
   cast.without_verbal = creature && CastWithoutVerbal(creature);
   const rules::HideAfter after_cast = rules::HideAfterAct(cast);
   static const std::vector<std::string> impacts = GameTableColumn("spells", "ImpactScript");

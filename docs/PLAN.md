@@ -6080,7 +6080,9 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   when the spell's impact script (spells.2da ImpactScript) starts running on the caster - a DelayCommand(0.0), so
   the script's own attack roll is made hidden first - "nwn5e: you cast <spell> aloud - you are no longer hidden."; a
   cast that never reaches its impact (interrupted) spoke no spell: still hidden (15 s later the mark is dropped).
-  Grenades (#132) and non-Verbal casts keep the hide as before. Not modelled: "a sound louder than a whisper".
+  Grenades (#132) and non-Verbal casts keep the hide as before; so does a spell's later use, which isn't a cast
+  (rules::SpellRowIsALaterUse: Spiritual Weapon's Strike - its attack roll still ends it - Flame Blade evoked again,
+  Heat Metal's Again, a Dragon's Breath exhale). Not modelled: "a sound louder than a whisper".
   *Built (#9, the emergency search; rules/emergency_search.{h,cpp}, tested; emergency_watch.cpp):* a damage listener
   (OnApplyDamage): damage to a creature - not a player's character - from a creature in stealth mode that it doesn't
   see, hostile to it (Heat Metal's Again, a moved Moonbeam or Flaming Sphere, Spiritual Weapon's Strike, a trap's
