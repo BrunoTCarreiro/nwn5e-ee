@@ -12,7 +12,7 @@
   "name": "swpsword",
   "guide": { "shape": "circle", "diameter": 0.5, "height": 0 },
   "variants": [
-    { "name": "1", "parts": [
+    { "name": "1", "model": "n5m_swpsword", "parts": [
       { "note": "shortsword 012, upright, point up", "model": ["wswss_b_012", "wswss_m_012", "wswss_t_012"], "at": [0, 0, 0], "scale": 1.2, "tilt": [90, 0], "tint": [0.6, 0.8, 1], "texture": "greyscale", "blend": "additive" }
     ] }
   ]
