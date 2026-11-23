@@ -167,6 +167,9 @@ quoted here, as in PLAN.md.
   the spectral look. A dyed part may be White, not Greyscale (its bake has no copy key). The card, the stage, Play in
   game and Save and build honour it; built from the player's game, never committed. The sword now Greyscale, tint
   0.6 0.8 1, Additive.
+- **Faster checks** (the owner, 2026-11-23: "is there anyway to make the checks faster?", then "yes, do 1 to 3 after
+  the install"): test.bat and build.bat compile only what changed, build_derived.js caches each generator's output,
+  scripts\check_all.py runs the checks side by side - the section "Faster checks (2026-11-23)" at the end.
 
 ## Handoff, 2026-11-21 (the animation session -> the mechanics session)
 
@@ -3280,3 +3283,115 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       taken, the chunk model's presence, the VFX reader's default 10, the update's case, an endlist list, an inherited
       key, a compiled "die"'s keys, the controller, a second ASCII "die"); round 0's M12 (the empty lookup) crashed the
       run (0xC0000409, the uncaught std::bad_function_call) - it built.
+
+## Faster checks (2026-11-23)
+
+The owner, 2026-11-23: "is there anyway to make the checks faster?" Four options were offered: 1, rebuild only what
+changed; 2, cache the game-derived assets; 3, run the independent checks side by side; 4, skip the checks a change can't
+reach.
+
+*Decided (owner, 2026-11-23):* "yes, do 1 to 3 after the install" - 1, rebuild only what changed (test.bat and build.bat
+keep their objects and compile only the sources whose content, includes or flags changed); 2, cache the generated assets
+(build_derived.js, and check_derived.js through it, reuses each generator's output while nothing it read changed); 3,
+run the independent checks side by side (one runner, one summary). Not 4: every check still runs.
+
+**Measured first** (this machine: 12 logical cores; a worktree, the DLL built without the private layer, test.bat with
+it):
+
+| check | before | where the time went |
+|---|---|---|
+| test.bat | 2 m 44 s | 150 s compiling 195 sources one at a time, 1 s linking, 12 s running, 2 s vcvars |
+| build.bat (into a scratch folder) | 4 m 29 s | 3 m 42 s compiling 250 sources and linking, 1 s the exe, 5 s copying data\, 38 s the derived build |
+| build_derived.js alone | 22 s | the bounds 16 s (1,215 models through mdlmesh), the Floating Disk 2.4 s, the sword 1.2 s, one burst 1.6 s |
+| check_derived.js | 15 m 56 s | about 40 build_derived runs (22 s each), 17 s copying HEAD's files one git run each, 11 s reading the game's fountains |
+| the VFX Bench's checks, one by one | 3 m 49 s | browser_check 84 s, composer_check 81 s, check_composer_server 42 s (the three start the bench's server), check_parts 15 s, check.js 5 s, the other five a second or two |
+
+**1. Rebuild only what changed** (scripts/cl_incr.py). test.bat and build.bat hand it the cl command line they ran
+before. Each source's object stays in the obj folder (build\obj\rules; %OUT%\obj) with a record beside it
+(`<output>.incr.json`): the key of what made it - the source's bytes, every file it included (cl /sourceDependencies,
+the project's headers and the compiler's and SDK's, by their bytes), every compiler option (a flag or define changed
+rebuilds everything: the private layer on or off, NWN5E_PRIVATE elsewhere, the dev layer) and the folder it runs in (a
+relative /I), the toolchain (cl, its DLLs, link, INCLUDE, LIB). Only the sources whose key changed compile, all in one
+cl /MP run on every core; then cl links every object in the order it always did (a wildcard's folder order). The recipe
+core's stamp (NWN5E_CORE_STAMP, which changes with the animation core's files) is "volatile": its value is in the key
+only of the sources that name it, directly or through a header - anim_recipe.cpp - so a new stamp doesn't rebuild the
+DLL. A header that appears earlier on the include path than one a source included (the same name) recompiles that
+source. A stale object is never linked: an out-of-date source's object is deleted before cl runs, every object is
+checked against its record just before the link, a removed source's object is deleted, and a file changed while cl ran
+is linked as compiled but not recorded (compiled again next time). The link is skipped when every object and the output
+are as the last link left them. build.bat also copies data\ with robocopy /MIR (only what differs; a build's own extra
+files removed, as the old rmdir + xcopy did). **Clean or full:** `test.bat clean`, `build.bat clean` (with `public` too,
+in any order); `NWN5E_INCREMENTAL=off` takes the old single cl run (also the fallback when Python isn't on PATH).
+`python -I scripts\check_cl_incr.py` checks it on a small project of its own (13 checks; 14 of 14 deliberate breaks
+caught).
+
+**2. Cache the generated assets** (tools/data/derived_cache.js, derived_trace.js; tools/data/README.md, "The cache").
+Each of build_derived.js's generators - the Floating Disk, each Composer project, the Spiritual Weapon's sword, the
+one-burst models, the placeable bounds, the particle mask - is traced while it runs (Node's fs and child_process: every
+file it read, every path it looked for, every folder it listed, every module it loaded, the mesh reader it ran - its
+children too - but not what it wrote itself), and its output is kept in **build\derived_cache** (git-ignored with
+build\; NWN5E_DERIVED_CACHE_DIR elsewhere), keyed by all of that: the game's files by size and time, everything else by
+its bytes (so check_derived.js's copy of the repo finds the same entries). Reused while every input is as it was; a game
+update, a recipe, a rows file it reads, its code, nwn5e-tools' code it loads or a rebuilt mesh reader runs it again. One
+line says what was reused and why each other ran. **Full work:** `build.bat clean` (build_derived --fresh), `--no-cache`
+or NWN5E_DERIVED_CACHE=off; NWN5E_DERIVED_CACHE=verify runs everything and fails where a kept output differs.
+check_derived.js uses the checkout's cache too (its copy is keyed by bytes; what each check changes runs again), reads
+HEAD's files in two git runs instead of 250, and reads the game's fountains through the cache. `node
+tools\data\check_derived_cache.js` checks the cache on temporary folders (12 checks; 19 of 19 deliberate breaks caught).
+
+**3. Run the independent checks side by side** (scripts/check_all.py): test.bat, build.bat into build\checks\dll,
+check_derived.js, the two new checks, and the VFX Bench's checks from its README - check.js and check_parts.js (on the
+real build's vfxedit\), check_effect, check_beats, check_chunks, check_textures, check_composer - all at once; the three
+that start the bench's server (check_composer_server.js, browser_check.mjs --ee --build, composer_check.mjs - they also
+count the Composer server's temporary files) one after another in their own lane, started once test.bat and build.bat
+are done: under their compiles' load on every core check_composer_server.js loses two requests (read ECONNRESET, its
+composerState and summaryMatchesGenerator - reproduced on main beside test.bat clean and build.bat clean); with nothing
+to compile they're done in seconds. The mesh reader is built once before (three checks run it; two rebuilding it at once
+would collide). One summary: each check's result, time and last line; logs in build\checks\. `--only`, `--skip`,
+`--list`, `--clean`, `--serial`; `--build <the real build>` (from a worktree, the main checkout's), `--tools`. Each
+check's own command works as before.
+
+**Where it lives** (all under the git-ignored build\): test.bat's objects build\obj\rules, the DLL's and exe's %OUT%\obj
+(build\obj by default), each with its record `<output>.incr.json` and cl's include lists in obj\deps\; the derived cache
+build\derived_cache (u\ the records, b\ the bytes - delete it and the next build does the full work); check_all's logs
+build\checks\, its DLL build\checks\dll. **A full run:** `test.bat clean`, `build.bat clean`, `check_all.py --clean`;
+NWN5E_INCREMENTAL=off (the old single cl run) and NWN5E_DERIVED_CACHE=off (no cache).
+
+**After** (the same machine):
+
+| check | before | cold: clean, or the first run | warm: one source changed (nothing) |
+|---|---|---|---|
+| test.bat | 2 m 44 s | 1 m 50 s (`test.bat clean`: 195 sources, cl /MP12) | 20 s (17 s) - 12 s of it the tests running |
+| build.bat | 4 m 29 s | 2 m 33 s (`build.bat clean`: 1 m 53 s compiling 251 sources, every generator run) | 5.6 s (4.6 s): 1.6 s the DLL, 0.1 s data\, 1 s the derived build reused |
+| build_derived.js | 22 s | 22-33 s (nothing kept, or a generator changed: traced as it runs) | about 1 s (all reused) |
+| check_derived.js | 15 m 56 s | 1 m 47 s (empty cache); 2 m 18 s after a cache-code change | 1 m 18 s (a C++ source changes nothing here) |
+| the VFX Bench's checks, one by one | 3 m 49 s (the three that start a server: 3 m 27 s of it) | - | (unchanged) |
+| all of them, one after another | 27 m (test, build, check_derived, the bench's) | - | - |
+| scripts\check_all.py, side by side | - | 7 m 56 s (`--clean`, an empty cache): the compiles 4 m 21 s, then the server lane 3 m 35 s; with the server lane beside the compiles 6 m 05 s, but check_composer_server.js lost two requests under that load (read ECONNRESET - reproduced on main: 37 s and all pass on an idle machine, those two failing beside test.bat clean and build.bat clean) | 4 m 25 s: every check passes (but check_composer's own failure, below) - the server lane's 3 m 56 s, after test.bat's 30 s |
+
+A clean compile gains less than the cores suggest: cl /MP12 on this machine's 12 logical cores ran 2.2x the
+one-at-a-time speed (each translation unit about 4.6x slower under the load: 695 s of compile time in 68 s for the
+tests' 194 sources). The win is in not compiling.
+
+**Found on the way:**
+- MSVC names an anonymous namespace from its source file's path, so the same sources built from another folder (a
+  worktree, a copy) give other bytes - the proof below builds both ways from one copy, and the incremental key holds the
+  folder cl runs in.
+- check_composer.js fails on main as it stands (before this work too): "the disk's adapter round trip differs at line 1"
+  (left for its own look).
+- check_composer_server.js's composerState and summaryMatchesGenerator lose their connection (read ECONNRESET) when
+  every core is busy - its own timing, left for its own look; check_all keeps it off the compiles.
+- nwn5e-tools moved on while this was measured (a part's Texture: Own, Greyscale, White): its Composer checks expect
+  main's newer floatdisk.js, so run from this branch (made from main before it) check_composer, check_composer_server
+  and composer_check fail on what floatdisk.js hasn't yet (whiteName, greyPicture) - check_composer_server passes
+  against main.
+
+**The same bytes** (`python -I scripts\check_same_bytes.py [--scratch <folder>]`, about 20 minutes: two full builds):
+one copy of the sources (with the private layer, from NWN5E_PRIVATE or this checkout's), B built a step at a time
+(incremental, the derived cache; then a source, each target's most-included header - src\rules\dice.h, 158 of the DLL's
+sources and 62 of the tests' - and a file of the core stamp, anim_assemble.cpp, edited, built, the edits undone, built),
+then A the old way (NWN5E_INCREMENTAL=off: one cl run of every source; NWN5E_DERIVED_CACHE=off). *Result (2026-11-23,
+the private layer in):* **the same bytes - 2,936 files**: nwn5e.dll, nwn5e.exe and rules_test.exe once their link time
+stamps and checksum are zeroed (the link writes its time there), core_stamp.txt, nwn5e.ini, every file of data\ with the
+game-derived ones from the cache and placeable_bounds.txt. With the edits the DLL and the stamp changed (162 of 251
+sources compiled, 63 of 195 tests'), so they reached it; undone, 162 again and the bytes back to A's.

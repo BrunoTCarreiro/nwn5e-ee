@@ -114,6 +114,12 @@ Needs Visual Studio 2019 Build Tools (C++, x64) and NWN: EE from Steam.
 The game folder is the Steam default unless `build\nwn5e.ini` sets
 `[loader] game_dir`. The DLL writes `build\nwn5e.log`.
 
+Both compile only what changed since their last run (with Python 3 on PATH;
+`build.bat clean` / `test.bat clean` compile everything), and the build reuses
+the game-derived models it made before while nothing they're made from changed
+(`build\derived_cache`). `python -I scripts\check_all.py` runs every check side
+by side (docs/TOOLS-PLAN.md, "Faster checks").
+
 ## Legal
 
 The ruleset is the System Reference Document 5.2 (CC-BY-4.0) only. No game
