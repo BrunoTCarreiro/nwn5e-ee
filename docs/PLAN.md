@@ -6811,10 +6811,9 @@ faces block - surfacemat.2da's line-of-sight column, a low wall's height - isn't
 objects: CNWArea::NoNonWalkPolysDetailed over the line's 2D segment, its height range from the lower end to the
 higher, radius 0, the two creatures excluded - any walkmesh box in the way blocks; the object is given back
 (hit_object). A door among them is intersected with its own line (IntersectLineSegments) for the hit point, at the
-door's height + 1 m; for a placeable no hit point is written (it stays zeroed). So placeables with a walkmesh do
-block sight, and the line's height matters: the sight line from eyes (+1 m) to a target's +1 m spans only ~1 m, so a
-box lower than that may not block it - a knee-high bench, maybe a waist-high table - while a line to the feet (0.2
-m) spans 0.2-1 m. genericdoors.2da has a BlockSight column (the portcullises 0, the wooden and stone doors 1); what
+door's height + 1 m; for a placeable no hit point is written (it stays zeroed). So placeables with a walkmesh seemed
+to block sight - *wrong, the session showed (below): the engine's sight knows only the tileset's walls and shut
+doors, and no placeable blocks it, whatever its height.* genericdoors.2da has a BlockSight column (the portcullises 0, the wooden and stone doors 1); what
 reads it isn't found yet. Only the test session can settle: how a placeable's box height is weighed against the
 line (the table, the bench, the rubble, the crate, the barrel), whether an open door's walkmesh leaves the list,
 whether a shut portcullis blocks, and which tile meshes block.
@@ -6842,6 +6841,23 @@ table_dim (the table again, its nearest brazier 8.3 m off: dim light), crate x2_
 plc_barrel (0.9 m). Not done: a tileset's own furniture or low-wall mesh - the tiler places terrain tiles only (no
 feature tiles yet). check_build.py proves each station: its obstacle 2-2.5 m ahead, bright (dim for the dim one),
 no other mark in its guard's 90-degree cone within 20 m, a name !go takes.
+*Tested (owner, 2026-11-23), CV2-1 to CV2-12:* "the results from CV are that from all those, the only one that
+blocks LoS is the closed door, all others leave everything clear" - every body point at every station clear, by the
+sight line and by the walk-blocking boxes (NoNonWalkPolysInDoors: doors only). The engine's sight knows only the
+tileset's walls and shut doors; the statue, the bookcase and the pillar block nothing.
+*Decided (owner, 2026-11-23):* "A, and apply cover to all three" - nwn5e's own sight test against the placeables,
+and its cover in the cones and hiding, in attacks and in Dexterity saves.
+*Built (part 2a, the bounds table):* made at build time, nothing of the game's committed. tools/data/placeable_bounds.js,
+from build_derived.js beside the one-burst step: each placeables.2da row's model (ModelName) read from the player's
+game (game_data.js's resources, as build_derived reads the rest) through mdlmesh --bounds (a new mode of
+tools/data/floatdisk/mdlmesh.cpp: every drawn mesh's vertices through its node's and its parents' positions and turns
+to the root) - the visible geometry's bounds in model space - and, with a walkmesh (<model>.pwk, ASCII), its
+footprint. Written to the build's data\placeable_bounds.txt (git-ignored): 1,235 rows from 1,215 models, 85 KB, 702
+with a walkmesh; 54 rows whose model draws nothing (an invisible object's kind) listed "# miss"; 15,211 placeholder
+rows naming no model in the game ("user", "os_reserved") counted on the last line. The visible bounds are the box for
+sight and cover; the walkmesh footprint is recorded only (the engine walks by it, sight doesn't). It needs
+NWN5E_TOOLS and Node at build time, as build_derived does; NWN5E_DERIVED=skip makes no table, and the DLL then logs
+it and gives no cover from objects.
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms

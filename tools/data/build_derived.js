@@ -234,6 +234,16 @@ function main() {
   const taken = burst.files.reduce((n, x) => n + x.dropped, 0);
   say(`build_derived: one burst (tools/data/oneburst.js): ${burst.files.length} of the game's placeable models, their looping "${O.ANIM}" ` +
     `without its ${O.EVENT} (${taken} event${taken === 1 ? "" : "s"})${forms.length ? ", " + forms.join(", ") : ""}`);
+  // #166 part 2: the placeables' bounds (tools/data/placeable_bounds.js) - the visible geometry of every placeables.2da
+  // model and its walkmesh's footprint - into the build's data\placeable_bounds.txt beside data\files, for the DLL's own
+  // sight lines and cover. The game's numbers: written into the build, never the repo.
+  const bounds = require("./placeable_bounds.js").derive({ res, reader: pre.reader,
+    twoDa: require(path.join(TOOLS, "spell_bench", "game_data.js")).twoDa });
+  const boundsFile = path.join(path.dirname(OUT), "placeable_bounds.txt");
+  if (!CHECK) fs.writeFileSync(boundsFile, bounds.text);
+  say(`build_derived: placeable bounds (tools/data/placeable_bounds.js): ${bounds.rows} placeables.2da rows from ${bounds.models} ` +
+    `models, ${bounds.misses} with a model it can't read or nothing drawn, ${bounds.absent} naming a model the game ` +
+    `doesn't have (placeholders) - ${CHECK ? "would write" : "written"} ${boundsFile}`);
   const ONE_BURST = new Set(O.MODELS.map((m) => m.toLowerCase() + ".mdl"));
   built.push({ gen: { label: "one burst", oneBurst: true }, files: burst.files.map((x) => ({ name: x.name, bytes: x.bytes })) });
 

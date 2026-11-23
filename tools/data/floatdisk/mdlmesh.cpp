@@ -18,11 +18,18 @@
 //                                         (LD) the model with that animation's events of that name taken out
 //                                         (DropAnimationEvents: every other byte as it was), written to out.mdl:
 //                                         "dropped <n>"
+//   mdlmesh --bounds <file.mdl>...        (#166 part 2: tools\data\placeable_bounds.js) each model's visible geometry's
+//                                         bounds in model space - every mesh drawn (render on), its vertices moved
+//                                         through its node and each parent's position and turn up to the root:
+//                                         "bounds <file> <x0> <x1> <y0> <y1> <z0> <z1> <meshes>"; "# model <file>
+//                                         nomesh" when nothing is drawn; "# model <file> unreadable <why>"
 // A mode with the wrong number of arguments, or an option it doesn't know: the usage line, exit 2.
+#include <cmath>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -49,6 +56,77 @@ bool Emitters(const std::string& bytes, data::VfxEffect* effect, std::string* er
   return false;
 }
 
+// A node's place under its parent: its position and turn (axis x y z, angle in radians).
+struct Placed {
+  std::string parent;
+  float position[3];
+  float orientation[4];
+};
+
+// `p` turned by an axis-angle turn (Rodrigues), then moved by `position`.
+void Through(const Placed& node, float p[3]) {
+  float ax = node.orientation[0], ay = node.orientation[1], az = node.orientation[2];
+  const float angle = node.orientation[3];
+  const float length = std::sqrt(ax * ax + ay * ay + az * az);
+  if (length > 1e-6f && std::fabs(angle) > 1e-6f) {
+    ax /= length;
+    ay /= length;
+    az /= length;
+    const float c = std::cos(angle), s = std::sin(angle);
+    const float dot = ax * p[0] + ay * p[1] + az * p[2];
+    const float cx = ay * p[2] - az * p[1], cy = az * p[0] - ax * p[2], cz = ax * p[1] - ay * p[0];
+    const float x = p[0] * c + cx * s + ax * dot * (1 - c);
+    const float y = p[1] * c + cy * s + ay * dot * (1 - c);
+    const float z = p[2] * c + cz * s + az * dot * (1 - c);
+    p[0] = x;
+    p[1] = y;
+    p[2] = z;
+  }
+  p[0] += node.position[0];
+  p[1] += node.position[1];
+  p[2] += node.position[2];
+}
+
+std::string Lower(std::string s) {
+  for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return s;
+}
+
+// #166 part 2: the bounds of a model's drawn meshes in model space; false when none is drawn.
+bool VisibleBounds(const data::VfxEffect& effect, float lo[3], float hi[3], int* meshes) {
+  std::map<std::string, Placed> placed;
+  for (const data::VfxNode& n : effect.nodes) {
+    placed[Lower(n.name)] = Placed{Lower(n.parent), {n.position[0], n.position[1], n.position[2]},
+                                   {n.orientation[0], n.orientation[1], n.orientation[2], n.orientation[3]}};
+  }
+  for (const data::VfxPlane& m : effect.planes) {
+    placed[Lower(m.name)] = Placed{Lower(m.parent), {m.position[0], m.position[1], m.position[2]},
+                                   {m.orientation[0], m.orientation[1], m.orientation[2], m.orientation[3]}};
+  }
+  *meshes = 0;
+  bool any = false;
+  for (const data::VfxPlane& m : effect.planes) {
+    if (!m.render || m.verts.size() < 3) continue;
+    ++*meshes;
+    for (size_t i = 0; i + 2 < m.verts.size(); i += 3) {
+      float p[3] = {m.verts[i], m.verts[i + 1], m.verts[i + 2]};
+      std::string at = Lower(m.name);
+      for (int depth = 0; depth < 64 && !at.empty(); ++depth) {  // up the parents to the root
+        const auto it = placed.find(at);
+        if (it == placed.end()) break;
+        Through(it->second, p);
+        at = it->second.parent;
+      }
+      for (int k = 0; k < 3; ++k) {
+        if (!any || p[k] < lo[k]) lo[k] = p[k];
+        if (!any || p[k] > hi[k]) hi[k] = p[k];
+      }
+      any = true;
+    }
+  }
+  return any;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -56,12 +134,13 @@ int main(int argc, char** argv) {
   // (LD fix round 1: "--drop-events" short of an argument read "--drop-events" as the model).
   const std::string mode = argc >= 2 ? argv[1] : "";
   const bool usage = argc < 2 || (mode == "--model" && argc != 4) || (mode == "--anims" && argc < 3) ||
-                     (mode == "--drop-events" && argc != 6) ||
-                     (mode.rfind("--", 0) == 0 && mode != "--model" && mode != "--anims" && mode != "--drop-events");
+                     (mode == "--drop-events" && argc != 6) || (mode == "--bounds" && argc < 3) ||
+                     (mode.rfind("--", 0) == 0 && mode != "--model" && mode != "--anims" && mode != "--drop-events" &&
+                      mode != "--bounds");
   if (usage) {
     std::fprintf(stderr,
                  "usage: mdlmesh <file.mdl> | mdlmesh --model <draft.vfx> <name> | mdlmesh --anims <file.mdl>... | "
-                 "mdlmesh --drop-events <anim> <event> <in.mdl> <out.mdl>\n");
+                 "mdlmesh --drop-events <anim> <event> <in.mdl> <out.mdl> | mdlmesh --bounds <file.mdl>...\n");
     return 2;
   }
   if (mode == "--model") {
@@ -103,6 +182,33 @@ int main(int argc, char** argv) {
       } else {
         std::printf("# emitters unreadable %s\n", emitter_error.c_str());
       }
+    }
+    return 0;
+  }
+  if (mode == "--bounds") {
+    for (int i = 2; i < argc; ++i) {
+      std::string bytes, error;
+      if (!ReadFile(argv[i], &bytes)) {
+        std::printf("# model %s unreadable can't open it\n", argv[i]);
+        continue;
+      }
+      data::VfxEffect effect;
+      if (!data::ReadVfxBinaryModel(bytes, &effect, &error, true)) {
+        std::string ascii_error;
+        effect = data::VfxEffect();
+        if (!data::ReadVfxAsciiModel(bytes, &effect, &ascii_error)) {
+          std::printf("# model %s unreadable %s / %s\n", argv[i], error.c_str(), ascii_error.c_str());
+          continue;
+        }
+      }
+      float lo[3] = {0, 0, 0}, hi[3] = {0, 0, 0};
+      int meshes = 0;
+      if (!VisibleBounds(effect, lo, hi, &meshes)) {
+        std::printf("# model %s nomesh\n", argv[i]);
+        continue;
+      }
+      std::printf("bounds %s %.3f %.3f %.3f %.3f %.3f %.3f %d\n", argv[i], lo[0], hi[0], lo[1], hi[1], lo[2], hi[2],
+                  meshes);
     }
     return 0;
   }
