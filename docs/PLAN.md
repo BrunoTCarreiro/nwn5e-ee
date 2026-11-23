@@ -6879,6 +6879,30 @@ from Orc: ... - Total Cover (plc_bookshelf)", or "... - no cover" (test_commands
 generated; the degrees cover.degree.*, the SRD's terms). What it means for low obstacles: five of the six points are
 at 1.0 m or higher, so anything under about 1 m - the table (0.9 m), the crate (0.97), the barrel, the bench, the
 rubble - blocks the feet at most and gives no cover wherever you stand (an open question, below).
+*Built (part 2d, the uses):* (a) The cones (stealth_watch.cpp): a slice's line (the eyes, +1 m, to 1 m over the
+ground) is cut by a box too; the cut log names it ("slice n (+d degrees) cut at 2.5 m by placeable plc_bookshelf
+'...' (its box: cover_objects) - hit 2.5 m out, 1.00 m over its feet"). (b) Hiding (rules_perception.cpp's
+Detection): behind Three-Quarters or Total Cover from the observer, a hider isn't seen by it - inside its cone or up
+close - logged "...; behind Total Cover from it (plc_bookshelf): unseen". The drawing: a slice is measured along its
+middle line at 1 m, so a tall obstacle draws the cone short behind it (rule and drawing agree); a narrow one that
+hides you but misses that middle line leaves the slice whole - you're unseen anyway, as the log says; a low one
+(under 1 m) neither cuts a slice nor gives cover, so you're drawn and seen. (c) Attacks (rules_cover.cpp): from the
+attacker's eyes to the target's six points, melee and ranged alike - Half +2, Three-Quarters +5, the more protective
+of a creature's cover (Half) and the objects'; both told once a round ("nwn5e: your target has Three-Quarters Cover
+(+5 AC) - <name> is in the way." / "nwn5e: Three-Quarters Cover (+5 AC) - <name> is between you and the attack.",
+generated). Total Cover (action_order.cpp's attack action): a ranged attack is refused wherever the attacker stands,
+a melee one within 3 m (farther, it walks on - the cover may be gone when it gets there); the action is dropped
+before it's spent and the attacker told "nwn5e: <target> has Total Cover (<name>) - you can't attack it from here."
+once a round. An attack already under way gets +5; spell attacks see the AC, not the refusal. (c) Dexterity saves
+(rules_save_roll.cpp's wrapper): on a Dexterity save, the cover from the effect's point of origin lowers the roll's
+DC - Half 2, Three-Quarters 5, Total 5 (Sacred Flame's save none: "The target gains no benefit from Half Cover or
+Three-Quarters Cover for this save", SRD 5.2.1). The origin is the running script's OBJECT_SELF (kept beside its spell id): an
+area of effect - its centre; a creature - by spells.2da's TargetShape for the spell, a sphere's at the caster's
+spell target location (CNWSObject +0x208, GetSpellTargetLocation's: Fireball), a cone's or a line's at the caster
+(Burning Hands, Lightning Bolt), none at the caster; with no script, `versus` (the caster). nwn5e's 2024 spells roll
+their saves through scripts on the caster, so they follow the same. The lines start 1 m over the origin. Both told
+once a round ("nwn5e: Total Cover from the effect (<name>) - +5 to your Dexterity save." / "nwn5e: <target> has
+...", generated), logged "cover: 0x... has ... from the spell's point ...".
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms

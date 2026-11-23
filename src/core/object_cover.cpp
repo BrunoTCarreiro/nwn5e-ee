@@ -436,7 +436,7 @@ bool TotalCoverHoldsAttack(void* creature, void* node) {
 }
 
 int SaveCoverBonus(void* creature, uint32_t versus, uint32_t script_self, int spell) {
-  if (!CoverObjectsOn() || !creature) return 0;
+  if (!CoverObjectsOn() || !creature || rules::SpellIgnoresCover(spell)) return 0;  // Sacred Flame
   void* area = engine::AreaOf(creature);
   const uint32_t origin_id = script_self != ee::kObjectInvalid ? script_self : versus;
   void* origin = GameObjectById(origin_id);

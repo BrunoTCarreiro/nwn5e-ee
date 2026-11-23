@@ -120,6 +120,8 @@ int CoverSaveBonus(Cover cover) {
   return 0;
 }
 
+bool SpellIgnoresCover(int spell) { return spell == kSpellSacredFlame; }
+
 bool CoverRefusesAttack(Cover cover, bool ranged, float metres) {
   return cover == Cover::kTotal && (ranged || metres <= kMeleeCoverReach);
 }

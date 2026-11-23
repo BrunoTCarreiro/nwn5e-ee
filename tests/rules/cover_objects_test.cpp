@@ -111,7 +111,7 @@ TEST(CoverSegmentAgainstABox) {
 
 // The degrees and what they do. Breaks caught: the counts' boundaries one off, Half hiding, Three-Quarters not
 // hiding, the save bonuses swapped or Total's missing, a melee attack refused from afar, a ranged one let through, a
-// cone's origin at the target point, a sphere's at the caster.
+// cone's origin at the target point, a sphere's at the caster, Sacred Flame's save getting cover.
 TEST(CoverDegreesFromBlockedPoints) {
   CHECK_EQ(CoverFromBlocked(0) == Cover::kNone, true);
   CHECK_EQ(CoverFromBlocked(2) == Cover::kNone, true);
@@ -125,6 +125,8 @@ TEST(CoverDegreesFromBlockedPoints) {
   CHECK_EQ(CoverSaveBonus(Cover::kHalf), 2);
   CHECK_EQ(CoverSaveBonus(Cover::kThreeQuarters), 5);
   CHECK_EQ(CoverSaveBonus(Cover::kTotal), 5);
+  CHECK_EQ(SpellIgnoresCover(kSpellSacredFlame), true);
+  CHECK_EQ(SpellIgnoresCover(-1) || SpellIgnoresCover(58), false);  // no spell, Fireball
   CHECK_EQ(CoverRefusesAttack(Cover::kTotal, true, 30.0f), true);
   CHECK_EQ(CoverRefusesAttack(Cover::kTotal, false, 2.0f), true);
   CHECK_EQ(CoverRefusesAttack(Cover::kTotal, false, 3.0f), true);

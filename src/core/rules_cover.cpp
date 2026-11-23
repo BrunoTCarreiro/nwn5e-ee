@@ -3,8 +3,11 @@
 // recommendations"): 2024 Half Cover from a creature in the way. GetArmorClassVersus (rules_attack.cpp) adds
 // CoverArmorClassBonus to each attack's AC: another living creature, not Tiny, whose body reaches the line between
 // the attacker and its target and stands between them gives the target +2 AC against that attack. Faithful only
-// (the master mode: a 2024 rule with no NWN counterpart). Part 2, with #9's sight lines: walls and objects,
-// Three-Quarters Cover, Dexterity saves.
+// (the master mode: a 2024 rule with no NWN counterpart).
+// #166 part 2 (owner, 2026-11-23: "A, and apply cover to all three"): walls and placeables too - the cover from the
+// attacker's eyes to the target's six body points (object_cover.cpp), melee or ranged alike: Half +2, Three-Quarters
+// +5 (Total Cover refuses the attack before it's made: action_order.cpp; one already under way gets +5). The more
+// protective of the two counts (rules::MoreCover). Both sides told once a round.
 
 #include <windows.h>
 
@@ -19,6 +22,7 @@
 #include "ee_layout.h"
 #include "engine.h"
 #include "log.h"
+#include "object_cover.h"
 #include "rules/cover.h"
 
 namespace {
@@ -69,6 +73,15 @@ int CoverArmorClassBonus(void* target_stats, void* attacker) {
   seek.attacker = Field<uint32_t>(attacker, ee::kObjectId);
   seek.target = Field<uint32_t>(target, ee::kObjectId);
   engine::ForEachOtherCreatureInArea(target, &Visit, &seek);
+  uint32_t by_id = 0;
+  const rules::Cover objects = CoverBetween(attacker, target, nullptr, &by_id);
+  const rules::Cover by_creature = seek.blocker ? rules::Cover::kHalf : rules::Cover::kNone;
+  if (rules::MoreCover(objects, by_creature) != by_creature) {  // the objects' cover is the more protective
+    const int bonus = rules::CoverArmorClassBonus(objects == rules::Cover::kTotal ? rules::Cover::kThreeQuarters
+                                                                                   : objects);
+    TellAttackCover(attacker, target, objects, bonus, by_id, false);
+    return bonus;
+  }
   if (!seek.blocker) return 0;
   const int bonus = rules::CoverArmorClassBonus(rules::Cover::kHalf);
   const ULONGLONG now = GetTickCount64();

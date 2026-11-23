@@ -55,6 +55,7 @@
 #include "rules/grenades.h"
 #include "rules/nwn_conversion.h"
 #include "rules/saves.h"
+#include "object_cover.h"
 #include "saves.h"
 #include "player_text.h"
 
@@ -158,6 +159,7 @@ SaveContext g_save;
 // The spell of the script running the current FortitudeSave / ReflexSave /
 // WillSave / GetReflexAdjustedDamage command (-1 outside one).
 int g_script_spell = -1;
+uint32_t g_script_self = ee::kObjectInvalid;  // #166: that script's OBJECT_SELF (the caster, or an area of effect)
 // SK6: the ability of the save being rolled when not NWN's default for it (a
 // Shove's Strength save), set around that one roll.
 std::optional<rules::Ability> g_forced_ability;
@@ -185,9 +187,12 @@ int SpellOfObject(uint32_t id) {
 
 int WithScriptSpell(VmCommandFn original, void* commands, int command, int parameters) {
   const int outer = g_script_spell;
-  g_script_spell = SpellOfObject(Field<uint32_t>(commands, ee::kVmCommandsObjectSelf));
+  const uint32_t outer_self = g_script_self;
+  g_script_self = Field<uint32_t>(commands, ee::kVmCommandsObjectSelf);
+  g_script_spell = SpellOfObject(g_script_self);
   const int result = original(commands, command, parameters);
   g_script_spell = outer;
+  g_script_self = outer_self;
   return result;
 }
 
@@ -322,7 +327,16 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
   // #39 2a build 2a: Bless adds 1d4 to the save and Bane takes 1d4 off - the roll's DC moved by it (the engine's
   // line shows that DC; the player is told).
   const int blessing = Faithful() && save >= 1 && save <= 3 ? BlessSaveDie(creature) : 0;
-  const int roll_dc = new_dc - blessing;
+  // #166 (owner, 2026-11-23: "A, and apply cover to all three"): a Dexterity save gets cover's bonus from the effect's
+  // point of origin (object_cover.cpp: Half +2, Three-Quarters and Total +5) - the roll's DC moved by it.
+  std::optional<rules::Ability> save_ability;
+  if (Faithful() && g_script_spell >= 0) save_ability = rules::SaveAbilityForNwnSpell(g_script_spell);
+  if (Faithful() && g_forced_ability) save_ability = g_forced_ability;
+  const bool dexterity = save >= 1 && save <= 3 &&
+                         save_ability.value_or(rules::AbilityForNwnSave(static_cast<rules::NwnSave>(save - 1))) ==
+                             rules::Ability::kDexterity;
+  const int cover = dexterity ? SaveCoverBonus(creature, versus, g_script_self, g_script_spell) : 0;
+  const int roll_dc = new_dc - blessing - cover;
   const SaveContext outer = g_save;
   g_save = SaveContext();
   g_save.active = true;

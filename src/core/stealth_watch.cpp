@@ -190,6 +190,7 @@
 #include "hooks.h"
 #include "light_gem_panel.h"
 #include "log.h"
+#include "object_cover.h"
 #include "rules/cone_slices.h"
 #include "rules/idle_look.h"
 #include "rules/search_glance.h"
@@ -438,7 +439,18 @@ int MeasurePosition(void* creature, uint32_t id, void* area, int position, int t
     to.z = ground + 1.0f;
     Vec3 at = to;
     uint32_t object = ee::kObjectInvalid;
-    const bool open = g_clear_line_of_sight(area, eye, to, &at, &object, id, ee::kObjectInvalid, 1) == 1;
+    bool open = g_clear_line_of_sight(area, eye, to, &at, &object, id, ee::kObjectInvalid, 1) == 1;
+    // #166: a placeable's box in the way cuts it too (the engine's line passes through placeables).
+    if (open) {
+      const float a3[3] = {eye.x, eye.y, eye.z}, b3[3] = {to.x, to.y, to.z};
+      uint32_t box = ee::kObjectInvalid;
+      float t = 0.0f;
+      if (ObjectsBlockLine(area, id, a3, b3, &box, &t)) {
+        open = false;
+        object = box;
+        at = Vec3{eye.x + (to.x - eye.x) * t, eye.y + (to.y - eye.y) * t, eye.z + (to.z - eye.z) * t};
+      }
+    }
     if (blocked_at) {
       *blocked_at = at;
       *cut_by = open ? ee::kObjectInvalid : object;
@@ -509,6 +521,7 @@ void LogCut(void* creature, uint32_t id, ConeState& s, int position, int walls, 
     Run(code, id, "cut");
     what = engine::GetLocalString(creature, "nwn5e_cut_by");
     if (what.empty()) what = "an object gone";
+    if (!ObjectName(cut_by).empty()) what += " (its box: cover_objects)";
   }
   const float x = Field<float>(creature, ee::kObjectPositionX), y = Field<float>(creature, ee::kObjectPositionY);
   char where[96] = "no hit point (a placeable's block)";

@@ -102,6 +102,7 @@
 #include "log.h"
 #include "grenades.h"
 #include "rules/class_features.h"
+#include "rules/cover_objects.h"
 #include "rules/grenades.h"
 #include "rules/skills.h"
 #include "data/twoda.h"
@@ -844,6 +845,18 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
     }
   }
   if (spot && result && in_cone && !lit_enough) sprintf_s(up_close, "; in darkness: unseen");  // G: no darkvision
+  // #166 (owner, 2026-11-23: "A, and apply cover to all three"): behind Three-Quarters or Total Cover from it - its
+  // eyes to the hider's six body points, walls and placeables' boxes - a hider can't be seen by it, inside its cone
+  // or up close (2024 Hide: "Three-Quarters Cover or Total Cover").
+  if (spot && in_cone && CoverObjectsOn()) {
+    std::string by;
+    const rules::Cover cover = CoverBetween(observer, target, &by, nullptr);
+    if (rules::CoverHides(cover)) {
+      in_cone = false;
+      sprintf_s(up_close, "; behind %s from it (%s): unseen",
+                cover == rules::Cover::kTotal ? "Total Cover" : "Three-Quarters Cover", by.c_str());
+    }
+  }
   bool close = false;
   if (spot && in_cone && !(engine_saw && lit_enough) && scored && g_config.found_up_close &&
       FoundUpClose(observer, target, &metres)) {

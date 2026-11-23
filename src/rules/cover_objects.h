@@ -60,6 +60,10 @@ bool CoverHides(Cover cover);
 // A Dexterity save's bonus from cover from the effect's point of origin: Half +2, Three-Quarters +5; Total Cover +5
 // too (an area that reaches it at all: nwn5e's reading - the owner may rule otherwise).
 int CoverSaveBonus(Cover cover);
+// A spell whose save ignores cover (SRD 5.2.1 Sacred Flame: "The target gains no benefit from Half Cover or
+// Three-Quarters Cover for this save"; nwn5e's served row 1054).
+constexpr int kSpellSacredFlame = 1054;
+bool SpellIgnoresCover(int spell);
 
 // Total Cover: no direct attack. A ranged attack is refused wherever the attacker stands; a melee one once the
 // attacker is within reach (`metres` <= kMeleeCoverReach) - farther out it walks on, and the cover may be gone when it

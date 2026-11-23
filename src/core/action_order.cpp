@@ -44,6 +44,7 @@
 #include "grenades.h"
 #include "hooks.h"
 #include "log.h"
+#include "object_cover.h"
 #include "round_swings.h"
 #include "rules/action_economy.h"
 #include "rules/grenades.h"
@@ -242,7 +243,9 @@ int OnClearAction(void* creature, void* node, int is_head) {
 uint32_t OnAttackObject(void* creature, void* node) {
   // #133 (owner, 2026-11-04: "go with B"): an AI creature's attack on a hider it doesn't see becomes a search.
   // #131: a melee attack on a target standing in a hazard waits (a living creature it would hurt, outside it).
-  if (creature && node && (UnseenHiderSearch(creature, node) || HazardHoldsAttack(creature, node))) {
+  // #166: a target behind Total Cover from it can't be attacked (object_cover.cpp: ranged anywhere, melee in reach).
+  if (creature && node &&
+      (UnseenHiderSearch(creature, node) || HazardHoldsAttack(creature, node) || TotalCoverHoldsAttack(creature, node))) {
     static const auto clear_action = reinterpret_cast<int (*)(void*, void*, int)>(EngineExport(kClearAction));
     const auto clear = g_clear_action ? g_clear_action : clear_action;
     if (clear) clear(creature, node, 1);  // the attack's own clean-up: its target, the round's schedule
