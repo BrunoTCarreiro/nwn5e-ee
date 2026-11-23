@@ -416,7 +416,7 @@ function buildLook(argv, option, core) {
         const draftFile = path.join(scratch, base + ".vfx");
         fs.writeFileSync(draftFile, core.writeDraft(fx));
         const file = path.join(files, base + ".mdl");
-        fs.writeFileSync(file, D.modelOf(reader(pre), draftFile, base));
+        fs.writeFileSync(file, D.modelOf(reader(pre), draftFile, base).replace(/\n/g, "\r\n"));  // (CRLF, as the committed ones check out)
         written.push(file);
       } else {
         fx.name = lookName(base, look);

@@ -255,7 +255,10 @@ function main() {
   const bounds = require("./placeable_bounds.js").derive({ res, reader: pre.reader,
     twoDa: require(path.join(TOOLS, "spell_bench", "game_data.js")).twoDa });
   const boundsFile = path.join(path.dirname(OUT), "placeable_bounds.txt");
-  if (!CHECK) fs.writeFileSync(boundsFile, bounds.text);
+  if (!CHECK) {
+    fs.mkdirSync(path.dirname(boundsFile), { recursive: true });  // (a build's data\ exists; a check's scratch --out may not yet)
+    fs.writeFileSync(boundsFile, bounds.text);
+  }
   say(`build_derived: placeable bounds (tools/data/placeable_bounds.js): ${bounds.rows} placeables.2da rows from ${bounds.models} ` +
     `models, ${bounds.misses} with a model it can't read or nothing drawn, ${bounds.absent} naming a model the game ` +
     `doesn't have (placeholders) - ${CHECK ? "would write" : "written"} ${boundsFile}`);
