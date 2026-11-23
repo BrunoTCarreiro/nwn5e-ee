@@ -1,24 +1,28 @@
 #!/usr/bin/env node
-// The particle mask's shader (#184's research spike; the owner, 2026-11-23: "is there a way to make a "mask" effect? an
-// effect that makes particles from other effects disappear", then "run the research spike now"): fsn5pmask.shd, made
-// at build time from the player's own game - its particle fragment shader, fsparticle.shd, with a mask added - into the
-// build's data\files (build_derived.js calls derive). Never committed: it is the game's shader text.
+// The particle mask's shader (#184; the owner, 2026-11-23: "is there a way to make a "mask" effect? an effect that makes
+// particles from other effects disappear", then "run the research spike now", "maskproof seems good!" and "wire it, lets
+// test it out"): fsn5pmask.shd, made at build time from the player's own game - its particle fragment shader,
+// fsparticle.shd, with a mask added - into the build's data\files (build_derived.js calls derive). Never committed: it
+// is the game's shader text.
 //
-// - Why the game's own: an emitter whose texture is nwn5e's material n5_pmask (data\files\n5_pmask.mtr: the game's
-//   vsparticle by name, this shader, the game's flame texture by name) draws with this instead of fsparticle. Made from
-//   fsparticle itself, it draws exactly as the game's particles do - the same texture, colour, alpha cut, soft edges and
-//   fog - and follows a game update that changes them.
+// - Why the game's own: an emitter whose texture is one of nwn5e's masked materials (data\files\n5_pmask.mtr, the
+//   proof's; the spells' n5x_*.mtr, spell_mask.js: the game's vsparticle by name, this shader, a game texture by name)
+//   draws with this instead of fsparticle. Made from fsparticle itself, it draws exactly as the game's particles do -
+//   the same texture, colour, alpha cut, soft edges and fog - and follows a game update that changes them.
 // - What is added, and nothing else changed: the game's scriptable uniforms (its own include, by name), the view
-//   position's varying when the game's defines haven't declared it, the mask's three functions before main, and one
-//   call to it just before main's last line (gl_FragColor = FragmentColor). The mask is off while scriptableVec1.w is 0 -
-//   every uniform's default - and then returns at once: the shader draws exactly as fsparticle.
-// - The mask (src/rules/particle_mask.h packs its uniforms; rules::ParticleMasked is the same test on the CPU, checked
-//   against the cover rule's line): the fragment's place in the area, from its view position by the inverse view matrix
-//   (as the game's own target highlight finds it); dropped - its colour cleared and discarded - when the line from the
-//   origin (scriptableVec1.xyz) to it passes through one of the boxes (scriptableVec1.w of them, two vectors each from
-//   scriptableVec2: the centre and the box's +X's x, the half sizes and its +X's y).
+//   position's varying when the game's defines haven't declared it, the mask's functions before main, and one call to
+//   it just before main's last line (gl_FragColor = FragmentColor). The mask is off while scriptableVec1.w is 0 - every
+//   uniform's default - and then returns at once: the shader draws exactly as fsparticle.
+// - The mask (src/rules/particle_mask.h packs its uniforms and says their layout; rules::ParticleMasked is the same test
+//   on the CPU, checked there against the cover rule's line): the fragment's place in the area, from its view position
+//   by the inverse view matrix (as the game's own target highlight finds it). Within the reach (scriptableVec1.w, across
+//   the ground from the origin scriptableVec1.xyz) it is dropped - its colour cleared and discarded - when it lies past
+//   the wall in its direction (the ring: 32 directions' nearness, scriptableVec2..9, taken in proportion between the two
+//   either side of it) or the line from the origin to it passes through one of the four boxes (scriptableVec10..16, 7
+//   numbers each back to back - BOX_NUMBERS below writes where each is read).
 // - Anchors: the game's text must have one "void main" line and one "gl_FragColor = FragmentColor;" line. If it hasn't
-//   (a game update rewrote it), nothing is made and the build says so; !maskproof then says the shader is missing.
+//   (a game update rewrote it), nothing is made and the build says so; the masked materials then have no shader to
+//   draw with and !maskproof says it's missing.
 //
 //   node tools\data\particle_mask.js --out <folder> [--game <folder>] [--tools <nwn5e-tools>]   (by hand; build.bat runs
 //   build_derived.js, which calls derive)
@@ -29,7 +33,7 @@ const path = require("path");
 const NAME = "fsn5pmask";
 const SOURCE = "fsparticle";
 const TYPE_SHD = 2069;  // the game's shaders' resource type (base_shaders.bif)
-const MARK = "// fsn5pmask.shd - nwn5e's masked particle shader (nwn5e-ee #184's spike), made at build time by tools/data/particle_mask.js";
+const MARK = "// fsn5pmask.shd - nwn5e's masked particle shader (nwn5e-ee #184), made at build time by tools/data/particle_mask.js";
 
 const HEADER = [
   MARK,
@@ -37,6 +41,20 @@ const HEADER = [
   "// nwn5e. Not committed anywhere: it is the game's text. Change particle_mask.js and rebuild, not this.",
   "",
 ].join("\n");
+
+// The layout (src/rules/particle_mask.h): the ring's 32 directions in scriptableVec2..9, 4 a vector; four boxes' 7
+// numbers each back to back from scriptableVec10 - number n of box j (7j + n of the 28) in scriptableVec<10 + that / 4>,
+// component that % 4: its centre x y z, half sizes x y z, the angle of its +X.
+const RING_DIRECTIONS = 32, RING_FIRST = 2, BOX_FIRST = 10, BOXES = 4, BOX_SIZE = 7;
+const BOX_NUMBERS = (j) => Array.from({ length: BOX_SIZE }, (_, n) => {
+  const at = BOX_SIZE * j + n;
+  return `scriptableVec${BOX_FIRST + Math.floor(at / 4)}.${"xyzw"[at % 4]}`;
+});
+const boxCall = (j) => {
+  const v = BOX_NUMBERS(j);
+  return `N5Box(o, p, vec3(${v[0]}, ${v[1]}, ${v[2]}), vec3(${v[3]}, ${v[4]}, ${v[5]}), ${v[6]})`;
+};
+const STEP = (2 * Math.PI / RING_DIRECTIONS).toFixed(8);  // a direction's angle, radians
 
 const DECLARATIONS = [
   "// nwn5e: the particle mask (tools/data/particle_mask.js; src/rules/particle_mask.h packs its uniforms).",
@@ -57,36 +75,66 @@ const DECLARATIONS = [
   "    return t0 <= t1;",
   "}",
   "",
-  "// nwn5e: whether the line from o to p meets the box: a its centre and its +X's x, b its half sizes and its +X's y.",
-  "bool N5Shadowed(vec3 o, vec3 p, vec4 a, vec4 b)",
+  "// nwn5e: whether the line from o to p meets the box: c its centre, h its half sizes, a the angle of its +X (none when",
+  "// it has no half size across).",
+  "bool N5Box(vec3 o, vec3 p, vec3 c, vec3 h, float a)",
   "{",
-  "    vec2 xa = vec2(a.w, b.w);",
+  "    if (h.x <= 0.0)",
+  "        return false;",
+  "    vec2 xa = vec2(cos(a), sin(a));",
   "    vec2 ya = vec2(-xa.y, xa.x);",
-  "    vec2 ro = o.xy - a.xy;",
-  "    vec2 rp = p.xy - a.xy;",
-  "    vec3 lo = vec3(dot(ro, xa), dot(ro, ya), o.z - a.z);",
-  "    vec3 lp = vec3(dot(rp, xa), dot(rp, ya), p.z - a.z);",
+  "    vec2 ro = o.xy - c.xy;",
+  "    vec2 rp = p.xy - c.xy;",
+  "    vec3 lo = vec3(dot(ro, xa), dot(ro, ya), o.z - c.z);",
+  "    vec3 lp = vec3(dot(rp, xa), dot(rp, ya), p.z - c.z);",
   "    vec3 d = lp - lo;",
   "    float t0 = 0.0;",
   "    float t1 = 1.0;",
-  "    return N5Slab(lo.x, d.x, b.x, t0, t1) && N5Slab(lo.y, d.y, b.y, t0, t1) && N5Slab(lo.z, d.z, b.z, t0, t1);",
+  "    return N5Slab(lo.x, d.x, h.x, t0, t1) && N5Slab(lo.y, d.y, h.y, t0, t1) && N5Slab(lo.z, d.z, h.z, t0, t1);",
   "}",
   "",
-  "// nwn5e: off (scriptableVec1.w 0, the default) it returns at once; on, a fragment behind or inside a box is dropped.",
+  `// nwn5e: direction k's wall nearness (1 / metres; 0: none) - scriptableVec${RING_FIRST}..${RING_FIRST + RING_DIRECTIONS / 4 - 1}, 4 a vector.`,
+  "float N5Near(float k)",
+  "{",
+  "    float s = floor(k / 4.0);",
+  "    float c = k - 4.0 * s;",
+  `    vec4 v = scriptableVec${RING_FIRST};`,
+  ...Array.from({ length: RING_DIRECTIONS / 4 - 1 }, (_, i) => `    if (s > ${i}.5) v = scriptableVec${RING_FIRST + i + 1};`),
+  "    if (c < 0.5) return v.x;",
+  "    if (c < 1.5) return v.y;",
+  "    if (c < 2.5) return v.z;",
+  "    return v.w;",
+  "}",
+  "",
+  "// nwn5e: off (scriptableVec1.w 0, the default) it returns at once; on, a fragment within the reach that lies past the",
+  "// wall in its direction, or behind or inside a box, is dropped.",
   "void N5ParticleMask(inout vec4 colour)",
   "{",
-  "    if (scriptableVec1.w < 0.5)",
+  "    if (scriptableVec1.w <= 0.0)",
   "        return;",
   "    vec3 p = (m_view_inv * vec4(vPosView, 1.0)).xyz;",
   "    vec3 o = scriptableVec1.xyz;",
-  "    float n = scriptableVec1.w;",
-  "    bool hidden = N5Shadowed(o, p, scriptableVec2, scriptableVec3)",
-  "        || (n > 1.5 && N5Shadowed(o, p, scriptableVec4, scriptableVec5))",
-  "        || (n > 2.5 && N5Shadowed(o, p, scriptableVec6, scriptableVec7))",
-  "        || (n > 3.5 && N5Shadowed(o, p, scriptableVec8, scriptableVec9))",
-  "        || (n > 4.5 && N5Shadowed(o, p, scriptableVec10, scriptableVec11))",
-  "        || (n > 5.5 && N5Shadowed(o, p, scriptableVec12, scriptableVec13))",
-  "        || (n > 6.5 && N5Shadowed(o, p, scriptableVec14, scriptableVec15));",
+  "    vec2 d = p.xy - o.xy;",
+  "    float r = length(d);",
+  "    if (r > scriptableVec1.w)",
+  "        return;",
+  "    bool hidden = false;",
+  "    if (r > 0.01)",
+  "    {",
+  `        float f = atan(d.y, d.x) / ${STEP};`,
+  "        if (f < 0.0)",
+  `            f += ${RING_DIRECTIONS}.0;`,
+  "        float k0 = floor(f);",
+  "        float t = f - k0;",
+  `        if (k0 > ${RING_DIRECTIONS - 1}.5)`,
+  `            k0 -= ${RING_DIRECTIONS}.0;`,
+  "        float k1 = k0 + 1.0;",
+  `        if (k1 > ${RING_DIRECTIONS - 1}.5)`,
+  "            k1 = 0.0;",
+  "        hidden = r * mix(N5Near(k0), N5Near(k1), t) > 1.0;",
+  "    }",
+  "    hidden = hidden",
+  ...Array.from({ length: BOXES }, (_, j) => `        || ${boxCall(j)}${j === BOXES - 1 ? ";" : ""}`),
   "    if (hidden)",
   "    {",
   "        colour = vec4(0.0);",
@@ -119,7 +167,7 @@ function patch(source) {
   return { text: out.join(eol) };
 }
 
-// The added lines taken out again: the game's text back (particle_mask_check.js: nothing else changed).
+// The added lines taken out again: the game's text back (check_particle_mask.js: nothing else changed).
 function unpatch(text) {
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
   const lines = text.split(/\r?\n/);
@@ -142,7 +190,7 @@ function derive({ res }) {
   return { name: NAME + ".shd", bytes: Buffer.from(made.text, "latin1") };
 }
 
-module.exports = { NAME, SOURCE, TYPE_SHD, MARK, CALL, patch, unpatch, derive };
+module.exports = { NAME, SOURCE, TYPE_SHD, MARK, CALL, RING_DIRECTIONS, RING_FIRST, BOX_FIRST, BOXES, BOX_NUMBERS, patch, unpatch, derive };
 
 if (require.main === module) {
   const argv = process.argv.slice(2);

@@ -38,17 +38,30 @@ function checkPatched(source, label) {
   const main = lines.findIndex((l) => /^\s*void\s+main\s*\(/.test(l));
   assert.ok(main >= 0 && main < calls[0], label + ": the call isn't in main");
   // The mask's functions before main, the scriptable uniforms included, the varying only when not already declared.
-  for (const f of ["bool N5Slab(", "bool N5Shadowed(", "void N5ParticleMask(", "#include \"inc_scriptable\"", "#if POSITION_VIEW != 1"]) {
+  for (const f of ["bool N5Slab(", "bool N5Box(", "float N5Near(", "void N5ParticleMask(", "#include \"inc_scriptable\"",
+    "#if POSITION_VIEW != 1"]) {
     const at = lines.findIndex((l) => l.startsWith(f));
     assert.ok(at >= 0 && at < main, label + ": " + f + " not before main");
   }
-  // Off is the default and exact: the mask returns at once while scriptableVec1.w is under 0.5.
-  assert.ok(/if \(scriptableVec1\.w < 0\.5\)\r?\n\s+return;/.test(made.text), label + ": no early return when off");
-  // Seven boxes: scriptableVec2 to scriptableVec15, in pairs.
-  for (let k = 0; k < 7; k++) {
-    assert.ok(made.text.includes(`scriptableVec${2 + 2 * k}, scriptableVec${3 + 2 * k})`), label + ": box " + (k + 1) + " not read");
-  }
-  assert.ok(!made.text.includes("scriptableVec16"), label + ": scriptableVec16 used");
+  // Off is the default and exact: the mask returns at once while scriptableVec1.w (the reach) is 0; past the reach the
+  // fragment is drawn.
+  assert.ok(/if \(scriptableVec1\.w <= 0\.0\)\r?\n\s+return;/.test(made.text), label + ": no early return when off");
+  assert.ok(/if \(r > scriptableVec1\.w\)\r?\n\s+return;/.test(made.text), label + ": no return past the reach");
+  // The ring (src/rules/particle_mask.h): its 32 directions in scriptableVec2..9 - N5Near takes them in that order, the
+  // components x y z w; the angle's step 360 / 32 degrees; the wrap past the last direction.
+  const near = made.text.slice(made.text.indexOf("float N5Near("), made.text.indexOf("// nwn5e: off ("));
+  const slots = [...near.matchAll(/scriptableVec(\d+)/g)].map((m) => Number(m[1]));
+  assert.deepStrictEqual(slots, [2, 3, 4, 5, 6, 7, 8, 9], label + ": the ring's slots " + slots.join(","));
+  assert.ok(/return v\.x;[\s\S]*return v\.y;[\s\S]*return v\.z;[\s\S]*return v\.w;/.test(near), label + ": the ring's components");
+  assert.ok(made.text.includes("atan(d.y, d.x) / 0.19634954;"), label + ": the ring's step isn't 2 pi / 32");
+  assert.ok(/if \(k1 > 31\.5\)\r?\n\s+k1 = 0\.0;/.test(made.text), label + ": the ring doesn't wrap");
+  // Four boxes, 7 numbers each back to back: read in their order, every component of scriptableVec10..16 once.
+  const boxes = [...made.text.matchAll(/N5Box\(o, p, (.*)\);?\r?$/gm)].map((m) => m[1]);
+  assert.strictEqual(boxes.length, 4, label + ": " + boxes.length + " boxes read");
+  const read = boxes.map((c) => [...c.matchAll(/scriptableVec(\d+)\.([xyzw])/g)].map((m) => m[1] + m[2])).flat();
+  const expected = [];
+  for (let s = 10; s <= 16; s++) for (const c of "xyzw") expected.push(s + c);
+  assert.deepStrictEqual(read, expected, label + ": the boxes' numbers aren't read back to back from scriptableVec10.x");
   // Nothing of the game's text changed: the added lines out, it is the source again, byte for byte.
   assert.strictEqual(M.unpatch(made.text), source, label + ": the game's text changed");
   // Its line ends kept.
