@@ -508,6 +508,45 @@ check("a spell mesh's draft names a moving part's materials: its textured planes
   // Still: the draft as before, byte for byte.
   assert.strictEqual(P.draftText(core, "n5m_still", F.moveTextures([MESH, bare], undefined).meshes), P.draftText(core, "n5m_still", [MESH, bare]));
 });
+// AB (#39; the owner, 2026-11-23: a game weapon for the Spiritual Weapon's force - "set it up and make 1 handed swords the
+// first weapon"): a part's blend is written after its tint, "additive" only - Normal, the default, never (every project
+// keeps its bytes) - and read back; a spell mesh's draft of an Additive part's meshes carries their self-lit material.
+check("projectText writes blend after tint, Additive only - never Normal; readProject reads it back, each error naming its part; the draft carries the self-lit planes", () => {
+  const json = { kind: "spellmesh", name: "swords", guide: CIRCLE, variants: [{ name: "1", parts: [
+    { blend: "additive", motion: { turn: 30 }, extra: 1, tint: [0.72, 0.86, 1], model: ["wswss_b_012", "wswss_m_012", "wswss_t_012"], at: [0, 0, 0], scale: 1.2, tilt: [90, 0] },
+    { blend: "normal", model: "plc_a03", at: [0, 0, 0] },
+    { model: "plc_b04", at: [0, 0, 0] }] }] };
+  const text = P.projectText(json), l = lines(text);
+  assert.ok(l.includes('      { "model": ["wswss_b_012", "wswss_m_012", "wswss_t_012"], "at": [0, 0, 0], "scale": 1.2, "tilt": [90, 0], "tint": [0.72, 0.86, 1], ' +
+    '"blend": "additive", "motion": { "turn": 30 }, "extra": 1 },'), text);
+  assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0] },') && l.includes('      { "model": "plc_b04", "at": [0, 0, 0] }'), text);
+  assert.ok(!/"blend": "normal"/.test(text), text);
+  const read = P.readProject(JSON.parse(text), BASE, F).variants[0].parts;
+  assert.deepStrictEqual(read.map((p) => p.blend), ["additive", "normal", "normal"]);
+  assert.strictEqual(P.projectText(JSON.parse(text)), text);
+  // The other agent's look of the sword, as its file has it: its bytes kept through a round trip.
+  const sword = { kind: "spellmesh", name: "swpsword", guide: { shape: "circle", diameter: 0.5, height: 0 }, variants: [{ name: "1", parts: [
+    { note: "shortsword 012, upright, point up", model: ["wswss_b_012", "wswss_m_012", "wswss_t_012"], at: [0, 0, 0], scale: 1.2, tilt: [90, 0], tint: [0.72, 0.86, 1], blend: "additive" }] }] };
+  assert.strictEqual(P.projectText(JSON.parse(P.projectText(sword))), P.projectText(sword));
+  assert.ok(P.projectText(sword).includes('"tint": [0.72, 0.86, 1], "blend": "additive" }'), P.projectText(sword));
+  // Each error names its part; a shape's is on its shape.
+  const bad = copy(json);
+  bad.variants[0].parts[1].blend = "glow";
+  assert.throws(() => P.readProject(bad, BASE, F), says("variants[0].parts[1].blend: additive or normal"));
+  bad.variants[0].parts[1] = { shape: { type: "dome", radius: 1 }, at: [0, 0, 0], blend: "additive" };
+  assert.throws(() => P.readProject(bad, BASE, F), says("variants[0].parts[1].blend: a shape's blend is on its shape (its own Blend: shape.blend)"));
+  // The draft: a textured plane lit by itself at the tint (selfillum, ambient and diffuse 0 - written, never the defaults'),
+  // an untextured one self-lit; a Normal part's as before.
+  global.window = global.window || {};
+  const core = require(path.join(TOOLS, "vfx_bench", "public", "core.js"));
+  const bare = Object.assign({}, MESH, { name: "j01_Bare", bitmap: "", diffuse: [0.5, 0.25, 1] });
+  const model = { meshes: [MESH, bare], lo: [-0.2, -0.3, 0], hi: [0.2, 0.3, 0.5] };
+  const placed = (extra) => F.placePart(Object.assign({ at: [0, 0, 0], turn: 0, scale: 1, tilt: [0, 0] }, extra), model, 0, 0, "j", true).meshes;
+  const fx = core.readDraft(P.draftText(core, "n5m_swords", placed({ blend: "additive", tint: [0.72, 0.86, 1] })));
+  assert.deepStrictEqual(fx.planes.map((p) => [p.bitmap, p.selfillum, p.ambient, p.diffuse]),
+    [["plc_x", [0.72, 0.86, 1], [0, 0, 0], [0, 0, 0]], ["null", [0.36, 0.215, 1], [0, 0, 0], [0, 0, 0]]].map(([b, s, a, d]) => [b, s.map(Math.fround), a, d]));
+  assert.strictEqual(P.draftText(core, "n5m_swords", placed({ blend: "normal" })), P.draftText(core, "n5m_swords", placed({})));
+});
 check("projectText: a part a line, and a round trip", () => {
   const json = copy(CRATES);
   json.variants[1] = { parts: [], name: "2" };

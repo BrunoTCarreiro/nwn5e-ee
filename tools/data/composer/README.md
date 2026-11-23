@@ -44,8 +44,8 @@ made of the game's parts) and the textures it generates (`n5p_*`, `n5s_*`), whic
   - A variant with no parts can be in the file (New project writes one), but `build.js` refuses the whole build
     while one has none (`variants[k].parts: at least one part`): add a part before the first Save and build.
 - **The parts** are composition.json's: `note`, `model` (a game model, or a list of them for a weapon's pieces),
-  `file` or `shape` (Shapes, below), `at`, `turn`, `scale`, `tilt`, a dyed part's `colours`, a `tint`, and a `motion`
-  (Moving textures, below).
+  `file` or `shape` (Shapes, below), `at`, `turn`, `scale`, `tilt`, a dyed part's `colours`, a `tint`, a `blend`
+  (below) and a `motion` (Moving textures, below).
   - A `file` is your own `.mdl`, relative to this folder, so `parts/my_crate.mdl` is `tools\data\composer\parts\my_crate.mdl`.
   - The rules for your own files (units, axes, textures) are the Floating Disk's (`tools\data\floatdisk\README.md`).
   - A dyed part (a helmet: the game has its texture only as a PLT) is baked into a texture of its own, `n5p_` and 12
@@ -58,6 +58,17 @@ made of the game's parts) and the textures it generates (`n5p_*`, `n5s_*`), whic
     full in game - the game's model writer, `WriteVfxModel`, writes such a plane `ambient 1 1 1` / `diffuse 1 1 1` - so a
     tint multiplies that: its draft carries the tint itself (`"tint": [1, 1, 0.999]` gives `1 1 0.999`, not `0.2 0.2
     0.1998`). Untinted it's written as before. A placeable's model is written as it is: its 0.2 / 0.8 times the tint.
+  - A `blend` (AB; the owner, 2026-11-23: a game weapon for the Spiritual Weapon's force, glowing as the generated blade
+    does): `"blend": "additive"` on any part but a shape (a shape's Blend is on its shape); Normal, the default, isn't
+    written. The game adds a mesh's light only by its texture's TXI, so each textured mesh names a copy of its texture
+    made for it, `n5l_` and 12 hex digits (its texture, its picture and TXI, and the additive mark: never one of DC's
+    copies' names) - the game's picture (its DDS when it has one) or the one beside your file, with a TXI of its lines
+    minus `decal` and `blending`, then `blending additive` - and is lit by itself: `selfillumcolor` its `tint` (white
+    without one), `ambient` and `diffuse` 0, the same by day and night. An untextured mesh can't be additive in the game
+    (no texture, no TXI): it's only lit by itself, its own colour. The copies go beside what names them, as DC's: a spell
+    mesh's drafts in `--saved`, a placeable's models in `data\files` (git-ignored). A dyed part can't be Additive (its
+    texture is baked from the game's PLT): `build.js` refuses it. `floatdisk.js`'s `addedLight` and `addedTextures`.
+    `{ "model": ["wswss_b_012", "wswss_m_012", "wswss_t_012"], "at": [0, 0, 0], "tint": [0.72, 0.86, 1], "blend": "additive" }`
 
 ## Shapes
 

@@ -26,6 +26,9 @@
 //   one's (floatdisk.js gameTextures) - its copy, its clamped soft texture, clamped in v only while it moves sideways only -
 //   its material naming that as texture0; and a moving texture's material with a TXI of its own, n5u_<...>.txi, its
 //   texture's blending and map lines - the engine takes a mesh's blend only from its bitmap's TXI (files.js motionMaterials).
+//   AB: an Additive part ("blend": "additive" - not a shape's: its own Blend) lit by itself at its tint, its textures
+//   copied for added light, n5l_<12 hex digits> with a TXI of their lines minus decal and blending + blending additive
+//   (floatdisk.js addedLight, addedTextures; files.js copyTextures) - git-ignored as DC's copies.
 // - data\rows: appearance.floatdisk.txt (rows 14000-14003, each appearance 298's) and placeables.floatdisk.txt (14001-
 //   14003, each 189 TreasureSml's), floatdisk.js's ROWS.
 //
@@ -164,7 +167,7 @@ function main() {
   }
   // W1: a clamped material's copy (a breathing texture that doesn't scroll, on a mesh within one repeat): its picture and a
   // TXI of its lines and the game's clamp line, under the material's name beside it (files.js motionCopies).
-  W.motionCopies(moved, { rd, shaped, baked, ship });
+  W.motionCopies(moved, { rd, shaped, baked, ship, copies: copied });  // (AB: a breathing Additive part's own copy first)
 
   // The summary: per stage its parts, triangles, how high the pile goes and how far it reaches.
   const r = disk.diameter / 2;

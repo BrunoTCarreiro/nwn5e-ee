@@ -985,6 +985,85 @@ try {
     assert.strictEqual(fs.readFileSync(path.join(SAVED, M2 + ".txi"), "latin1"), ADD);
   });
 
+  // AB (#39; the owner, 2026-11-23: "for these effects can I pick an existing weapon mesh instead of using a custom one?",
+  // then "set it up and make 1 handed swords the first weapon, you can pick one at random"): an Additive game weapon -
+  // shortsword 012, one texture (w_metal_tex: a TGA, its TXI an environment map) on its three pieces - lit by itself at its
+  // tint, each textured mesh naming a copy of its texture made for added light (its TXI blending additive), written beside
+  // what names it as DC's copies are.
+  const SWORD = ["wswss_b_012", "wswss_m_012", "wswss_t_012"], METAL = "w_metal_tex", TINT = [0.72, 0.86, 1];
+  const addOf = (t) => { const i = rd.image(t, []); return F.copyName(t, 0, F.copyKey(i.txi, i.dds || i.tga), true); };
+  check("AB: a spell mesh's Additive shortsword (wswss 012, tinted) - its draft's planes name w_metal_tex's copy made for added light, lit by themselves at the tint (ambient and diffuse 0); the copy (the game's picture) and its TXI (its lines minus decal and blending + blending additive) beside the draft in --saved; the Normal sword names the game's own; a breathing one's W1 copies of its copy (blending additive + clamp 3); again unchanged", () => {
+    clearCopies();
+    const files = snapshot(), kept = madeTxt(), A = addOf(METAL);
+    const file = project("chkswd", { kind: "spellmesh", guide: { shape: "circle", diameter: 0.5, height: 0 }, variants: [
+      { name: "1", parts: [{ model: SWORD, at: [0, 0, 0], scale: 1.2, tilt: [90, 0], tint: TINT, blend: "additive" }] },
+      { name: "2", parts: [{ model: SWORD, at: [0, 0, 0], scale: 1.2, tilt: [90, 0], tint: TINT }] },
+      { name: "3", parts: [{ model: SWORD, at: [0, 0, 0], scale: 1.2, tilt: [90, 0], tint: TINT, blend: "additive", motion: { breathe: 0.3 } }] }] });
+    assert.ok(fs.readFileSync(file, "utf8").includes('"tint": [0.72, 0.86, 1], "blend": "additive" }'), "the project's file doesn't carry its blend after its tint");
+    const said = build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/);
+    assert.ok(said.includes(`  texture ${A}: ${METAL} copied for added light, an Additive part's (${A}.tga, ${A}.txi: its TXI without blending, and blending additive) - ` +
+      `written into ${SAVED}`), said.join("\n"));
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(j.copies, [{ copy: A, texture: METAL, clamp: 0, additive: true }]);
+    const [add, normal] = j.variants.map((v) => draftPlanes(path.join(SAVED, v.model + ".vfx")));
+    assert.deepStrictEqual([add.map((p) => p.bitmap), normal.map((p) => p.bitmap.toLowerCase())], [[A, A, A], [METAL, METAL, METAL]]);
+    // Lit by itself: selfillum the tint, ambient and diffuse 0 (written: not the draft's defaults); the Normal sword its
+    // model's 1 1 1 times the tint, no glow.
+    assert.deepStrictEqual(add.map((p) => [p.selfillum, p.ambient, p.diffuse]), add.map(() => [TINT.map(Math.fround), [0, 0, 0], [0, 0, 0]]));
+    assert.deepStrictEqual(normal.map((p) => [p.selfillum, p.ambient, p.diffuse]), normal.map(() => [[0, 0, 0], TINT.map(Math.fround), TINT.map(Math.fround)]));
+    // Beside the drafts: the copy (the game's TGA) and its TXI, new; its name its own - never DC's for the texture.
+    const metal = rd.image(METAL, []);
+    assert.ok(metal && metal.tga && !metal.dds && /^envmaptexture /im.test(metal.txi) && !F.txiAdditive(metal.txi), "the game's w_metal_tex: a TGA, its TXI an environment map, not additive");
+    assert.deepStrictEqual(copyFiles(SAVED), [A + ".tga", A + ".txi"]);
+    assert.deepStrictEqual([byName(j)[A + ".tga"], byName(j)[A + ".txi"]], ["new", "new"]);
+    assert.ok(fs.readFileSync(path.join(SAVED, A + ".tga")).equals(metal.tga), "the copy isn't the game's w_metal_tex.tga");
+    const txi = fs.readFileSync(path.join(SAVED, A + ".txi"), "latin1");
+    assert.strictEqual(txi, F.additiveTxi(metal.txi));
+    assert.deepStrictEqual([F.txiAdditive(txi), F.txiDecal(txi), /^envmaptexture TTR01__ref01\r$/m.test(txi), txi.endsWith("\r\nblending additive\r\n")], [true, false, true, true]);
+    assert.notStrictEqual(A, copyOf(METAL, 0));
+    // Breathing within one repeat (W1; the sword's UVs stay within 0..1): each piece's clamped material's copy is of its own
+    // Additive copy - its picture the game's, its TXI the copy's (blending additive) and the game's clamp line.
+    const breath = draftPlanes(path.join(SAVED, j.variants[2].model + ".vfx"));
+    assert.ok(breath.length === 3 && breath.every((p) => F.MOTION_TEXTURE.test(p.bitmap)), breath.map((p) => p.bitmap).join(" "));
+    assert.ok(j.materials.length === 3 && j.materials.every((m) => m.texture === A && m.clamp === true), JSON.stringify(j.materials));
+    for (const p of breath) {
+      assert.strictEqual(fs.readFileSync(path.join(SAVED, p.bitmap + ".txi"), "latin1"), F.clampedTxi(F.additiveTxi(metal.txi)), p.bitmap);
+      assert.ok(fs.readFileSync(path.join(SAVED, p.bitmap + ".tga")).equals(metal.tga), p.bitmap + ".tga isn't the game's w_metal_tex.tga");
+    }
+    // Nothing in data\, nothing in made.txt; built again: unchanged; its TXI in the way (DC's say) rewritten.
+    const after = snapshot();
+    for (const f of Object.keys(after)) if (!f.startsWith(SAVED)) assert.strictEqual(after[f], files[f], f);
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+    assert.ok(ok(build(file, ["--json", "--saved", SAVED])).files.every((x) => x.state === "unchanged"));
+    fs.writeFileSync(path.join(SAVED, A + ".txi"), F.copiedTxi(metal.txi, 0));
+    assert.strictEqual(byName(ok(build(file, ["--json", "--saved", SAVED])))[A + ".txi"], "rebuilt");
+    assert.strictEqual(fs.readFileSync(path.join(SAVED, A + ".txi"), "latin1"), txi);
+  });
+  check("AB: a placeable's Additive sword - its model names the copy, lit by itself (selfillumcolor 1 1 1 untinted, ambient and diffuse 0), the copy and its TXI in data\\files beside it, git-ignored, made.txt as it was; a dyed Additive part refused, nothing written", () => {
+    clearCopies();
+    const kept = madeTxt(), A = addOf(METAL);
+    const file = project("chkswdp", { kind: "placeable", guide: { shape: "circle", diameter: 1, height: 0 }, placeable: THROUGH, variants: [{ name: "1", row: 14163, parts: [
+      { model: SWORD, at: [0, 0, 0], blend: "additive" }] }] });
+    const j = ok(build(file, ["--json"]));
+    assert.deepStrictEqual(j.copies, [{ copy: A, texture: METAL, clamp: 0, additive: true }]);
+    const mdl = fs.readFileSync(path.join(FILES, j.variants[0].model + ".mdl"), "latin1");
+    assert.deepStrictEqual([...mdl.matchAll(/\r\n {2}bitmap (\S+)\r\n/g)].map((m) => m[1]), [A, A, A]);
+    for (const line of ["ambient 0 0 0", "diffuse 0 0 0", "selfillumcolor 1 1 1"]) assert.strictEqual(mdl.split(`\r\n  ${line}\r\n`).length - 1, 3, line);
+    assert.deepStrictEqual(copyFiles(FILES), [A + ".tga", A + ".txi"]);
+    assert.strictEqual(fs.readFileSync(path.join(FILES, A + ".txi"), "latin1"), F.additiveTxi(rd.image(METAL, []).txi));
+    assert.ok(j.files.some((x) => x.file === `data/files/${A}.tga`) && j.files.some((x) => x.file === `data/files/${A}.txi`), JSON.stringify(j.files));
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+    const ignored = (f) => spawnSync("git", ["check-ignore", "-q", "--no-index", "data/files/" + f], { cwd: REPO, windowsHide: true }).status === 0;
+    for (const f of [A + ".tga", A + ".txi", A + ".dds"]) assert.ok(ignored(f), f + " isn't git-ignored");
+    // A dyed part (helm_001: the game has its texture only as a PLT) can't be Additive: refused, saying why, nothing written.
+    const before = snapshot();
+    const helm = project("chkhelma", { kind: "spellmesh", guide: { shape: "circle", diameter: 0.5, height: 0 }, variants: [{ name: "1", parts: [
+      { model: "helm_001", at: [0, 0, 0], blend: "additive" }] }] });
+    refused(build(helm, ["--json", "--saved", SAVED]),
+      new RegExp(`^helm_001: ${DEF}: a dyed texture \\(the game's PLT baked in the part's colours\\) - a dyed part can't be Additive: set its Blend to Normal$`));
+    assert.deepStrictEqual(snapshot(), before);
+  });
+
   // The probe (TMO-1's): tools\data\composer\uvprobe.js writes n5m_uvprobe - seven domes in a row, three moving by the
   // texture0 route (the material names the texture), three by the copy route (the texture copied under the material's
   // name, its TXI with it) and a seventh by the texture0 route with the texture's TXI beside the material under its n5u_

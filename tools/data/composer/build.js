@@ -50,6 +50,17 @@
 // material, unclamped, has a TXI of its own beside it, n5u_<...>.txi, its texture's blending and map lines (floatdisk.js
 // motionTxi) - the engine takes a mesh's blend only from its bitmap's TXI, so without it an additive texture drew on black.
 //
+// AB (the owner, 2026-11-23: "for these effects can I pick an existing weapon mesh instead of using a custom one?" - then
+// "set it up and make 1 handed swords the first weapon, you can pick one at random"): a part that isn't a shape may carry
+// "blend": "additive" (Normal, the default, is never written), so a game weapon glows as the generated blade does. Its
+// meshes are lit by themselves - a textured one's selfillum its tint (white without one), its ambient and diffuse 0, the
+// same by day and night; an untextured one can't be additive in the game (no texture, no TXI), it's only self-lit
+// (floatdisk.js addedLight) - and each textured one names a copy of its texture made for added light, n5l_<12 hex digits>
+// (copyName with the additive mark: never one of DC's names), its picture the game's (its DDS first) or the one beside
+// your file, its TXI the texture's lines minus decal and blending, then "blending additive" (floatdisk.js addedTextures,
+// additiveTxi): beside what names it - a spell mesh's drafts in <saved>, a placeable's models in data\files (git-ignored as
+// DC's copies, owned by the n5l_ name: files.js copyTextures). A dyed part (its PLT baked, n5p_) can't be Additive: refused.
+//
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
 // own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo. The files are written by its files.js,
 // under the same ownership rule.
@@ -206,7 +217,8 @@ function main() {
   // DC (SHP-8): a still shape's library texture the game must have copied - its TXI says decal (drawn unlit: its Colour
   // never shows), or a flipbook on a mesh whose v stays within one repeat (its frame wraps at the rim) - renamed for its
   // copy, n5l_<12 hex digits>, whose picture and TXI (its lines minus decal, + clamp 2 within one repeat) go beside it
-  // (files.js copyTextures).
+  // (files.js copyTextures). AB: an Additive part's textures likewise, each copied for added light under its own n5l_ name
+  // with its TXI minus decal and blending + blending additive (floatdisk.js addedTextures).
   const copied = new Map();  // a copy's name -> { texture, clamp, decal, ext, bytes, txi, label } (files.js's copyTextures)
   // A moving part's textured meshes (M2): each bitmap renamed for its material, n5u_ and 12 hex digits (files.js's
   // motionMaterials, after the bakes and the textures shipped: its texture0 is the real texture). Then each variant's
@@ -224,7 +236,7 @@ function main() {
   });
   // W1: a clamped material's copy - its texture's picture (a soft one as made, a bake, the game's, or beside an own file)
   // and a TXI of its lines and the game's clamp line - written under the material's name beside it (files.js motionCopies).
-  W.motionCopies(moved, { rd, shaped, baked, ship });
+  W.motionCopies(moved, { rd, shaped, baked, ship, copies: copied });  // (AB: a breathing Additive part's W1 copy is of its own copy)
   // Where the bakes and the shapes' soft textures go: beside a placeable's models, or a spell mesh's drafts (--check
   // without --saved: nothing is written).
   const bakeDir = placeable ? FILES : SAVED || path.resolve("saved");
@@ -286,7 +298,7 @@ function main() {
   }
   writes.push(...W.bakedWrites(baked, bakeDir));  // never in made.txt: whose they are, their names say
   writes.push(...W.shapeWrites(shaped, bakeDir));  // likewise: build output, git-ignored in data\files
-  writes.push(...W.copyWrites(copied, bakeDir));  // DC: a library texture's copies (the game's art: git-ignored in data\files)
+  writes.push(...W.copyWrites(copied, bakeDir));  // DC: a library texture's copies, AB: an Additive part's (the game's art: git-ignored in data\files)
   writes.push(...W.motionWrites(moved, bakeDir));  // a moving texture's materials (git-ignored in data\files) and the shader
 
   // The marked files this project made under another model name (its variants counted 1 and then 2, or back): listed,

@@ -154,8 +154,12 @@ function motionMaterials(placed, materials = new Map(), options = {}) {
 // bakeParts': its TGA, no TXI), else reader.js's image (`rd`: the game's - ovr\ first, then its archives - else beside a
 // part's own file, `ship`'s folder for a texture shipped from there, or `dirs`): its DDS when it has one (what the game
 // draws), else its TGA, with its TXI. -> { ext: ".tga" | ".dds", bytes, txi (its text, "" for none) } | null.
+// AB: a copy made in this build (`copies`, copyTextures': an Additive part's n5l_ copy - its picture and its additiveTxi -
+// or DC's) as made, first: a breathing Additive part's W1 copy is of its own copy, its TXI's "blending additive" kept.
 const txiText = (txi) => (!txi ? "" : typeof txi === "string" ? txi : Buffer.from(txi).toString("latin1"));
-function motionPicture(texture, { rd, shaped = new Map(), baked = new Map(), ship = new Map(), dirs = [] }) {
+function motionPicture(texture, { rd, shaped = new Map(), baked = new Map(), ship = new Map(), dirs = [], copies = new Map() }) {
+  const copy = copies.get(texture);
+  if (copy && copy.bytes) return { ext: copy.ext, bytes: copy.bytes, txi: txiText(copy.txi) };
   const soft = shaped.get(texture);
   if (soft) return { ext: ".tga", bytes: soft.bytes, txi: txiText(soft.txi) };
   const bake = baked.get(texture);
@@ -220,7 +224,15 @@ const motionJson = (materials) => [...materials].map(([material, m]) => Object.a
 // and its TXI (floatdisk.js copiedTxi: its lines minus decal, + clamp 2 within one repeat). A texture found nowhere (nor its
 // TXI) is left as it is - the game hasn't it either; without a reader nothing is copied. Called after bakeParts and
 // shipTextures, before motionMaterials. `placed`: [{ part, meshes }]. -> `copies`: Map(name -> { texture, clamp (0 or 2),
-// decal (its TXI said so), ext, bytes, txi (bytes), label (the part's) }), in the parts' order.
+// decal (its TXI said so), additive: true (AB: an Additive part's copy only), ext, bytes, txi (bytes), label (the part's)
+// }), in the parts' order.
+// AB (the owner, 2026-11-23: a game weapon glowing as the generated blade does): an Additive part's - a game model, a
+// weapon's pieces or your own file (floatdisk.js isAdditivePart; a shape's blend is its own) - textured meshes, still or
+// moving, each renamed in place for its copy made for added light (floatdisk.js addedTextures: n5l_<12 hex digits>, the
+// additive mark hashed in), its picture as the copy path finds it (the game's - its DDS when it has one - or beside your
+// file: `ship`) and its TXI floatdisk.js additiveTxi's: its lines minus decal and blending, + "blending additive". A dyed
+// part's bake (n5p_) stops the build, naming the part (addedTextures refuses it). A moving one's material then names the
+// copy as texture0 (motionMaterials: its own TXI the copy's blending line).
 function copyTextures(placed, copies = new Map(), sources = {}) {
   const pictures = new Map();
   const picture = (t) => {
@@ -228,7 +240,27 @@ function copyTextures(placed, copies = new Map(), sources = {}) {
     return pictures.get(t);
   };
   for (const x of placed) {
-    if (x.part.source.kind !== "shape" || !x.meshes) continue;
+    if (!x.meshes) continue;
+    if (x.part.source.kind !== "shape") {
+      if (!F.isAdditivePart(x.part)) continue;
+      let added;
+      try {
+        added = F.addedTextures(x.part, x.meshes, (t) => {
+          const pic = picture(t);  // (its key - its TXI's text and its picture's bytes - names the copy, as DC's: floatdisk.js copyKey)
+          return pic ? { key: F.copyKey(pic.txi, pic.bytes) } : null;
+        });
+      } catch (e) {
+        throw new Error(`${F.partLabel(x.part)}: ${e.message}`);
+      }
+      x.meshes = added.meshes;
+      for (const c of added.copies) {
+        if (copies.has(c.name)) continue;
+        const pic = picture(c.texture);
+        copies.set(c.name, { texture: c.texture, clamp: 0, decal: F.txiDecal(pic.txi), additive: true, ext: pic.ext, bytes: pic.bytes,
+          txi: Buffer.from(F.additiveTxi(pic.txi), "latin1"), label: F.partLabel(x.part) });
+      }
+      continue;
+    }
     // (MV: a moving part's too - floatdisk.js gameTextures: its decal texture copied, a flipbook moving sideways only too,
     // clamped in v while it does; its material names the copy as texture0.)
     const still = F.gameTextures(x.part.source.shape, x.part.motion, x.meshes, (t) => {
@@ -250,11 +282,15 @@ function copyTextures(placed, copies = new Map(), sources = {}) {
 // fixes the bytes) - git-ignored in data\files (/data/files/n5l_*: a copy is the game's art), never noted in made.txt.
 const copyWrites = (copies, dir) => [].concat(...[...copies].map(([name, c]) => [{ file: path.join(dir, name + c.ext), bytes: c.bytes, kind: "copy" },
   { file: path.join(dir, name + ".txi"), bytes: c.txi, kind: "copy" }]));
-// The summary's line a copy: its texture, what's changed in it, and where it goes.
-const copyLines = (copies, where) => [...copies].map(([name, c]) => `  texture ${name}: ${c.texture} copied${c.decal ? " without its decal mark" : ""}` +
-  `${c.clamp ? ", clamped in v" : ""} (${name}${c.ext}, ${name}.txi: its TXI${c.decal ? " without decal" : ""}${c.clamp ? `, and clamp ${c.clamp}` : ""}) - written into ${where}`);
-// --json's: [{ copy, texture, clamp (0 or 2) }].
-const copyJson = (copies) => [...copies].map(([copy, c]) => ({ copy, texture: c.texture, clamp: c.clamp }));
+// The summary's line a copy: its texture, what's changed in it, and where it goes (AB: an Additive part's, made for added
+// light - its TXI without decal or blending, then blending additive).
+const copyLines = (copies, where) => [...copies].map(([name, c]) => (c.additive
+  ? `  texture ${name}: ${c.texture} copied for added light, an Additive part's (${name}${c.ext}, ${name}.txi: its TXI without ${c.decal ? "decal or " : ""}` +
+    `blending, and blending additive) - written into ${where}`
+  : `  texture ${name}: ${c.texture} copied${c.decal ? " without its decal mark" : ""}` +
+    `${c.clamp ? ", clamped in v" : ""} (${name}${c.ext}, ${name}.txi: its TXI${c.decal ? " without decal" : ""}${c.clamp ? `, and clamp ${c.clamp}` : ""}) - written into ${where}`));
+// --json's: [{ copy, texture, clamp (0 or 2), additive (AB: only true, an Additive part's copy) }].
+const copyJson = (copies) => [...copies].map(([copy, c]) => Object.assign({ copy, texture: c.texture, clamp: c.clamp }, c.additive ? { additive: true } : {}));
 
 // --- textures ---------------------------------------------------------------------------------------------------------
 // The textures that the placed parts' own files bring and the game doesn't have: each mesh's, looked up in the game,

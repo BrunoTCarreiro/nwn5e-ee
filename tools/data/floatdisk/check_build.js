@@ -561,6 +561,45 @@ try {
     assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
   });
 
+  // AB (#39; the owner, 2026-11-23: a game weapon glowing as the generated blade does - "set it up and make 1 handed swords
+  // the first weapon"): an Additive part on the disk - shortsword 012 (one texture, w_metal_tex, its TXI an environment
+  // map) - lit by itself at its tint, naming its texture's copy made for added light; a breathing one (its UVs within one
+  // repeat: W1) naming clamped materials whose copies are of that copy, its TXI's blending additive kept.
+  check("AB: an Additive sword part - lit by itself at its tint, naming w_metal_tex's copy made for added light (its TXI blending additive) beside the models and the drafts; a breathing one's W1 copies of its copy (+ clamp 3); again unchanged", () => {
+    global.window = global.window || {};
+    const rd = R.create({ game: GAME, core: require(path.join(TOOLS, "vfx_bench", "public", "core.js")), gameData: require(path.join(TOOLS, "spell_bench", "game_data.js")), reader: null });
+    const METAL = "w_metal_tex", metal = rd.image(METAL, []), A = F.copyName(METAL, 0, F.copyKey(metal.txi, metal.dds || metal.tga), true);
+    const SWORD = ["wswss_b_012", "wswss_m_012", "wswss_t_012"], TINT = [0.72, 0.86, 1];
+    const file = withComposition("ab.json", (c) => {
+      c.stages.small = [{ model: SWORD, at: [0, 0, 0], scale: 0.3, tint: TINT, blend: "additive" }];
+      c.stages.medium = [{ model: SWORD, at: [0, 0, 0], scale: 0.3, blend: "additive", motion: { breathe: 0.3 } }];
+    });
+    const drafts = path.join(root, "build", "saved"), library = path.join(root, "build", "textures");
+    const args = ["--composition", file, "--drafts", "--out", drafts, "--textures", library];
+    const r = build([...args, "--json"]);
+    assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
+    const j = json(r);
+    assert.deepStrictEqual(j.copies, [{ copy: A, texture: METAL, clamp: 0, additive: true }]);
+    assert.ok(j.materials.length === 3 && j.materials.every((m) => m.texture === A && m.clamp === true), JSON.stringify(j.materials));
+    for (const dir of [FILES, drafts]) {
+      assert.ok(fs.readFileSync(path.join(dir, A + ".tga")).equals(metal.tga), dir + ": the copy isn't the game's w_metal_tex.tga");
+      assert.strictEqual(fs.readFileSync(path.join(dir, A + ".txi"), "latin1"), F.additiveTxi(metal.txi), dir);
+      for (const m of j.materials) {
+        assert.strictEqual(fs.readFileSync(path.join(dir, m.material + ".txi"), "latin1"), F.clampedTxi(F.additiveTxi(metal.txi)), dir + " " + m.material);
+        assert.ok(fs.readFileSync(path.join(dir, m.material + ".tga")).equals(metal.tga), dir + ": " + m.material + ".tga isn't the game's w_metal_tex.tga");
+      }
+    }
+    // The small stage's creature: the copy, lit by itself at the tint (a model's material: written as it is).
+    const small = fs.readFileSync(path.join(FILES, F.creatureModel("small") + ".mdl"), "latin1");
+    assert.strictEqual(small.split(`\r\n  bitmap ${A}\r\n`).length - 1, 3, F.creatureModel("small") + " doesn't name " + A + " three times");
+    assert.strictEqual(small.split("\r\n  selfillumcolor 0.72 0.86 1\r\n").length - 1, 3, "its selfillumcolor isn't the tint");
+    assert.ok(!small.includes(`\r\n  bitmap ${METAL}\r\n`), "the game's own texture still named");
+    const medium = fs.readFileSync(path.join(FILES, F.creatureModel("medium") + ".mdl"), "latin1");
+    for (const m of j.materials) assert.ok(medium.includes(`\r\n  bitmap ${m.material}\r\n`), F.creatureModel("medium") + " doesn't name " + m.material);
+    const again = json(build([...args, "--json"]));
+    assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
+  });
+
   check("the real worktree's data\\files and the real build's vfxedit\\saved\\ are as they were", () => {
     assert.deepStrictEqual(realState(), REAL);
   });

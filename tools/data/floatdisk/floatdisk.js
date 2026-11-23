@@ -162,13 +162,37 @@ function bakeBitmaps(meshes, colours, isPlt) {
   return { meshes: out, bakes };
 }
 
+// A part's Blend (AB, #39; the owner, 2026-11-23: "for these effects can I pick an existing weapon mesh instead of using a
+// custom one?" - then, told a Tint only multiplies its colour and a game weapon needs an additive option to glow as the
+// generated blade does: "set it up and make 1 handed swords the first weapon, you can pick one at random"): Normal, as its
+// model draws it, or Additive - its textured meshes adding their light, lit by themselves (addedLight, addedTextures). A
+// part's file carries "blend": "additive" only (Normal is the default, never written: every project keeps its bytes). A
+// shape's blend is its shape's own (SHAPE_INFO.blend: its soft texture's TXI) - never the part's.
+const PART_BLENDS = ["normal", "additive"];
+// The card's Blend (the bench's part card, for any part but a shape): its label, choices and title.
+const PART_BLEND_INFO = { label: "Blend",
+  choices: [["normal", "Normal: as its model draws it"], ["additive", "Additive: glows - adds its light, lit by itself"]],
+  title: "Additive: the game is given a copy of each of its textures whose TXI says blending additive, and its meshes are lit by themselves at its Tint " +
+    "(white without one) - it glows the same by day and night, adds its light, black is nothing, as the generated blade. An untextured mesh can't be " +
+    "additive in the game (no texture, no TXI): it's only lit by itself. A dyed part (a helmet's PLT) can't be Additive." };
+// A part's blend as given (`b`; absent - undefined or null - Normal) -> "normal" | "additive". `where` names it in an error.
+function readPartBlend(b, where) {
+  if (b === undefined || b === null) return "normal";
+  if (!PART_BLENDS.includes(b)) throw new Error(`${where}.blend: additive or normal`);
+  return b;
+}
+// Whether a part - read (readPart's: its source) or as its file has it (the page's: a `shape` key) - is Additive: its
+// blend says so and it isn't a shape (a shape's blend is on its shape).
+const isAdditivePart = (p) => !!p && p.blend === "additive" && !(p.source ? p.source.kind === "shape" : p.shape !== undefined);
+
 // One part of a composition (or of a Composer project: tools\data\composer\project.js) read and checked -> { source:
 // { kind: "model", model } | { kind: "models", models } (a weapon's pieces) | { kind: "file", file (absolute), given }
 // | { kind: "shape", shape (readShape's: every key) }, at, turn, scale, tilt, note, colours (the ten layers'), tint
-// (readTint's: white without one), motion (readMotion's, M2: still without one) }. `where` names it in an error
-// (stages.small[0]); `baseDir` resolves its file. A shape has no scale (its radius and height size it), no dyes and no
-// tint (its colour is on the shape): its colours are the defaults, its tint white. Any part may carry a motion, a shape
-// too: it moves the part's textured meshes.
+// (readTint's: white without one), blend (AB: readPartBlend's, "normal" without one), motion (readMotion's, M2: still
+// without one) }. `where` names it in an error (stages.small[0]); `baseDir` resolves its file. A shape has no scale (its
+// radius and height size it), no dyes, no tint (its colour is on the shape) and no blend of the part's (its Blend is on
+// the shape): its colours are the defaults, its tint white, its blend "normal". Any part may carry a motion, a shape too:
+// it moves the part's textured meshes.
 function readPart(p, where, baseDir) {
   if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error(`${where}: a part ({ "model": ..., "at": [x, y, z] })`);
   const hasModel = p.model !== undefined, hasFile = p.file !== undefined, hasShape = p.shape !== undefined;
@@ -190,6 +214,7 @@ function readPart(p, where, baseDir) {
     if (p.scale !== undefined) throw new Error(`${where}.scale: a shape has no scale - its radius and height size it`);
     if (p.colours !== undefined) throw new Error(`${where}.colours: a shape has no dyes - its colour is on the shape`);
     if (p.tint !== undefined && p.tint !== null) throw new Error(`${where}.tint: a shape has no tint - its Colour is its colour`);
+    if (p.blend !== undefined && p.blend !== null) throw new Error(`${where}.blend: a shape's blend is on its shape (its own Blend: shape.blend)`);
   }
   if (!Array.isArray(p.at) || p.at.length !== 3 || !p.at.every(isNum)) throw new Error(`${where}.at: [x, y, z] in metres`);
   const turn = p.turn === undefined ? 0 : p.turn, scale = p.scale === undefined ? 1 : p.scale;
@@ -198,7 +223,7 @@ function readPart(p, where, baseDir) {
   if (!isNum(scale) || scale <= 0) throw new Error(`${where}.scale: a number above 0`);
   if (!Array.isArray(tilt) || tilt.length !== 2 || !tilt.every(isNum)) throw new Error(`${where}.tilt: [degrees about x, degrees about y]`);
   return { source, at: p.at, turn, scale, tilt, note: p.note || "", colours: readColours(p.colours, `${where}.colours`), tint: readTint(p.tint, where),
-    motion: readMotion(p.motion, where) };
+    blend: readPartBlend(p.blend, where), motion: readMotion(p.motion, where) };
 }
 
 // composition.json's object -> { disk, stages: { empty: [], small: [part], ... } }, each part as readPart gives it.
@@ -252,12 +277,13 @@ function inline(v) {
 }
 // composition.json's text in its own layout (the Composer saves it): two-space indents, _about a string a line, the disk
 // a key a line, each stage a part a line (note, model | file | shape, at, turn, scale, tilt, colours, tint - never white,
-// which is no tint - motion - its non-zero keys, cleanMotion's, never a still one - then any other key); arrays and a
-// shape inline.
+// which is no tint - blend - AB: only Additive, never Normal, the default - motion - its non-zero keys, cleanMotion's,
+// never a still one - then any other key); arrays and a shape inline.
 function compositionText(c) {
-  const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours", "tint", "motion"];
+  const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours", "tint", "blend", "motion"];
   const part = (p) => {
-    const written = (k) => p[k] !== undefined && !(k === "tint" && isWhite(p[k])) && !(k === "motion" && !hasMotion(p[k]));
+    const written = (k) => p[k] !== undefined && !(k === "tint" && isWhite(p[k])) && !(k === "blend" && (p[k] === "normal" || p[k] === null)) &&
+      !(k === "motion" && !hasMotion(p[k]));
     const keys = PART_KEYS.filter(written).concat(Object.keys(p).filter((k) => !PART_KEYS.includes(k) && written(k)));
     return "{ " + keys.map((k) => JSON.stringify(k) + ": " + inline(k === "motion" ? cleanMotion(p[k]) : p[k])).join(", ") + " }";
   };
@@ -403,8 +429,10 @@ function drawnMaterial(m) {
 // drawnMaterial - a tinted part's meshes at the draft's defaults are lifted to full first, so the tint multiplies what the
 // game draws (not 0.2 0.2 0.1998 for a tint of 1 1 0.999, which the game would draw as it is, darker than untinted);
 // untinted they're left as they are (the game lifts them; every draft keeps its bytes). A placeable's meshes never: its
-// model is written as it is (meshLines). { meshes (named prefix + its number + "_" + the mesh's name), lo, hi, reach (how
-// far from the centre it reaches in x y) }
+// model is written as it is (meshLines). AB: an Additive part's (isAdditivePart) meshes lit by themselves after their tint
+// (addedLight: a textured one at its tint, marked `additive`; an untextured one self-lit) - a spell mesh's lifted first, as
+// a tinted one's, so an untextured plane at the draft's defaults is lit as the game draws it, at full. { meshes (named
+// prefix + its number + "_" + the mesh's name), lo, hi, reach (how far from the centre it reaches in x y) }
 function placePart(part, model, index, floor, prefix, planes) {
   const s = part.scale, rad = Math.PI / 180;
   const qx = [Math.sin(part.tilt[0] * rad / 2), 0, 0, Math.cos(part.tilt[0] * rad / 2)];
@@ -430,8 +458,38 @@ function placePart(part, model, index, floor, prefix, planes) {
     }
     return Object.assign({}, m, { name: prefix + String(index + 1).padStart(2, "0") + "_" + m.name, verts, tverts: m.tverts.map(round) });
   });
-  const lifted = planes && Array.isArray(part.tint) && !isWhite(part.tint) ? meshes.map(drawnMaterial) : meshes;
-  return { meshes: tintMeshes(lifted, part.tint), lo, hi, reach };
+  const additive = isAdditivePart(part);
+  const lifted = planes && ((Array.isArray(part.tint) && !isWhite(part.tint)) || additive) ? meshes.map(drawnMaterial) : meshes;
+  const tinted = tintMeshes(lifted, part.tint);
+  return { meshes: additive ? addedLight(tinted, part.tint) : tinted, lo, hi, reach };
+}
+
+// --- AB: an Additive part (#39; the owner, 2026-11-23: a game weapon for the Spiritual Weapon's force, "set it up and make 1
+// handed swords the first weapon" - glowing as the generated blade does: selfillum 1, its texture's TXI "blending additive")
+// The game draws a mesh adding its light only by its bitmap's TXI (nwmain: Material::Init -> ParseField reads `blending`
+// and `decal` from <bitmap>.txi - M1b, the MV diagnosis), so an Additive part's textured meshes name a copy of their texture
+// made for it (addedTextures: its picture as the game has it, its TXI additiveTxi's), and they're lit by themselves so the
+// game draws them at full whatever the area's light (addedLight). One rule, here, for every route: the stage (placePart,
+// the bench's composer.js), Save's generators (files.js copyTextures) and Play in game (composer.js played, the bake route).
+// Whether a mesh's bitmap names a texture ("" and "null" don't).
+const textured = (bitmap) => { const t = String(bitmap || "").toLowerCase(); return !!t && t !== "null"; };
+// An Additive part's meshes (placePart's, already tinted by `tint`; white without one) lit by themselves -> copies:
+// - a textured one: selfillum its tint, ambient and diffuse 0 - the game lights a textured mesh as texture x (selfillum +
+//   ambient x the area's + diffuse x the lights), each clamped to 1, so it's drawn texture x tint by day and by night (a
+//   shape's library texture at Glow 1 likewise, M1: ambient and diffuse on top washed a pale colour out to white by day) -
+//   and marked `additive`: the stage draws it in its additive pass (the bench's view.js passOf), as the game draws its copy;
+// - an untextured one can't be additive in the game - its blend would come only from its bitmap's TXI, and it has no bitmap
+//   - so it's only lit by itself: selfillum its own colour (its tinted diffuse) plus its own glow (its tinted selfillum),
+//   each channel at most 1, ambient and diffuse 0 - its colour whatever the light. No mark: it's drawn as it blends.
+// Everything else of a mesh is kept; each number through round, never -0.
+function addedLight(meshes, tint) {
+  const t = Array.isArray(tint) && tint.length === 3 ? tint : [1, 1, 1];
+  const of = (m, k) => (Array.isArray(m[k]) && m[k].length >= 3 ? m[k] : [0, 0, 0]);
+  return meshes.map((m) => {
+    const lit = textured(m.bitmap);
+    const selfillum = lit ? t.map((c) => round(c) + 0) : [0, 1, 2].map((k) => round(Math.min(1, of(m, "diffuse")[k] + of(m, "selfillum")[k])) + 0);
+    return Object.assign({}, m, { ambient: [0, 0, 0], diffuse: [0, 0, 0], selfillum }, lit ? { additive: true } : {});
+  });
 }
 
 // The same meshes moved by dz (the piles: the disk's height down, their base on the ground).
@@ -1024,7 +1082,8 @@ function moveTextures(meshes, motion, { clamp = true, shape = null, txiOf = null
 //   mesh's v stays within [0, 1] (copiedTxi). U keeps repeating (round a ring, Repeat around);
 // - its soft texture, when its mesh's v stays within [0, 1]: a name of its own (shapeTextureName's clamp) with a TXI
 //   saying clamp 2 (softTxi).
-// A game part's or your own file's meshes are drawn as their models have them; the game's own effects are never copied.
+// A game part's or your own file's meshes are drawn as their models have them (AB: but an Additive part's, copied for its
+// blend - addedTextures); the game's own effects are never copied.
 const CLAMP_V = 2;  // the game's clamp bits: 1 u (WRAP_S), 2 v (WRAP_T), 4 r (WRAP_R) - SetTextureParameters
 const COPY_TEXTURE = /^n5l_[0-9a-f]{12}$/;  // a library texture's copy: made, never picked
 // A TXI value as C's atoi reads it: its leading whole number (after spaces or tabs), else 0.
@@ -1065,13 +1124,23 @@ function txiCycle(text) {
 // decal line - its procedure (proceduretype, numx, numy, fps), its blending ... - in its own line ends (CRLF the game's,
 // LF ours), its clamp line left out and its blank lines at the end dropped; then one clamp line, the union of its own clamp
 // and `clamp` (CLAMP_V, W1's 3), when that isn't 0, and a line end. Nothing left: "".
-function copiedTxi(source, clamp = 0) {
+// AB: `additive` (an Additive part's copy: additiveTxi) - its blending lines dropped too (each, its value or none), then
+// "blending additive" before the clamp line: the game's keyword and value as SOFT_TXI says them. Without it, as before.
+const BLENDING_WORD = /^[ \t]*blending(?:[ \t]|$)/i;  // a blending line, its value or none: every one is dropped from an additive copy
+function copiedTxi(source, clamp = 0, { additive = false } = {}) {
   const s = latin1(source), eol = /\r\n/.test(s) ? "\r\n" : "\n", bits = (clamp | txiClampBits(s)) >>> 0;
-  const lines = s ? s.split(/\r?\n/).filter((l) => !CLAMP_LINE.test(l) && !DECAL_WORD.test(l)) : [];
+  const lines = s ? s.split(/\r?\n/).filter((l) => !CLAMP_LINE.test(l) && !DECAL_WORD.test(l) && !(additive && BLENDING_WORD.test(l))) : [];
   while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  if (additive) lines.push("blending additive");
   if (bits) lines.push("clamp " + bits);
   return lines.length ? [...lines, ""].join(eol) : "";
 }
+// AB: an Additive part's copy's TXI (`source` its texture's TXI, a string or bytes; none: ""): the source's lines as they
+// are but its decal (drawn unlit, its material skipped: the SHP-8 diagnosis - the copy is lit by itself, addedLight) and its
+// blending (normal, punchthrough ... - the copy's is additive), in its own line ends, then "blending additive", then its own
+// clamp, if any (copiedTxi). Its flipbook, its maps (envmaptexture ...) and every other line kept. Never "": a texture with
+// no TXI gets "blending additive" and a line end.
+const additiveTxi = (source) => copiedTxi(source, 0, { additive: true });
 // A soft texture's TXI ({ blend, clamp }): an Additive one's "blending additive" (SOFT_TXI), a clamped one's "clamp 2",
 // both lines for both, LF; null for a Normal unclamped one (no TXI, as before DC).
 function softTxi({ blend, clamp } = {}) {
@@ -1107,9 +1176,12 @@ function copyKey(txi, bytes) {
 // its source TXI's text and picture) - its picture is the source's and its TXI the source's lines minus decal with that
 // clamp, so the name fixes its bytes (a game update that changes either names a new copy), and a shape's colour isn't in
 // it. No key: refused (its bytes aren't known).
-function copyName(texture, clamp, key) {
+// AB: `additive` (an Additive part's copy, addedTextures: its TXI additiveTxi's) hashes ":additive" after its key - its own
+// name, never one of DC's (whose TXI keeps the source's blending), so neither copy's TXI is ever written over the other's;
+// without it every name is as before AB.
+function copyName(texture, clamp, key, additive = false) {
   if (typeof key !== "string" || !key) throw new Error(`copyName: ${String(texture).toLowerCase()} - a copy's key (copyKey of its TXI and picture), none given`);
-  return "n5l_" + cyrb53(`copy:${String(texture).toLowerCase()}:${clamp ? clamp : 0}:${key}`).toString(16).padStart(14, "0").slice(-12);
+  return "n5l_" + cyrb53(`copy:${String(texture).toLowerCase()}:${clamp ? clamp : 0}:${key}${additive ? ":additive" : ""}`).toString(16).padStart(14, "0").slice(-12);
 }
 // Whether the game must have a library texture copied: its TXI (`info`: { decal, cycle } - txiDecal, txiCycle - of it;
 // null when not known) says decal, or it's a flipbook on a mesh whose v stays within one repeat (`clampV`).
@@ -1196,6 +1268,37 @@ function gameTextures(shape, motion, meshes, info) {
     return Object.assign({}, m, { bitmap: name });
   });
   return { meshes: out, softs, copies };
+}
+
+// AB: the Additive part rule, one place (the generators: files.js copyTextures; the bench's Play in game: composer.js
+// played; its bake route makes what it's sent by the same names): an Additive part's (`part`: read, or as its file has it -
+// isAdditivePart) placed meshes (`meshes`: placePart's, lit by themselves - addedLight) as the game must be given them,
+// `info(texture)` -> { key } | null - its copy's key (copyKey of its TXI's text and its picture's bytes, as the copy path
+// finds them: the generators' files.js motionPicture, the bench's texture route's X-Copy-Key); null (nowhere: the game
+// hasn't it either) or no key - as it is.
+// -> { meshes (copies - the given ones untouched), copies: [{ name, texture, clamp: 0, key, additive: true }] }, each name
+// once: each textured mesh names its copy, n5l_<12 hex digits> (copyName's, additive: its texture, no clamp, its key and the
+// mark), whose picture is its texture's and whose TXI additiveTxi's of its texture's - so the game adds its light. U and v
+// repeat as the model's own did (no clamp: a game part's UVs are its own). An untextured mesh, and one naming a copy already
+// (n5l_: twice is once) or a moving texture's material (n5u_: the copy comes first), as it is.
+// A dyed part's texture - the game's PLT baked in the part's colours, n5p_ (P4) - is refused: the bake is made afresh
+// wherever it's drawn (the page's own for its stage and Play, reader.js's for Save), so the key of its copy (its picture's
+// bytes) isn't one the page can name Play's copy by; set its Blend to Normal (or pick a part with a TGA or DDS texture).
+// A part that isn't Additive (Normal, or a shape: its own Blend, its soft texture's TXI) as it is.
+function addedTextures(part, meshes, info) {
+  const copies = [], seen = new Set();
+  if (!isAdditivePart(part)) return { meshes, copies };
+  const out = (meshes || []).map((m) => {
+    const t = String(m.bitmap || "").toLowerCase();
+    if (!textured(t) || COPY_TEXTURE.test(t) || MOTION_TEXTURE.test(t)) return m;
+    if (BAKED.test(t)) throw new Error(`${t}: a dyed texture (the game's PLT baked in the part's colours) - a dyed part can't be Additive: set its Blend to Normal`);
+    const i = typeof info === "function" ? info(t) : null;
+    if (!i || typeof i.key !== "string" || !i.key) return m;
+    const name = copyName(t, 0, i.key, true);
+    if (!seen.has(name)) { seen.add(name); copies.push({ name, texture: t, clamp: 0, key: i.key, additive: true }); }
+    return Object.assign({}, m, { bitmap: name });
+  });
+  return { meshes: out, copies };
 }
 
 // --- a compiled model's node tree ---------------------------------------------------------------------------------
@@ -1474,6 +1577,7 @@ const api = {
   UV_REPEAT_EPSILON, CLAMP_TXI, motionClamps, clampedTxi, txiClamps,
   CLAMP_V, COPY_TEXTURE, txiDecal, txiClampBits, txiCycle, copiedTxi, softTxi, vClamps, copyKey, copyName, copied, copyKind, stillTextures,
   sidewaysClamps, motionTxi, gameTextures,
+  PART_BLENDS, PART_BLEND_INFO, readPartBlend, isAdditivePart, addedLight, additiveTxi, addedTextures,
 };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.FloatDisk = api;

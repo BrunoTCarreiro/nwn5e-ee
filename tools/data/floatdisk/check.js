@@ -2425,4 +2425,203 @@ check("MV in a page: the same rule, TXI, names, shape rule and moveTextures", ()
   assert.deepStrictEqual(P.moveTextures(pg.meshes, RING, { shape: ps, txiOf }), F.moveTextures(fg.meshes, RING, { shape: fs, txiOf }));
 });
 
+// --- AB (#39; the owner, 2026-11-23: "for these effects can I pick an existing weapon mesh instead of using a custom one?",
+// then "set it up and make 1 handed swords the first weapon, you can pick one at random"): a part's Blend, Additive - a game
+// weapon glowing as the generated blade does. Its textured meshes lit by themselves at its tint and named for copies of
+// their textures whose TXI says blending additive (the game takes a mesh's blend only from its bitmap's TXI); an
+// untextured one only self-lit. -------------------------------------------------------------------------------------------
+const AB_AT = { at: [0, 0, 0], turn: 0, scale: 1, tilt: [0, 0] };
+check("AB a part's blend: Normal without one, Additive; anything else refused, a shape's on its shape; isAdditivePart; compositionText writes it after the tint, never Normal", () => {
+  const part = (extra) => F.readPart(Object.assign({ model: "plc_a03", at: [0, 0, 0] }, extra), "stages.small[0]", BASE);
+  assert.deepStrictEqual([part(), part({ blend: null }), part({ blend: "normal" }), part({ blend: "additive" })].map((p) => p.blend), ["normal", "normal", "normal", "additive"]);
+  assert.strictEqual(F.readPart({ model: ["wswss_b_012", "wswss_m_012", "wswss_t_012"], at: [0, 0, 0], blend: "additive" }, "p", BASE).blend, "additive");
+  assert.strictEqual(F.readPart({ file: "parts/x.mdl", at: [0, 0, 0], blend: "additive" }, "p", BASE).blend, "additive");
+  for (const bad of ["Additive", "add", "", 1, true, [], {}]) {
+    assert.throws(() => part({ blend: bad }), (e) => e.message === "stages.small[0].blend: additive or normal", JSON.stringify(bad));
+  }
+  for (const blend of ["additive", "normal"]) {
+    assert.throws(() => F.readPart({ shape: { type: "dome", radius: 1 }, at: [0, 0, 0], blend }, "stages.small[0]", BASE),
+      (e) => e.message === "stages.small[0].blend: a shape's blend is on its shape (its own Blend: shape.blend)", blend);
+  }
+  assert.strictEqual(F.readPart({ shape: { type: "dome", radius: 1, blend: "additive" }, at: [0, 0, 0] }, "p", BASE).blend, "normal");
+  assert.deepStrictEqual([part({ blend: "additive" }), part(), { model: "x", blend: "additive" }, { model: "x" }, { file: "a.mdl", blend: "additive" },
+    { shape: { type: "dome", radius: 1 }, blend: "additive" }, { source: { kind: "shape" }, blend: "additive" }, { model: "x", blend: "Additive" }, null].map(F.isAdditivePart),
+  [true, false, true, false, true, false, false, false, false]);
+  assert.deepStrictEqual(F.PART_BLENDS, ["normal", "additive"]);
+  assert.deepStrictEqual(F.PART_BLEND_INFO.choices.map((c) => c[0]), F.PART_BLENDS);
+  const text = F.compositionText({ disk: { diameter: 0.9 }, stages: { small: [{ blend: "additive", motion: { turn: 30 }, model: "plc_a03", at: [0, 0, 0], tint: [0.5, 1, 1] },
+    { model: "plc_b04", at: [0, 0, 0], blend: "normal" }, { model: "plc_b06", at: [0, 0, 0], blend: null }], medium: [], large: [] } });
+  assert.ok(text.includes('      { "model": "plc_a03", "at": [0, 0, 0], "tint": [0.5, 1, 1], "blend": "additive", "motion": { "turn": 30 } },'), text);
+  assert.ok(text.includes('      { "model": "plc_b04", "at": [0, 0, 0] },') && text.includes('      { "model": "plc_b06", "at": [0, 0, 0] }'), text);
+});
+check("AB placePart: an Additive part's textured meshes lit by themselves - selfillum its tint (white without one), ambient and diffuse 0 - and marked additive; an untextured one self-lit by its own colour, unmarked; a spell mesh's lifted first; Normal and a shape as before", () => {
+  const place = (extra, planes, model = tinted()) => F.placePart(Object.assign({}, AB_AT, extra), model, 0, 0, "j", planes).meshes;
+  const add = place({ blend: "additive", tint: [0.5, 1, 0.25] });
+  // The box (textured) at its tint; the lid (untextured: diffuse 1 1 1, selfillum 0.123456 0 0) its tinted diffuse plus its
+  // tinted glow, at most 1 a channel: 0.5 + 0.06173, 1, 0.25.
+  assert.deepStrictEqual(add.map(material), [[[0, 0, 0], [0, 0, 0], [0.5, 1, 0.25]], [[0, 0, 0], [0, 0, 0], [0.56173, 1, 0.25]]]);
+  assert.deepStrictEqual(add.map((m) => m.additive), [true, undefined]);
+  assert.ok(!("additive" in add[1]), "the untextured mesh carries no mark");
+  // Everything else as a Normal part's placed so (its alpha, its hint, its place).
+  const strip = (m) => { const c = withoutMaterial(m); delete c.additive; return c; };
+  assert.deepStrictEqual(add.map(strip), place({ tint: [0.5, 1, 0.25] }).map(strip));
+  // No tint: white - the box at 1 1 1; the lid's 1 + 0.123456 held at 1.
+  assert.deepStrictEqual(place({ blend: "additive" }).map((m) => m.selfillum), [[1, 1, 1], [1, 1, 1]]);
+  // A spell mesh's untextured mesh at the draft's defaults is lifted first (the game draws such a plane at full): its tint.
+  const plain = { meshes: [{ name: "gem", bitmap: "null", verts: [0, 0, 0, 1, 0, 0, 0, 1, 0], tverts: [0, 0, 1, 0, 0, 1], faces: [0, 1, 2], diffuse: [0.8, 0.8, 0.8],
+    ambient: [0.2, 0.2, 0.2], selfillum: [0, 0, 0], alpha: 1 }], lo: [0, 0, 0], hi: [1, 1, 0] };
+  assert.deepStrictEqual(place({ blend: "additive", tint: [0.5, 1, 0.25] }, true, plain).map(material), [[[0, 0, 0], [0, 0, 0], [0.5, 1, 0.25]]]);
+  assert.deepStrictEqual(place({ blend: "additive", tint: [0.5, 1, 0.25] }, false, plain).map(material), [[[0, 0, 0], [0, 0, 0], [0.4, 0.8, 0.2]]]);
+  // Untinted too: lifted for its blend alone - full (1 1 1) on a spell mesh, its 0.8 on a placeable's model.
+  assert.deepStrictEqual(place({ blend: "additive" }, true, plain).map(material), [[[0, 0, 0], [0, 0, 0], [1, 1, 1]]]);
+  assert.deepStrictEqual(place({ blend: "additive" }, false, plain).map(material), [[[0, 0, 0], [0, 0, 0], [0.8, 0.8, 0.8]]]);
+  // Normal (none, or said) as before: no mark, the tinted material; a shape's part-level blend (the page's) changes nothing.
+  for (const extra of [{}, { blend: "normal" }]) {
+    const n = place(Object.assign({ tint: [0.5, 1, 0.25] }, extra), true);
+    assert.deepStrictEqual(n, place({ tint: [0.5, 1, 0.25] }, true));
+    assert.ok(n.every((m) => !("additive" in m)));
+  }
+  const s = F.readShape({ type: "dome", radius: 1, texture: "fxpa_globe" }, "s");
+  assert.deepStrictEqual(F.placePart(Object.assign({ shape: s, blend: "additive" }, AB_AT), F.shapeModel(s), 0, 0, "j", true).meshes,
+    F.placePart(Object.assign({ shape: s }, AB_AT), F.shapeModel(s), 0, 0, "j", true).meshes);
+  // addedLight itself: copies, never -0; a mesh without a material self-lit from nothing.
+  const given = [{ name: "a", bitmap: "x", selfillum: [0, 0, 0] }, { name: "b", bitmap: "" }];
+  const lit = F.addedLight(given, [-0, 0.5, 1]);
+  assert.ok(lit.every((m, i) => m !== given[i]) && !("additive" in given[0]));
+  assert.ok(!lit[0].selfillum.some((v) => Object.is(v, -0)), JSON.stringify(lit[0].selfillum));
+  assert.deepStrictEqual(lit.map(material), [[[0, 0, 0], [0, 0, 0], [0, 0.5, 1]], [[0, 0, 0], [0, 0, 0], [0, 0, 0]]]);
+});
+check("AB additiveTxi: the source's lines but its decal and blending, in its own line ends, then blending additive, then its clamp; never empty; copiedTxi without it as before", () => {
+  assert.strictEqual(F.additiveTxi(FLAME_TXI), "proceduretype cycle\r\nnumx 4\r\nnumy 4\r\nfps 32\r\ndownsamplemax 0\r\ndownsamplemin 0\r\nblending additive\r\n");
+  assert.strictEqual(F.additiveTxi(SYM_TXI), "downsamplemax 0\r\ndownsamplemin 0\r\nblending additive\r\n");
+  for (const none of ["", null, undefined, Buffer.alloc(0)]) assert.strictEqual(F.additiveTxi(none), "blending additive\n", JSON.stringify(none));
+  assert.strictEqual(F.additiveTxi("envmaptexture CM_Baremetal\r\nblending punchthrough\r\nBlending\r\n\tBLENDING   normal\r\nclamp 1\r\n\r\n"),
+    "envmaptexture CM_Baremetal\r\nblending additive\r\nclamp 1\r\n");
+  assert.strictEqual(F.additiveTxi(Buffer.from("blending normal\nmipmap 0\n", "latin1")), "mipmap 0\nblending additive\n");
+  assert.strictEqual(F.additiveTxi("blendingx 1\nnoblending 1\n"), "blendingx 1\nnoblending 1\nblending additive\n", "not blending lines");
+  for (const s of [FLAME_TXI, SYM_TXI, "", "envmaptexture cm_metal\r\nblending normal\r\n", "decal 1\n"]) {
+    const t = F.additiveTxi(s);
+    assert.deepStrictEqual([F.txiAdditive(t), F.txiDecal(t), t.split(/\r?\n/).filter((l) => /^[ \t]*blending/i.test(l)).length], [true, false, 1], JSON.stringify(s));
+    // The page names a moving copy's material by its texture's X-Motion-Txi (motionTxi of its TXI): the same TXI comes of it.
+    assert.strictEqual(F.motionTxi(F.additiveTxi(F.motionTxi(s) || "")), F.motionTxi(t), JSON.stringify(s));
+    for (const clamp of [0, 2, 3]) assert.strictEqual(F.copiedTxi(s, clamp, { additive: false }), F.copiedTxi(s, clamp), JSON.stringify(s));
+  }
+  assert.strictEqual(F.copiedTxi(FLAME_TXI, 2, { additive: true }), "proceduretype cycle\r\nnumx 4\r\nnumy 4\r\nfps 32\r\ndownsamplemax 0\r\ndownsamplemin 0\r\nblending additive\r\nclamp 2\r\n");
+});
+check("AB copyName: an Additive copy's n5l_ name hashes the additive mark - never DC's for the same texture, clamp and key; without it every name as before", () => {
+  const key = DC_KEY.fxpa_flame02, add = F.copyName("fxpa_flame02", 0, key, true);
+  assert.strictEqual(add, "n5l_5d105670235b");  // pinned: the rule's text is the name
+  assert.strictEqual(F.copyName("fxpa_flame02", 0, key), "n5l_457cbc7cb0a0");  // DC's, as before AB
+  assert.ok(F.COPY_TEXTURE.test(add));
+  assert.strictEqual(F.copyName("FXPA_Flame02", 0, key, true), add);
+  assert.strictEqual(F.copyName("fxpa_flame02", 0, key, false), F.copyName("fxpa_flame02", 0, key));
+  const names = [add, F.copyName("fxpa_flame02", 0, key), F.copyName("fxpa_flame02", 2, key), F.copyName("fxpa_flame02", 2, key, true),
+    F.copyName("fxpa_flame02", 0, DC_KEY.fxpa_symbl_003, true), F.copyName("fxpa_symbl_003", 0, key, true)];
+  assert.strictEqual(new Set(names).size, names.length, names.join(" "));
+  for (const k of [undefined, null, ""]) assert.throws(() => F.copyName("fxpa_flame02", 0, k, true), /copyName: fxpa_flame02 - a copy's key/);
+});
+check("AB addedTextures: an Additive part's textured meshes name their copies (its key known), each once; untextured, a copy or a material, an unknown texture as they are; twice is once; a dyed part refused; Normal and a shape as they are", () => {
+  // (A copy's name and a material's known too - the page's loader reads them from where they're built: never copied again.)
+  const KEYS = { plc_x: { key: "k1" }, plc_y: { key: "k2" }, plc_nokey: { key: "" }, n5l_0123456789ab: { key: "k3" }, n5u_0123456789ab: { key: "k4" } };
+  const info = (t) => KEYS[t] || null;
+  const mesh = (name, bitmap) => ({ name, bitmap, verts: [0, 0, 0], tverts: [0, 0], faces: [0, 0, 0] });
+  const meshes = [mesh("a", "PLC_X"), mesh("b", ""), mesh("c", "null"), mesh("d", "plc_x"), mesh("e", "plc_y"), mesh("f", "plc_z"), mesh("g", "plc_nokey"),
+    mesh("h", "n5l_0123456789ab"), mesh("i", "n5u_0123456789ab")];
+  const x = F.copyName("plc_x", 0, "k1", true), y = F.copyName("plc_y", 0, "k2", true);
+  assert.strictEqual(x, "n5l_890a937fc0f7");
+  for (const part of [{ model: "plc_a03", blend: "additive" }, F.readPart({ model: "plc_a03", at: [0, 0, 0], blend: "additive" }, "p", BASE)]) {
+    const r = F.addedTextures(part, meshes, info);
+    assert.deepStrictEqual(r.meshes.map((m) => m.bitmap), [x, "", "null", x, y, "plc_z", "plc_nokey", "n5l_0123456789ab", "n5u_0123456789ab"]);
+    assert.deepStrictEqual(r.copies, [{ name: x, texture: "plc_x", clamp: 0, key: "k1", additive: true }, { name: y, texture: "plc_y", clamp: 0, key: "k2", additive: true }]);
+    assert.strictEqual(meshes[0].bitmap, "PLC_X", "the given meshes untouched");
+    assert.deepStrictEqual(F.addedTextures(part, r.meshes, info), { meshes: r.meshes, copies: [] }, "twice is once");
+  }
+  // Not known yet (the page's: undefined) or no info at all: as it is.
+  assert.deepStrictEqual(F.addedTextures({ model: "m", blend: "additive" }, meshes, () => undefined).meshes.map((m) => m.bitmap), meshes.map((m) => m.bitmap));
+  assert.deepStrictEqual(F.addedTextures({ model: "m", blend: "additive" }, meshes).copies, []);
+  // A dyed part's bake: refused, saying so.
+  const bake = F.bakedName("helm_001", {});
+  assert.throws(() => F.addedTextures({ model: "helm_001", blend: "additive" }, [mesh("a", bake)], info),
+    (e) => e.message === `${bake}: a dyed texture (the game's PLT baked in the part's colours) - a dyed part can't be Additive: set its Blend to Normal`);
+  // Normal, a shape: the meshes given, nothing copied (a dyed Normal part as it is).
+  for (const part of [{ model: "m" }, { model: "m", blend: "normal" }, { shape: { type: "dome", radius: 1 }, blend: "additive" }, null]) {
+    const r = F.addedTextures(part, meshes.concat(mesh("z", bake)), info);
+    assert.deepStrictEqual(r.copies, [], JSON.stringify(part));
+    assert.deepStrictEqual(r.meshes.map((m) => m.bitmap), meshes.concat(mesh("z", bake)).map((m) => m.bitmap));
+  }
+});
+check("AB files.js: an Additive game part's textures copied for added light - its picture (the DDS when it has one) and its additiveTxi under its own n5l_ name, kind copy; a moving one's material names the copy, its TXI blending additive; a breathing one's W1 copy of its copy; a dyed one refused naming it; Normal and no reader as before", () => {
+  const fs = require("fs");
+  const os = require("os");
+  const W = require("./files.js");
+  const tri = (name, bitmap, z) => ({ name, bitmap, verts: [0, 0, z, 1, 0, z, 0, 1, z], tverts: [0, 0, 1, 0, 0, 1], faces: [0, 1, 2], diffuse: [1, 1, 1],
+    ambient: [1, 1, 1], selfillum: [0, 0, 0], alpha: 1, transparencyhint: 0 });
+  const model = () => ({ meshes: [tri("blade", "w_blade", 0), tri("hilt", "w_hilt", 0.1), tri("gem", "", 0.2)], lo: [0, 0, 0], hi: [1, 1, 0.2] });
+  const BLADE_TXI = "envmaptexture cm_metal\r\nblending normal\r\n";
+  const IMAGES = { w_blade: { where: "game", tga: Buffer.from("blade-tga"), dds: Buffer.from("blade-dds"), plt: null, txi: BLADE_TXI },
+    w_hilt: { where: "game", tga: Buffer.from("hilt-tga"), dds: null, plt: null, txi: "" } };
+  const rd = { image: (name) => IMAGES[name] || null };
+  const read = (extra) => F.readPart(Object.assign({ model: ["wswss_b_012", "wswss_m_012", "wswss_t_012"], at: [0, 0, 0] }, extra), "p", BASE);
+  const placedOf = (parts) => parts.map((p) => ({ part: p, meshes: F.placePart(p, model(), 0, 0, "j", true).meshes }));
+  const placed = placedOf([read({ blend: "additive", tint: [0.72, 0.86, 1] }), read({})]);
+  const copies = W.copyTextures(placed, new Map(), { rd });
+  const bn = F.copyName("w_blade", 0, F.copyKey(BLADE_TXI, Buffer.from("blade-dds")), true), hn = F.copyName("w_hilt", 0, F.copyKey("", Buffer.from("hilt-tga")), true);
+  assert.deepStrictEqual(placed.map((x) => x.meshes.map((m) => m.bitmap)), [[bn, hn, ""], ["w_blade", "w_hilt", ""]]);
+  assert.deepStrictEqual(placed[0].meshes.map((m) => m.selfillum), [[0.72, 0.86, 1], [0.72, 0.86, 1], [0.72, 0.86, 1]]);
+  assert.deepStrictEqual([...copies.keys()], [bn, hn]);
+  assert.deepStrictEqual([...copies.values()].map((c) => [c.texture, c.clamp, c.additive, c.decal, c.ext, c.bytes.toString(), c.txi.toString("latin1"), c.label]), [
+    ["w_blade", 0, true, false, ".dds", "blade-dds", "envmaptexture cm_metal\r\nblending additive\r\n", "wswss_b_012 + wswss_m_012 + wswss_t_012"],
+    ["w_hilt", 0, true, false, ".tga", "hilt-tga", "blending additive\n", "wswss_b_012 + wswss_m_012 + wswss_t_012"]]);
+  assert.deepStrictEqual(W.copyJson(copies), [{ copy: bn, texture: "w_blade", clamp: 0, additive: true }, { copy: hn, texture: "w_hilt", clamp: 0, additive: true }]);
+  assert.deepStrictEqual(W.copyLines(copies, "saved"), [
+    `  texture ${bn}: w_blade copied for added light, an Additive part's (${bn}.dds, ${bn}.txi: its TXI without blending, and blending additive) - written into saved`,
+    `  texture ${hn}: w_hilt copied for added light, an Additive part's (${hn}.tga, ${hn}.txi: its TXI without blending, and blending additive) - written into saved`]);
+  // A decal texture's says so.
+  const decal = placedOf([read({ blend: "additive" })]);
+  const dc = W.copyTextures(decal, new Map(), { rd: { image: (n) => Object.assign({}, IMAGES[n] || IMAGES.w_hilt, { txi: "decal 1\r\n" }) } });
+  assert.ok(W.copyLines(dc, "x")[0].includes(".txi: its TXI without decal or blending, and blending additive)"), W.copyLines(dc, "x")[0]);
+  assert.deepStrictEqual([...dc.values()].map((c) => [c.decal, c.txi.toString("latin1")]), [[true, "blending additive\r\n"], [true, "blending additive\r\n"]]);
+  // The writes: each copy's picture and TXI under its name, kind copy, owned by the n5l_ name.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "n5_fdab-"));
+  try {
+    const writes = W.copyWrites(copies, dir);
+    assert.deepStrictEqual(writes.map((w) => [path.basename(w.file), w.kind]), [[bn + ".dds", "copy"], [bn + ".txi", "copy"], [hn + ".tga", "copy"], [hn + ".txi", "copy"]]);
+    const owned = W.ownership({ repo: dir, manifest: new Set(), mark: F.MARK });
+    assert.ok(writes.every((w) => owned(w, Buffer.from("x"))));
+    W.writeAll(writes, owned, { repo: dir, manifest: new Set() });
+    assert.strictEqual(fs.readFileSync(path.join(dir, bn + ".txi"), "latin1"), "envmaptexture cm_metal\r\nblending additive\r\n");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  // Moving (a turn): its material names the copy as texture0, its own TXI the copy's map and blending lines.
+  const moving = placedOf([read({ blend: "additive", motion: { turn: 30 } })]);
+  const mc = W.copyTextures(moving, new Map(), { rd });
+  const mats = W.motionMaterials(moving, new Map(), { sources: { rd }, copies: mc });
+  assert.deepStrictEqual([...mats.values()].map((m) => [m.texture, m.txi || null, m.text.split("\n").includes("texture0 " + m.texture)]),
+    [[bn, "envmaptexture cm_metal\nblending additive\n", true], [hn, "blending additive\n", true]]);
+  // Breathing within one repeat (W1): its clamped material's copy is of its own copy - its TXI's blending additive kept.
+  const breathing = placedOf([read({ blend: "additive", motion: { breathe: 0.3 } })]);
+  const bc = W.copyTextures(breathing, new Map(), { rd });
+  const bm = W.motionCopies(W.motionMaterials(breathing, new Map(), { sources: { rd }, copies: bc }), { rd, copies: bc });
+  assert.deepStrictEqual([...bm.values()].map((m) => [m.texture, m.clamp, m.copy.ext, m.copy.bytes.toString(), m.copy.txi.toString("latin1")]), [
+    [bn, true, ".dds", "blade-dds", "envmaptexture cm_metal\r\nblending additive\r\nclamp 3\r\n"], [hn, true, ".tga", "hilt-tga", "blending additive\nclamp 3\n"]]);
+  // A dyed part's bake: the build stops, naming the part.
+  const dyed = [{ part: read({ blend: "additive" }), meshes: [tri("helm", F.bakedName("helm_001", {}), 0)] }];
+  assert.throws(() => W.copyTextures(dyed, new Map(), { rd, baked: new Map() }), /^Error: wswss_b_012 \+ wswss_m_012 \+ wswss_t_012: n5p_[0-9a-f]{12}: a dyed texture .* a dyed part can't be Additive/);
+  // No reader: nothing copied, the meshes as placed (still lit by themselves).
+  const bare = placedOf([read({ blend: "additive" })]);
+  assert.strictEqual(W.copyTextures(bare, new Map(), {}).size, 0);
+  assert.deepStrictEqual(bare[0].meshes.map((m) => m.bitmap), ["w_blade", "w_hilt", ""]);
+});
+check("AB in a page: the same blend, light, TXI, names and rule", () => {
+  const P = pageFloatDisk();
+  assert.deepStrictEqual([P.PART_BLENDS, P.PART_BLEND_INFO], [F.PART_BLENDS, F.PART_BLEND_INFO]);
+  const raw = { model: "plc_a03", blend: "additive", tint: [0.5, 1, 0.25] };
+  assert.deepStrictEqual([P.isAdditivePart(raw), P.isAdditivePart({ model: "x" })], [true, false]);
+  assert.deepStrictEqual(P.placePart(Object.assign({}, AB_AT, raw), tinted(), 0, 0, "j", true).meshes, F.placePart(Object.assign({}, AB_AT, raw), tinted(), 0, 0, "j", true).meshes);
+  assert.deepStrictEqual([P.additiveTxi(FLAME_TXI), P.copyName("fxpa_flame02", 0, DC_KEY.fxpa_flame02, true)], [F.additiveTxi(FLAME_TXI), "n5l_5d105670235b"]);
+  const info = (t) => (t === "plc_x" ? { key: "k1" } : null);
+  assert.deepStrictEqual(P.addedTextures(raw, tinted().meshes, info), F.addedTextures(raw, tinted().meshes, info));
+});
+
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);
