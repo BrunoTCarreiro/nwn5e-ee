@@ -265,6 +265,7 @@ struct ConeState {
   int drawn[rules::kConeSlicePositions];  // the rows on it now (its effects nwn5e_cs<position>)
   int drawn_sig = 0;
   uint64_t next_draw = 0;
+  bool told_dark = false;                 // its darkvision logged
   ConeState() {
     for (int k = 0; k < rules::kConeSlicePositions; ++k) {
       length[k] = 0;
@@ -599,6 +600,14 @@ void UpdateCone(void* creature, uint32_t id, float sight, int colour, int cone_r
   }
   int want[rules::kConeSlicePositions] = {};
   if (drawn) {
+    static int dark_logged = 0;
+    if (!s.told_dark && LightConesOn() && dark_logged < 40) {
+      s.told_dark = true;
+      ++dark_logged;
+      const float dark = DarkvisionReach(creature);
+      Log("stealth watch: 0x%08X cone drawn - %s", id,
+          dark > 0.0f ? "darkvision, 18 m: it sees darkness that far" : "no darkvision: only lit ground counts");
+    }
     rules::SliceSpan shown, range;
     if (searching) {
       if (SearchConeOn()) shown = range = rules::ConeSliceSpan(rules::DrawnConeDegrees(g_config.search_cone));
