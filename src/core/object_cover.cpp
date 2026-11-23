@@ -29,6 +29,10 @@
 //   its obstacles as it takes effect, so creatures behind a bookcase its own blast broke keep their cover from it), and
 //   stays out while it lingers before the engine removes it; a placeable destroyed outright blocks nothing once it's
 //   gone (ObjectsBlockLine skips a box whose placeable isn't there). The spells' lasting masks round it are re-measured.
+// - #184's house rule areas_fill_around (on by default): a lasting area's lines - an area-of-effect object's, or
+//   Entangle, Grease, Fog Cloud, Web, Cloudkill, Stinking Cloud, Incendiary Cloud's as they appear (rules::AreaIsLasting)
+//   - count only the engine's (walls, shut doors): no placeable leaves a creature out of it or gives it cover against
+//   its saves. Instant cones, lines and bursts keep the 2024 rule.
 
 #include "object_cover.h"
 
@@ -445,7 +449,7 @@ bool ObjectsBlockLine(void* area, uint32_t self, const float a[3], const float b
 }
 
 rules::Cover CoverFrom(void* area, uint32_t from_id, uint32_t self, const float eye[3], void* target,
-                       CoverPoint points[rules::kLosBodyPoints], std::string* by, uint32_t* by_id) {
+                       CoverPoint points[rules::kLosBodyPoints], std::string* by, uint32_t* by_id, bool placeables) {
   if (by) by->clear();
   if (by_id) *by_id = ee::kObjectInvalid;
   if (!area || !target) return rules::Cover::kNone;
@@ -473,7 +477,7 @@ rules::Cover CoverFrom(void* area, uint32_t from_id, uint32_t self, const float 
       }
     }
     uint32_t box = 0;
-    if (p.clear && ObjectsBlockLine(area, self, eye, to, &box, nullptr)) {
+    if (placeables && p.clear && ObjectsBlockLine(area, self, eye, to, &box, nullptr)) {
       p.clear = false;
       p.object = true;
       p.blocker = box;
@@ -601,6 +605,7 @@ struct Origin {
   float at[3] = {0, 0, 0};
   rules::AreaOrigin kind = rules::AreaOrigin::kCaster;
   bool own = false;
+  bool lasting = false;  // #184: a lasting area's (rules::AreaIsLasting)
   const char* from = "its source";
   void* caster = nullptr;  // the creature behind it (told), when known
 };
@@ -663,6 +668,8 @@ bool OriginOf(uint32_t origin_id, int spell, Origin* out) {
     out->kind = rules::AreaOrigin::kCentre;  // a trap, a door: its own place
   }
   const float eye = rules::EyeHeight(eyes_of ? Field<int32_t>(eyes_of, ee::kCreatureSize) : 3);
+  const bool area_object = !t_forced && type == ee::kObjectTypeAreaOfEffect;
+  out->lasting = rules::AreaIsLasting(area_object, area_object ? Field<int32_t>(object, ee::kAoeEffectSpellId) : spell);
   for (int k = 0; k < 3; ++k) out->at[k] = anchor[k];
   out->at[2] += rules::OriginHeight(out->kind, eye, feet);
   return true;
@@ -747,7 +754,9 @@ bool LeftOutOfArea(void* caster, int spell, uint32_t target_id) {
   CoverPoint points[rules::kLosBodyPoints];
   std::string by;
   uint32_t by_id = ee::kObjectInvalid;
-  const rules::Cover cover = CoverFrom(area, IdOf(caster), target_id, origin.at, target, points, &by, &by_id);
+  const bool placeables = rules::AreaCountsPlaceables(origin.lasting, g_config.areas_fill_around);
+  const rules::Cover cover =
+      CoverFrom(area, IdOf(caster), target_id, origin.at, target, points, &by, &by_id, placeables);
   if (rules::AreaCoverEffectFor(cover, true, false) != rules::AreaCoverEffect::kLeftOut) return false;
   const uint32_t c = IdOf(caster);
   if (TellNow(4, c, target_id)) {
@@ -774,7 +783,9 @@ int SaveCoverBonus(void* creature, uint32_t versus, uint32_t script_self, int sp
   CoverPoint points[rules::kLosBodyPoints];
   std::string by;
   uint32_t by_id = ee::kObjectInvalid;
-  const rules::Cover cover = CoverFrom(area, origin_id, IdOf(creature), origin.at, creature, points, &by, &by_id);
+  const bool placeables = rules::AreaCountsPlaceables(origin.lasting, g_config.areas_fill_around);
+  const rules::Cover cover =
+      CoverFrom(area, origin_id, IdOf(creature), origin.at, creature, points, &by, &by_id, placeables);
   if (rules::AreaCoverEffectFor(cover, origin.own, true) == rules::AreaCoverEffect::kNone) return 0;
   const int bonus = rules::CoverSaveBonus(cover);
   if (!bonus) return 0;
@@ -819,6 +830,13 @@ void InstallCoverObjects() {
     }
   }
   g_table = !g_bounds.empty();
+  // #184's house rule, once at launch: which areas fill in round the placeables.
+  Log("cover objects: areas_fill_around=%d (a house rule) - %s", g_config.areas_fill_around ? 1 : 0,
+      g_config.areas_fill_around
+          ? "lasting areas (an area-of-effect object's; Entangle, Grease, Fog Cloud, Web, Cloudkill, Stinking Cloud, "
+            "Incendiary Cloud as they appear) fill in round placeables: only walls and shut doors block their lines, "
+            "their masks carry walls only; instant cones, lines and bursts keep the 2024 rule"
+          : "every area's lines blocked by placeables too (the 2024 rule)");
   if (g_table && !AddServerTickListener(&DropBroken)) Log("cover objects: no server tick - a broken placeable's box stays up to 3 s");
   if (!g_table) {
     Log("cover objects: cover_objects=1 but no data\\placeable_bounds.txt (build.bat makes it from your game with "

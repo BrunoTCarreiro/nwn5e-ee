@@ -311,6 +311,14 @@ struct Config {
   // conversation, not a light, no script but the trap-triggered one) loads breakable. [house_rules]
   // plot_dressing_breakable; 1 (the default): breakable; 0: the module's Plot as it is.
   bool plot_dressing_breakable = true;
+  // #184 (owner, 2026-11-23: "inside the fog there should not be "shaded" areas as these are an area affect and not
+  // projected from a point", "come on, I think it makes sense it would go around corners", "bursts stay as 2024"): a
+  // house rule, not SRD 5.2 - with cover_objects, a lasting area (a cloud or a zone: an area-of-effect object, or
+  // Entangle, Grease, Fog Cloud, Web, Cloudkill, Stinking Cloud, Incendiary Cloud as they appear) fills in round the
+  // placeables in it: their boxes neither leave a creature out nor give it cover against its saves, and its look
+  // isn't masked behind them; walls and shut doors still bound it (rules::AreaCountsPlaceables). Instant cones, lines
+  // and bursts keep the 2024 rule. [house_rules] areas_fill_around; 1 (the default, the owner's word); 0: the 2024 rule.
+  bool areas_fill_around = true;
   // #39 Part 2a's level 1 list switch (owner, 2026-11-09, Part 2's brief: "5.A" - Summon Creature I-IX off in
   // faithful, a house rule (off by default) keeping them): a house rule, not SRD 5.2 - with spellcasting faithful,
   // NWN's Summon Creature spells stay on the class lists. [house_rules] summon_creature; 0 (the default): off them

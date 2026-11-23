@@ -51,3 +51,28 @@ TEST(AreaCoverInOrOut) {
   CHECK_EQ(AreaCoverEffectFor(Cover::kHalf, true, false) == AreaCoverEffect::kNone, true);
   CHECK_EQ(AreaCoverEffectFor(Cover::kNone, true, true) == AreaCoverEffect::kNone, true);
 }
+
+// #184's house rule (areas_fill_around): what is a lasting area. Breaks caught: one of the seven area-making spells left
+// out (its saves as it appears still shaded by placeables); an instant spell taken for one - a cone (Burning Hands,
+// Color Spray, a Dragon's Breath exhale, Cone of Cold), a burst (Shatter, Fireball, Ice Knife), Thunderwave's cube, Sleep's
+// sphere, Faerie Fire's square (a square, but cast once); the shape taken for the test (Fog Cloud and Shatter both
+// spheres); an area-of-effect object's own area not lasting whatever its spell.
+TEST(AreaLastingOrInstant) {
+  for (int spell : {kEntangle, kGrease, kFogCloud, kNwnWeb, kNwnCloudkill, kNwnStinkingCloud, kNwnIncendiaryCloud}) {
+    CHECK_EQ(LastingAreaSpell(spell) && AreaIsLasting(false, spell), true);
+  }
+  for (int spell : {kBurningHands, kColorSpray, kDragonsBreathExhaleFirst, kDragonsBreathExhaleLast, 25, kShatter, 58,
+                    kIceKnife, kThunderwave, kSleep, kFaerieFire, kFaerieFireBlue, -1}) {
+    CHECK_EQ(LastingAreaSpell(spell) || AreaIsLasting(false, spell), false);
+  }
+  CHECK_EQ(AreaIsLasting(true, kShatter) && AreaIsLasting(true, -1) && AreaIsLasting(true, kFogCloud), true);
+}
+
+// What blocks a lasting area's lines. Breaks caught: the house rule taking placeables out of an instant area's lines
+// (bursts stay as 2024), or leaving them in a lasting one's; the rule off (0, the 2024 rule as built) not counting them.
+TEST(AreaFillsAroundPlaceables) {
+  CHECK_EQ(AreaCountsPlaceables(true, true), false);   // a cloud or a zone, the house rule on: walls only
+  CHECK_EQ(AreaCountsPlaceables(false, true), true);   // a cone, a line, a burst: placeables block
+  CHECK_EQ(AreaCountsPlaceables(true, false), true);   // the house rule off: SRD 5.2.1 as built
+  CHECK_EQ(AreaCountsPlaceables(false, false), true);
+}

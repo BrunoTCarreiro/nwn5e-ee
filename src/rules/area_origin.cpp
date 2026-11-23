@@ -57,4 +57,22 @@ AreaCoverEffect AreaCoverEffectFor(Cover cover, bool own_spell, bool dexterity_s
   return AreaCoverEffect::kNone;
 }
 
+bool LastingAreaSpell(int spell) {
+  switch (spell) {
+    case kEntangle:
+    case kGrease:
+    case kFogCloud:
+    case kNwnWeb:
+    case kNwnCloudkill:
+    case kNwnStinkingCloud:
+    case kNwnIncendiaryCloud: return true;
+    default: break;
+  }
+  return false;
+}
+
+bool AreaIsLasting(bool from_area_object, int spell) { return from_area_object || LastingAreaSpell(spell); }
+
+bool AreaCountsPlaceables(bool lasting, bool fill_around) { return !(lasting && fill_around); }
+
 }  // namespace rules

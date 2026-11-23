@@ -47,4 +47,24 @@ bool OriginAtCaster(AreaOrigin origin);
 enum class AreaCoverEffect { kNone, kSaveBonus, kLeftOut };
 AreaCoverEffect AreaCoverEffectFor(Cover cover, bool own_spell, bool dexterity_save);
 
+// #184's house rule, areas_fill_around (owner, 2026-11-23, on Fog Cloud by a bookcase: "inside the fog there should not
+// be "shaded" areas as these are an area affect and not projected from a point. There doesn't seem to be an area
+// without fog", then "come on, I think it makes sense it would go around corners. I know 5e explicitly said it and
+// 2024 doesn't, but come on", and "bursts stay as 2024"). A lasting area - a cloud or a zone that stays where it's made
+// - fills in round the placeables in it: from its origin only the tileset's walls and shut doors block its lines (it
+// doesn't pass a solid wall into the next room), no placeable's box does. Instant cones, lines and bursts keep the
+// 2024 rule (SRD 5.2.1, Areas of Effect: a location every line to which is blocked isn't in the area).
+//
+// What is lasting: an area-of-effect object's own area - any of them (its scripts run as it: a cloud's or a zone's
+// every save) - and, as they're made (the save as an area appears, run by its caster's spell), the spells that make
+// one: nwn5e's Entangle, Grease and Fog Cloud, NWN's Web, Cloudkill, Stinking Cloud and Incendiary Cloud. Not a
+// spell's shape: Fog Cloud and Shatter are both spheres, Entangle and Faerie Fire both squares.
+constexpr int kNwnWeb = 192, kNwnCloudkill = 23, kNwnStinkingCloud = 171, kNwnIncendiaryCloud = 89;
+bool LastingAreaSpell(int spell);
+// The area's lines start at an area-of-effect object (`from_area_object`), or `spell` makes one.
+bool AreaIsLasting(bool from_area_object, int spell);
+// Whether placeables' boxes block the area's lines from its origin: always, but for a lasting area under the house
+// rule (`fill_around`).
+bool AreaCountsPlaceables(bool lasting, bool fill_around);
+
 }  // namespace rules

@@ -305,6 +305,10 @@ void PickBoxes(Active* a, uint32_t lister) {
   a->uniforms = rules::PackParticleMask(a->shape);
 }
 
+// #184's house rule areas_fill_around: a lasting area's mask carries walls only (rules::AreaCountsPlaceables, as its
+// rule's lines); a cone's, a line's or a burst's its boxes too.
+bool BoxesCount(const Active& a) { return rules::AreaCountsPlaceables(a.lasting, g_config.areas_fill_around); }
+
 void Add(Active a, const char* when, int lines) {
   a.id = g_next_id++;
   if (LogSlot()) {
@@ -347,7 +351,11 @@ void SetMask(uint32_t origin_id, uint32_t caster_id, int spell, const char* when
   const uint32_t lister = CreatureById(caster_id) ? caster_id : origin_id;
   int lines = 0;
   MeasureMaskWalls(area, lister, a.shape.origin, a.shape.reach, a.shape.walls, &lines);
-  PickBoxes(&a, lister);
+  if (BoxesCount(a)) {
+    PickBoxes(&a, lister);
+  } else {
+    a.uniforms = rules::PackParticleMask(a.shape);  // walls only: a lasting area fills in round the placeables
+  }
   Add(std::move(a), when, lines);
 }
 
@@ -444,8 +452,9 @@ void LookForAreas(uint64_t now) {
   }
 }
 
-// A lasting mask's boxes read again; re-sent when they changed.
+// A lasting mask's boxes read again; re-sent when they changed. None under areas_fill_around: walls only.
 void Recheck(Active* a, const char* why) {
+  if (!BoxesCount(*a)) return;
   const std::vector<uint32_t> before = a->box_ids;
   PickBoxes(a, CreatureById(a->caster) ? a->caster : 0);
   if (a->box_ids == before) return;

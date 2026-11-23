@@ -2804,6 +2804,11 @@ void FogEnter(uint32_t area) {
     RunScriptChunk(code, creator && CreatureById(creator) ? creator : area);  // the caster's: Concentration ends it
     if (g_fogged.size() > 512) g_fogged.clear();
     g_fogged[id] = area;
+    // #184: the whole cloud counts - a creature behind a bookcase in it too (areas_fill_around, rules::AreaIsLasting).
+    if (LogSlot()) {
+      Log("spells2024: 0x%08X is in Fog Cloud 0x%08X - darkness on it while inside%s", id, area,
+          g_config.areas_fill_around ? " (the cloud fills in round placeables: areas_fill_around)" : "");
+    }
   }
 }
 

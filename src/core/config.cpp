@@ -151,6 +151,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.summon_creature = ReadBool(ini, L"summon_creature", g_config.summon_creature, L"house_rules");  // #39
   g_config.plot_dressing_breakable =
       ReadBool(ini, L"plot_dressing_breakable", g_config.plot_dressing_breakable, L"house_rules");  // #172
+  g_config.areas_fill_around = ReadBool(ini, L"areas_fill_around", g_config.areas_fill_around, L"house_rules");  // #184
   g_config.grenades = ReadVariant(ini, L"grenades", g_config.mode);                         // #124
   g_config.spellcasting = ReadVariant(ini, L"spellcasting", g_config.mode);                 // #36
   g_config.rest_clock = ReadBool(ini, L"rest_clock", g_config.rest_clock);
@@ -234,9 +235,10 @@ void ConfigLoad(const wchar_t* directory) {
       VariantName(g_config.armor), VariantName(g_config.quickbar), VariantName(g_config.actions),
       VariantName(g_config.grenades));
   Log("config: house rules: help=%d flask_patches=%d long_rest_any_time=%d free_material_components=%d "
-      "summon_creature=%d plot_dressing_breakable=%d",
+      "summon_creature=%d plot_dressing_breakable=%d areas_fill_around=%d",
       g_config.help_house_rule, g_config.flask_patches, g_config.long_rest_any_time,
-      g_config.free_material_components, g_config.summon_creature, g_config.plot_dressing_breakable);
+      g_config.free_material_components, g_config.summon_creature, g_config.plot_dressing_breakable,
+      g_config.areas_fill_around);
   Log("config: spellcasting=%s radial=%s", VariantName(g_config.spellcasting), VariantName(g_config.radial));
   if (g_config.perception == rules::RuleVariant::kFaithful) {
     Log("config: hiding_needs_15=%d found_up_close=%d alert_creatures_search=%d hiders_need_search=%d vision_cone=%d "

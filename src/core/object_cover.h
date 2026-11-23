@@ -59,8 +59,11 @@ struct CoverPoint {
 // The cover `target` has from `eye` (a creature's eyes, an effect's origin): its seven body points' lines
 // (rules::ScaledBodyPoint: by its size, crouched in stealth mode), `from_id` the creature or object the lines start at, `self` a creature in the area. `by` /
 // `by_id`: what blocks the most lines (a resref and its id; "the tileset" and kObjectInvalid for the engine's).
+// `placeables` false (#184's areas_fill_around, a lasting area's lines): only the engine's line blocks - walls, shut
+// doors - no placeable's box.
 rules::Cover CoverFrom(void* area, uint32_t from_id, uint32_t self, const float eye[3], void* target,
-                       CoverPoint points[rules::kLosBodyPoints], std::string* by, uint32_t* by_id);
+                       CoverPoint points[rules::kLosBodyPoints], std::string* by, uint32_t* by_id,
+                       bool placeables = true);
 // From `observer`'s eyes (its position + rules::EyeHeight by its size); kept a second while neither moves (nor crouches).
 // None when cover_objects is off.
 rules::Cover CoverBetween(void* observer, void* target, std::string* by, uint32_t* by_id);
@@ -82,6 +85,8 @@ int SaveCoverBonus(void* creature, uint32_t versus, uint32_t script_self, int sp
 // for a cone or a line, the face's centre for a cube from the caster, 1 m over the point aimed at for a sphere, the
 // top for an area that comes down or covers the ground. nwn5e's own area spells leave out a creature behind Total
 // Cover from it - no save, no effect - both told once (rules_spells2024.cpp asks for each creature in the area).
+// #184's areas_fill_around: a lasting area's lines (an area-of-effect object's, or a spell that makes one, as it
+// appears: rules::AreaIsLasting) count only walls and shut doors, as SaveCoverBonus's do.
 bool LeftOutOfArea(void* caster, int spell, uint32_t target);
 // An area whose origin isn't the caster's or the point aimed at (Ice Knife's burst around the creature it struck):
 // set while its creatures are gathered and saved.

@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "check.h"
+#include "rules/area_origin.h"
 #include "rules/spell_masks.h"
 
 using namespace rules;
@@ -137,4 +138,16 @@ TEST(SpellMasksReach) {
   CHECK_EQ(fabsf(FogCloudRadius("nwn5e_fog_cloud_9") - 54.86f) < 0.01f, true);
   CHECK_EQ(FogCloudRadius("NWN5E_ENTANGLE") == 0.0f && FogCloudRadius("VFX_PER_FOGKILL") == 0.0f, true);
   CHECK_EQ(FogCloudRadius("NWN5E_FOG_CLOUD_") == 0.0f && FogCloudRadius(nullptr) == 0.0f, true);
+}
+
+// #184's house rule: a mask held while its area lasts is a lasting area's, and every lasting area's spell has one - the
+// look (walls only, no boxes, under areas_fill_around) and the rule (rules::AreaCountsPlaceables) agree on what fills
+// around. Breaks caught: a cloud's mask set as a burst's (its boxes kept), a lasting spell left out of either list.
+TEST(SpellMasksLastingAreTheLastingAreas) {
+  int lasting = 0;
+  for (const SpellMaskEntry& e : SpellMasks()) {
+    CHECK_EQ(e.when == MaskWhen::kLasting, LastingAreaSpell(e.spell));
+    lasting += e.when == MaskWhen::kLasting;
+  }
+  CHECK_EQ(lasting, 7);
 }
