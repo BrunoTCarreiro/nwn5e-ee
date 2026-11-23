@@ -1,0 +1,15 @@
+{
+  "_about": [
+    "A Composer project (nwn5e-ee #39): the VFX Bench's Composer edits it, tools/data/composer/build.js builds it (README.md there).",
+    "A spell mesh: each variant is a mesh for spells, n5m_<name>[_<k>] - a draft in the bench's vfxedit/saved, the chunk an emitter",
+    "throws or a mesh beat in an effect."
+  ],
+  "kind": "spellmesh",
+  "name": "zotbord",
+  "guide": { "shape": "circle", "diameter": 9, "height": 0 },
+  "variants": [
+    { "name": "1", "model": "n5m_zotbord", "parts": [
+      { "note": "Cylinder (open)", "shape": { "type": "cylinder", "radius": 4.5, "height": 1.15, "top": 5.31, "colour": [0.376, 0.388, 0.808], "alpha": 0.52, "glow": 0.45, "texture": "fxpa_flame02", "blend": "additive" }, "at": [0, 0, 0], "turn": 0, "motion": { "scroll": [3, 0] } }
+    ] }
+  ]
+}

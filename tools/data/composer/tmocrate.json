@@ -1,0 +1,16 @@
+{
+  "_about": [
+    "A Composer project (nwn5e-ee #39): the VFX Bench's Composer edits it, tools/data/composer/build.js builds it (README.md there).",
+    "A placeable: each variant is one of the game's placeables - data/files/<model>.mdl and .pwk, and its row in",
+    "data/rows/placeables.<name>.txt (14100-14199, given at the first save)."
+  ],
+  "kind": "placeable",
+  "name": "tmocrate",
+  "guide": { "shape": "circle", "diameter": 1, "height": 0 },
+  "placeable": { "copy": null, "use": null, "walk": "through" },
+  "variants": [
+    { "name": "1", "model": "plc_n5tmocrate", "row": 14100, "parts": [
+      { "note": "Box1", "model": "plc_a03", "at": [0, 0, 0], "turn": 0, "scale": 0.533, "tint": [0.635, 0.992, 0.643], "motion": { "scroll": [0.15, 0.15], "turn": 45 } }
+    ] }
+  ]
+}

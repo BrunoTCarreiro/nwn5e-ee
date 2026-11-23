@@ -1,0 +1,15 @@
+{
+  "_about": [
+    "A Composer project (nwn5e-ee #39): the VFX Bench's Composer edits it, tools/data/composer/build.js builds it (README.md there).",
+    "A spell mesh: each variant is a mesh for spells, n5m_<name>[_<k>] - a draft in the bench's vfxedit/saved, the chunk an emitter",
+    "throws or a mesh beat in an effect."
+  ],
+  "kind": "spellmesh",
+  "name": "tmoglyph",
+  "guide": { "shape": "circle", "diameter": 2, "height": 0 },
+  "variants": [
+    { "name": "1", "model": "n5m_tmoglyph", "parts": [
+      { "note": "Cylinder (open)", "shape": { "type": "cylinder", "radius": 1, "height": 0.5, "top": 1.31, "repeat_around": 6, "colour": [0.271, 0.871, 0.318], "alpha": 0.97, "texture": "fxpa_flame02", "blend": "additive" }, "at": [0, 0, 0], "turn": 2, "motion": { "scroll": [0.3, 0] } }
+    ] }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "_about": [
+    "A Composer project (nwn5e-ee #39): the VFX Bench's Composer edits it, tools/data/composer/build.js builds it (README.md there).",
+    "A spell mesh: each variant is a mesh for spells, n5m_<name>[_<k>] - a draft in the bench's vfxedit/saved, the chunk an emitter",
+    "throws or a mesh beat in an effect."
+  ],
+  "kind": "spellmesh",
+  "name": "mbkglyph",
+  "guide": { "shape": "circle", "diameter": 0.5, "height": 0 },
+  "variants": [
+    { "name": "1", "model": "n5m_mbkglyph", "parts": [
+      { "note": "Disc (flat, on the ground)", "shape": { "type": "disc", "radius": 1, "mapping": "above", "colour": [1, 1, 1], "texture": "fxpa_symbl_003", "blend": "additive" }, "at": [0, 0, 0.02], "turn": 0 }
+    ] }
+  ]
+}
