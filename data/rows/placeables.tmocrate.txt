@@ -1,0 +1,5 @@
+# made by nwn5e-ee tools/data/composer/build.js from a Composer project - change it in the VFX Bench and save, not this file
+# placeables.2da: the Composer's project tmocrate (tools/data/composer/tmocrate.json), a row a variant.
+# Each row is the game's row 2 (Box1) with its Label and ModelName changed.
+       Label        StrRef  ModelName       LightColor  LightOffsetX  LightOffsetY  LightOffsetZ  SoundAppType  ShadowSize  BodyBag  LowGore  Reflection  Static
+14100  N5_Tmocrate  5346    plc_n5tmocrate  ****        ****          ****          ****          12            1           0        ****     ****        1
