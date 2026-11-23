@@ -7146,6 +7146,29 @@ in it:
   side corridor, along the walking paths from its centre (the area's walkmesh, as far as its radius) - in place of the
   straight lines from the centre that the tileset's walls still cut.
 
+*Installed 0.99.132; SM-7 (`!castat 58 self`: an orc's Fireball at itself, beyond the statue).* The player behind the
+statue was still hit: the rule as built (#166 decision 2) keeps a creature behind Total Cover in NWN's own unconverted
+area spells, at +5 on its Dexterity save, and NWN's Fireball deals half on a success. Offered A (the engine's shape
+lookup made to follow the 2024 rule for NWN's own area spells now) or B (each spell as it's converted).
+*Decided (owner, 2026-11-23):* "A".
+*Built (branch `shapeskip`): NWN's own area spells leave out a creature behind Total Cover from the point of origin*
+(`core/spell_gather.cpp`, `rules/area_origin.h`):
+- **Where:** the spell's own gather - the NWScript GetFirstObjectInShape / GetNextObjectInShape, one engine command
+  (`CNWSVirtualMachineCommands::ExecuteCommandGetObjectInShape`, 128 the first, 129 the next; read in nwmain's
+  disassembly: it pops the shape, size, location, line of sight, filter and origin, scans the area's objects sorted by
+  x from the index it returned last - kept in the area - and pushes the one it finds). Hooked: a creature behind Total
+  Cover is skipped and the command run again as GetNext with the same arguments, so the script never sees it - no save,
+  no effect.
+- **When:** only while an NWN area spell's impact script runs on its caster (a script start whose name is the
+  ImpactScript of its OBJECT_SELF's last spell, spells.2da TargetShape cone, sphere, hsphere, cube or rectangle, not one
+  of nwn5e's own), each script run bracketed - a script it runs in turn (a module's spell hook) and every other lookup
+  are the engine's own. A lasting area's own scripts aren't impact scripts: unchanged.
+- **The test:** the cover rule's - the spell's point of origin (a cone's or a line's from the caster's eyes, a sphere's
+  1 m over its point, a falling column's top) and the seven body points' lines, walls, shut doors and placeables' boxes
+  (not for a lasting area under areas_fill_around). Only creatures, never the caster. Half and Three-Quarters stay in
+  (+2 / +5 on a Dexterity save); Total Cover's +5 is gone there. Logged once a cast ("cover: 0x... left out of Fireball
+  (58)'s area - Total Cover from its point of origin (plc_statue1; ...)") and both told ("... it doesn't reach you").
+
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms
 for a blind, stunned or prone target, an invisible attacker and an unseen
