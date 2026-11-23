@@ -5,9 +5,34 @@
 namespace rules {
 
 const LosBodyPoint kLosBody[kLosBodyPoints] = {
-    {"feet", 0.0f, 0.2f},          {"waist", 0.0f, 1.0f},         {"chest", 0.0f, 1.3f},
-    {"head", 0.0f, 1.7f},          {"left_shoulder", 0.3f, 1.4f}, {"right_shoulder", -0.3f, 1.4f},
+    {"feet", 0.0f, 0.15f},          {"knees", 0.0f, 0.5f},           {"waist", 0.0f, 0.95f},
+    {"chest", 0.0f, 1.3f},          {"head", 0.0f, 1.65f},           {"left_shoulder", 0.25f, 1.45f},
+    {"right_shoulder", -0.25f, 1.45f},
 };
+
+namespace {
+constexpr float kMediumHeight = 1.8f;
+constexpr float kCrouch = 1.1f / 1.8f;
+}  // namespace
+
+float StandingHeight(int nwn_size) {
+  switch (nwn_size) {
+    case 1: return 0.6f;
+    case 2: return 1.0f;
+    case 4: return 3.0f;
+    case 5: return 5.0f;
+    default: return nwn_size > 5 ? 5.0f : kMediumHeight;
+  }
+}
+
+float CrouchedHeight(int nwn_size) { return StandingHeight(nwn_size) * kCrouch; }
+
+LosBodyPoint ScaledBodyPoint(int i, int nwn_size, bool crouched) {
+  const LosBodyPoint& base = kLosBody[i < 0 ? 0 : i >= kLosBodyPoints ? kLosBodyPoints - 1 : i];
+  const float standing = StandingHeight(nwn_size) / kMediumHeight;
+  const float tall = (crouched ? CrouchedHeight(nwn_size) : StandingHeight(nwn_size)) / kMediumHeight;
+  return LosBodyPoint{base.key, base.side * standing, base.height * tall};
+}
 
 void LosPointAt(const LosBodyPoint& point, float ox, float oy, float tx, float ty, float tz, float* x, float* y,
                 float* z) {

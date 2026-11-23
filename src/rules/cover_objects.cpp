@@ -101,12 +101,25 @@ bool SegmentHitsBox(const float a[3], const float b[3], const ObjectBox& box, fl
   return true;
 }
 
-Cover CoverFromBlocked(int blocked) {
-  if (blocked >= 6) return Cover::kTotal;
-  if (blocked == 5) return Cover::kThreeQuarters;
-  if (blocked >= 3) return Cover::kHalf;
+Cover CoverFromBlocked(int blocked, int points) {
+  if (points <= 0) return Cover::kNone;
+  if (blocked >= points) return Cover::kTotal;
+  if (blocked >= (3 * points + 2) / 4) return Cover::kThreeQuarters;
+  if (blocked >= (points + 1) / 2) return Cover::kHalf;
   return Cover::kNone;
 }
+
+float EyeHeight(int nwn_size) {
+  switch (nwn_size) {
+    case 1: return 0.3f;
+    case 2: return 0.9f;
+    case 4: return 2.5f;
+    case 5: return 4.0f;
+    default: return nwn_size > 5 ? 4.0f : 1.6f;
+  }
+}
+
+float SliceTargetHeight(int hider_size) { return ScaledBodyPoint(5, hider_size, true).height; }
 
 bool CoverHides(Cover cover) { return cover == Cover::kThreeQuarters || cover == Cover::kTotal; }
 

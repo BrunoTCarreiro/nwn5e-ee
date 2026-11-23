@@ -192,6 +192,7 @@
 #include "log.h"
 #include "object_cover.h"
 #include "rules/cone_slices.h"
+#include "rules/cover_objects.h"
 #include "rules/idle_look.h"
 #include "rules/search_glance.h"
 #include "rules/skills.h"
@@ -424,21 +425,25 @@ int MeasurePosition(void* creature, uint32_t id, void* area, int position, int t
   const float z = Field<float>(creature, ee::kObjectPositionZ);
   const float facing = atan2f(Field<float>(creature, ee::kObjectOrientationY),
                               Field<float>(creature, ee::kObjectOrientationX));
-  const Vec3 eye{x, y, z + 1.0f};  // as perception looks: 1 m up, to 1 m over the ground there
+  // #166 (owner, 2026-11-23): its real eyes (rules::EyeHeight by its size) to a crouched hider's shoulders over the
+  // ground there (rules::SliceTargetHeight) - the cover rule's own lines, so a slice cut is the cover that hides you.
+  void* hider = g_hider ? CreatureById(g_hider) : nullptr;
+  const float target_height = rules::SliceTargetHeight(hider ? Field<int32_t>(hider, ee::kCreatureSize) : 3);
+  const Vec3 eye{x, y, z + rules::EyeHeight(Field<int32_t>(creature, ee::kCreatureSize))};
   const float a = facing + rules::ConeSliceMiddle(position) * 3.14159265f / 180.0f;
   const float cx = cosf(a), cy = sinf(a);
   Vec3 hit{0.0f, 0.0f, 0.0f};
   const auto clear = [&](int i, Vec3* blocked_at) {
     ++*tests;
     const float metres = rules::kConeSliceLengths[i];
-    Vec3 to{x + cx * metres, y + cy * metres, z + 1.0f};
+    Vec3 to{x + cx * metres, y + cy * metres, z + target_height};
     // Off the area's tile grid: blocked, without asking (perception never looks there).
     const float ground = g_compute_height(area, to);
     if (ground <= ee::kAreaOffGridHeight + 0.01f) {
       if (blocked_at) *blocked_at = to;
       return false;
     }
-    to.z = ground + 1.0f;
+    to.z = ground + target_height;
     Vec3 at = to;
     uint32_t object = ee::kObjectInvalid;
     bool open = g_clear_line_of_sight(area, eye, to, &at, &object, id, ee::kObjectInvalid, 1) == 1;

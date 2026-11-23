@@ -3,7 +3,7 @@
 // that will allow the testing of the cones with different covers"), a test command ([debug] test_commands): from the
 // nearest hostile - or the creature tagged <tag> - to the speaker, the engine's own sight line, as perception draws it
 // (CNWSArea::ClearLineOfSight from the observer's position + 1 m, the two creatures' ids, last 1), to six points of the
-// speaker's body (rules::kLosBody: feet 0.2 m, waist 1.0, chest 1.3, head 1.7, shoulders 0.3 m to either side at 1.4).
+// speaker's body (rules::kLosBody; #166, 2026-11-23: seven, by its size, crouched in stealth mode).
 // Each: clear or blocked, its blocker (object type, resref, tag - or the tileset when there's none) and the hit point.
 // And for the same line the area's walk-blocking boxes (CNWArea::NoNonWalkPolysInDoors, as ClearLine in
 // rules_perception.cpp asks them: the line's own heights, radius 0.05 m), so a placeable the sight line ignores shows.
@@ -120,8 +120,13 @@ std::vector<std::string> LosCommand(void* creature, const std::string& args) {
   }
   if (!clear_line) return {PlayerText("test_commands.los_no_engine")};
   const uint32_t from_id = IdOf(observer);
+  // #166 (2026-11-23): the observer's eyes by its size, the speaker's body by its size, crouched in stealth mode - as
+  // the cover rule (object_cover.cpp) measures them.
   const Vec3 eye{Field<float>(observer, ee::kObjectPositionX), Field<float>(observer, ee::kObjectPositionY),
-                 Field<float>(observer, ee::kObjectPositionZ) + 1.0f};
+                 Field<float>(observer, ee::kObjectPositionZ) +
+                     rules::EyeHeight(Field<int32_t>(observer, ee::kCreatureSize))};
+  const int size = Field<int32_t>(creature, ee::kCreatureSize);
+  const bool crouched = Field<uint8_t>(creature, ee::kCreatureStealthMode) == 1;
   const float tx = Field<float>(creature, ee::kObjectPositionX), ty = Field<float>(creature, ee::kObjectPositionY),
               tz = Field<float>(creature, ee::kObjectPositionZ);
   struct Line {
@@ -135,7 +140,8 @@ std::vector<std::string> LosCommand(void* creature, const std::string& args) {
   };
   std::vector<Line> lines;
   std::vector<uint32_t> ids;
-  for (const rules::LosBodyPoint& point : rules::kLosBody) {
+  for (int p = 0; p < rules::kLosBodyPoints; ++p) {
+    const rules::LosBodyPoint point = rules::ScaledBodyPoint(p, size, crouched);
     Line line{};
     rules::LosPointAt(point, eye.x, eye.y, tx, ty, tz, &line.to.x, &line.to.y, &line.to.z);
     line.hit = line.to;
@@ -165,8 +171,9 @@ std::vector<std::string> LosCommand(void* creature, const std::string& args) {
   }
   const std::vector<std::string> names = Describe(self, ids);
   const float dx = tx - eye.x, dy = ty - eye.y;
-  Log("los: from 0x%08X %s (eyes %.2f, %.2f, %.2f) to 0x%08X (feet %.2f, %.2f, %.2f), %.1f m:", from_id,
-      observer_name.c_str(), eye.x, eye.y, eye.z, self, tx, ty, tz, sqrtf(dx * dx + dy * dy));
+  Log("los: from 0x%08X %s (eyes %.2f, %.2f, %.2f) to 0x%08X (feet %.2f, %.2f, %.2f; size %d, %s), %.1f m:", from_id,
+      observer_name.c_str(), eye.x, eye.y, eye.z, self, tx, ty, tz, size, crouched ? "crouched" : "standing",
+      sqrtf(dx * dx + dy * dy));
   std::vector<rules::LosPointResult> results;
   for (size_t i = 0; i < lines.size(); ++i) {
     const Line& line = lines[i];

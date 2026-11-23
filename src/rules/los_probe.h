@@ -19,8 +19,20 @@ struct LosBodyPoint {
   float side;
   float height;
 };
-constexpr int kLosBodyPoints = 6;
-extern const LosBodyPoint kLosBody[kLosBodyPoints];  // feet 0.2, waist 1.0, chest 1.3, head 1.7, shoulders 0.3 m, 1.4
+// #166 (owner, 2026-11-23: "Your recommendations are good"): the points spread over the body's full height - a
+// Medium creature standing (1.8 m): feet 0.15, knees 0.5, waist 0.95, chest 1.3, head 1.65, shoulders 0.25 m to either
+// side at 1.45.
+constexpr int kLosBodyPoints = 7;
+extern const LosBodyPoint kLosBody[kLosBodyPoints];
+
+// A creature's height by its size (NWN's creature size: 1 Tiny ... 5 Huge; appearance.2da's HEIGHT isn't a height -
+// Human 2, Hill Giant 1): Tiny 0.6 m, Small 1.0, Medium 1.8, Large 3.0, Huge 5.0 (an unknown size: Medium). Crouched -
+// in stealth mode - 0.61 of it (Medium 1.1 m).
+float StandingHeight(int nwn_size);
+float CrouchedHeight(int nwn_size);
+// kLosBody's point `i` for a creature of that size, standing or crouched: its height scaled by the body's height then,
+// its side by the standing one (crouching doesn't narrow the shoulders).
+LosBodyPoint ScaledBodyPoint(int i, int nwn_size, bool crouched);
 
 // Where a body point is: the target at (tx, ty, tz), seen from (ox, oy).
 void LosPointAt(const LosBodyPoint& point, float ox, float oy, float tx, float ty, float tz, float* x, float* y,

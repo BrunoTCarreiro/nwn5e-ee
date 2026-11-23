@@ -109,16 +109,26 @@ TEST(CoverSegmentAgainstABox) {
   CHECK_EQ(PointInBox(turned_in, box) && !PointInBox(turned_out, box), true);
 }
 
-// The degrees and what they do. Breaks caught: the counts' boundaries one off, Half hiding, Three-Quarters not
+// The degrees and what they do. Breaks caught: the counts' boundaries one off (six points or seven), an eye height
+// wrong for a size, the slices ending anywhere but a crouched hider's shoulders, Half hiding, Three-Quarters not
 // hiding, the save bonuses swapped or Total's missing, a melee attack refused from afar, a ranged one let through, a
 // cone's origin at the target point, a sphere's at the caster, Sacred Flame's save getting cover.
 TEST(CoverDegreesFromBlockedPoints) {
-  CHECK_EQ(CoverFromBlocked(0) == Cover::kNone, true);
-  CHECK_EQ(CoverFromBlocked(2) == Cover::kNone, true);
-  CHECK_EQ(CoverFromBlocked(3) == Cover::kHalf, true);
-  CHECK_EQ(CoverFromBlocked(4) == Cover::kHalf, true);
-  CHECK_EQ(CoverFromBlocked(5) == Cover::kThreeQuarters, true);
-  CHECK_EQ(CoverFromBlocked(6) == Cover::kTotal, true);
+  CHECK_EQ(CoverFromBlocked(0, 6) == Cover::kNone, true);
+  CHECK_EQ(CoverFromBlocked(2, 6) == Cover::kNone, true);
+  CHECK_EQ(CoverFromBlocked(3, 6) == Cover::kHalf, true);
+  CHECK_EQ(CoverFromBlocked(4, 6) == Cover::kHalf, true);
+  CHECK_EQ(CoverFromBlocked(5, 6) == Cover::kThreeQuarters, true);
+  CHECK_EQ(CoverFromBlocked(6, 6) == Cover::kTotal, true);
+  // #166 (2026-11-23): seven points - Half from 4 (half, rounded up), Three-Quarters from 5 (5.25), Total 7.
+  CHECK_EQ(CoverFromBlocked(3) == Cover::kNone && CoverFromBlocked(4) == Cover::kHalf, true);
+  CHECK_EQ(CoverFromBlocked(5) == Cover::kThreeQuarters && CoverFromBlocked(6) == Cover::kThreeQuarters, true);
+  CHECK_EQ(CoverFromBlocked(7) == Cover::kTotal && CoverFromBlocked(0, 0) == Cover::kNone, true);
+  CHECK_EQ(CoverFromBlocked(6, 8) == Cover::kThreeQuarters && CoverFromBlocked(5, 8) == Cover::kHalf, true);
+  // The eyes by size, and the slices' end (a crouched Medium hider's shoulders).
+  CHECK_EQ(Near(EyeHeight(1), 0.3f) && Near(EyeHeight(2), 0.9f) && Near(EyeHeight(3), 1.6f), true);
+  CHECK_EQ(Near(EyeHeight(4), 2.5f) && Near(EyeHeight(5), 4.0f) && Near(EyeHeight(0), 1.6f), true);
+  CHECK_EQ(Near(SliceTargetHeight(3), 1.45f * 1.1f / 1.8f), true);
   CHECK_EQ(CoverHides(Cover::kNone) || CoverHides(Cover::kHalf), false);
   CHECK_EQ(CoverHides(Cover::kThreeQuarters) && CoverHides(Cover::kTotal), true);
   CHECK_EQ(CoverSaveBonus(Cover::kNone), 0);

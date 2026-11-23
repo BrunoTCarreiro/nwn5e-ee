@@ -10,6 +10,7 @@
 #include <string>
 
 #include "rules/cover.h"
+#include "rules/los_probe.h"
 
 namespace rules {
 
@@ -50,9 +51,20 @@ bool PointInBox(const float p[3], const ObjectBox& box);
 // The cull: whether the segment's own bounds overlap the box's.
 bool SegmentNearBox(const float a[3], const float b[3], const ObjectBox& box);
 
-// The cover degree from how many of the six body points' lines are blocked (SRD 5.2.1: Half Cover "at least half",
-// Three-Quarters "about three-quarters", Total "completely concealed"): 0-2 none, 3-4 Half, 5 Three-Quarters, 6 Total.
-Cover CoverFromBlocked(int blocked);
+// The cover degree from how many of `points` body points' lines are blocked (SRD 5.2.1: Half Cover "an object that
+// covers at least half of the target", Three-Quarters "at least three-quarters", Total "the whole target"): Half from
+// half the points (rounded up), Three-Quarters from three-quarters of them (rounded to the nearest, halves up), Total
+// all. Six: 3 / 5 / 6 (as before); seven: 4 / 5 / 7.
+Cover CoverFromBlocked(int blocked, int points = kLosBodyPoints);
+
+// #166 (owner, 2026-11-23: "Your recommendations are good"): an observer's eyes over its feet by its size, for nwn5e's
+// own sight and cover lines (the engine's perception line stays at 1 m): Tiny 0.3, Small 0.9, Medium 1.6, Large 2.5,
+// Huge 4 (an unknown size: Medium).
+float EyeHeight(int nwn_size);
+// The cones' slices (core/stealth_watch.cpp) end at a crouched hider's shoulders over the ground (Medium 0.89 m): the
+// rule's own line - its body's three-quarters point - so a slice cut there is about the Three-Quarters Cover that
+// hides it.
+float SliceTargetHeight(int hider_size);
 
 // The 2024 Hide condition: behind Three-Quarters or Total Cover from a creature, a hider can't be seen by it.
 bool CoverHides(Cover cover);

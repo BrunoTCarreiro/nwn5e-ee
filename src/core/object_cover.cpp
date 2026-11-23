@@ -14,8 +14,11 @@
 //   the way (rules::SegmentHitsBox, each box culled by the segment's bounds; a box the line starts inside doesn't
 //   count - the looker's own table edge). At most kBoxTestsPerSecond box tests a second for every line together
 //   (past it, lines count as clear for the rest of that second); the cost logged once.
-// - Cover: the six body points !los uses (rules::kLosBody) from the eyes (+1 m, as perception looks), the blocked
-//   ones counted (rules::CoverFromBlocked: 3-4 Half, 5 Three-Quarters, 6 Total); kept a second while neither moves.
+// - Cover: the seven body points !los uses (rules::kLosBody: feet, knees, waist, chest, head, shoulders), spread over
+//   the target's height by its size and lowered to a crouch in stealth mode (rules::ScaledBodyPoint), from the
+//   observer's eyes by its size (rules::EyeHeight: Medium 1.6 m) - the blocked ones counted (rules::CoverFromBlocked:
+//   4 Half, 5-6 Three-Quarters, 7 Total; owner, 2026-11-23: "Your recommendations are good"); kept a second while
+//   neither moves.
 // - Uses: !los (los_command.cpp), the cones' slices (stealth_watch.cpp), a hider behind Three-Quarters or Total Cover
 //   unseen (rules_perception.cpp), attacks' AC and Total Cover's refusal (rules_cover.cpp, action_order.cpp), and
 //   Dexterity saves from the effect's origin (here: SaveCoverBonus, from rules_save_roll.cpp).
@@ -84,6 +87,7 @@ struct Kept {
   rules::Cover cover = rules::Cover::kNone;
   std::string by;
   uint32_t by_id = 0;
+  bool crouched = false;
 };
 
 std::map<int, rules::ModelBounds> g_bounds;  // placeables.2da row -> its model's bounds
@@ -311,20 +315,23 @@ bool ObjectsBlockLine(void* area, uint32_t self, const float a[3], const float b
 }
 
 rules::Cover CoverFrom(void* area, uint32_t from_id, uint32_t self, const float eye[3], void* target,
-                       CoverPoint points[6], std::string* by, uint32_t* by_id) {
+                       CoverPoint points[rules::kLosBodyPoints], std::string* by, uint32_t* by_id) {
   if (by) by->clear();
   if (by_id) *by_id = ee::kObjectInvalid;
   if (!area || !target) return rules::Cover::kNone;
   const uint32_t target_id = IdOf(target);
   const float tx = Field<float>(target, ee::kObjectPositionX), ty = Field<float>(target, ee::kObjectPositionY),
               tz = Field<float>(target, ee::kObjectPositionZ);
+  const int size = Field<int32_t>(target, ee::kCreatureSize);
+  const bool crouched = Field<uint8_t>(target, ee::kCreatureStealthMode) == 1;
   std::map<uint32_t, int> blockers;
   int blocked = 0;
   for (int i = 0; i < rules::kLosBodyPoints; ++i) {
     CoverPoint& p = points[i];
     p = CoverPoint();
     float to[3];
-    rules::LosPointAt(rules::kLosBody[i], eye[0], eye[1], tx, ty, tz, &to[0], &to[1], &to[2]);
+    const rules::LosBodyPoint body = rules::ScaledBodyPoint(i, size, crouched);
+    rules::LosPointAt(body, eye[0], eye[1], tx, ty, tz, &to[0], &to[1], &to[2]);
     if (g_clear_line) {
       Vec3 hit{to[0], to[1], to[2]};
       uint32_t object = ee::kObjectInvalid;
@@ -364,7 +371,8 @@ rules::Cover CoverBetween(void* observer, void* target, std::string* by, uint32_
   void* area = engine::AreaOf(observer);
   if (!area || engine::AreaOf(target) != area) return rules::Cover::kNone;
   const float eye[3] = {Field<float>(observer, ee::kObjectPositionX), Field<float>(observer, ee::kObjectPositionY),
-                        Field<float>(observer, ee::kObjectPositionZ) + 1.0f};
+                        Field<float>(observer, ee::kObjectPositionZ) +
+                            rules::EyeHeight(Field<int32_t>(observer, ee::kCreatureSize))};
   const float at[3] = {Field<float>(target, ee::kObjectPositionX), Field<float>(target, ee::kObjectPositionY),
                        Field<float>(target, ee::kObjectPositionZ)};
   const uint32_t id = IdOf(observer);
@@ -373,10 +381,12 @@ rules::Cover CoverBetween(void* observer, void* target, std::string* by, uint32_
   Kept& kept = g_kept[Pair(id, IdOf(target))];
   bool same = kept.at && now < kept.at + kKeepMs;
   for (int k = 0; k < 3 && same; ++k) same = fabsf(kept.a[k] - eye[k]) < 0.05f && fabsf(kept.b[k] - at[k]) < 0.05f;
+  same = same && kept.crouched == (Field<uint8_t>(target, ee::kCreatureStealthMode) == 1);
   if (!same) {
-    CoverPoint points[6];
+    CoverPoint points[rules::kLosBodyPoints];
     kept.cover = CoverFrom(area, id, id, eye, target, points, &kept.by, &kept.by_id);
     kept.at = now;
+    kept.crouched = Field<uint8_t>(target, ee::kCreatureStealthMode) == 1;
     for (int k = 0; k < 3; ++k) {
       kept.a[k] = eye[k];
       kept.b[k] = at[k];
@@ -463,7 +473,7 @@ int SaveCoverBonus(void* creature, uint32_t versus, uint32_t script_self, int sp
     }
   }
   eye[2] += kOriginHeight;
-  CoverPoint points[6];
+  CoverPoint points[rules::kLosBodyPoints];
   std::string by;
   uint32_t by_id = ee::kObjectInvalid;
   const rules::Cover cover = CoverFrom(area, origin_id, IdOf(creature), eye, creature, points, &by, &by_id);

@@ -10,6 +10,7 @@
 #include <string>
 
 #include "rules/cover.h"
+#include "rules/los_probe.h"
 
 // The table read and the launch line (InstallPerceptionRules calls it).
 void InstallCoverObjects();
@@ -29,13 +30,13 @@ struct CoverPoint {
   bool object = false;
   uint32_t blocker = 0;
 };
-// The cover `target` has from `eye` (a creature's eyes, an effect's origin): the six body points' lines
-// (rules::kLosBody), `from_id` the creature or object the lines start at, `self` a creature in the area. `by` /
+// The cover `target` has from `eye` (a creature's eyes, an effect's origin): its seven body points' lines
+// (rules::ScaledBodyPoint: by its size, crouched in stealth mode), `from_id` the creature or object the lines start at, `self` a creature in the area. `by` /
 // `by_id`: what blocks the most lines (a resref and its id; "the tileset" and kObjectInvalid for the engine's).
 rules::Cover CoverFrom(void* area, uint32_t from_id, uint32_t self, const float eye[3], void* target,
-                       CoverPoint points[6], std::string* by, uint32_t* by_id);
-// From `observer`'s eyes (its position + 1 m, as perception looks); kept a second while neither moves. None when
-// cover_objects is off.
+                       CoverPoint points[rules::kLosBodyPoints], std::string* by, uint32_t* by_id);
+// From `observer`'s eyes (its position + rules::EyeHeight by its size); kept a second while neither moves (nor crouches).
+// None when cover_objects is off.
 rules::Cover CoverBetween(void* observer, void* target, std::string* by, uint32_t* by_id);
 // The words for a degree (the catalogue's SRD terms): "Half Cover" ...; "" for none.
 std::string CoverWords(rules::Cover cover);

@@ -33,13 +33,18 @@ In the game: **New Game → Other Modules → nwn5e Test Grounds**.
 - `!reset` clears the spawns and puts you back on the mark. These two commands are the game session's.
 - The Hall's cover zone (#166): `!go cover_<name>` stands you on a cover mark, its obstacle 2.25 m ahead; `!spawn
   nw_orcb` puts a guard 5 m ahead, beyond the obstacle, facing you; `!los` says which points of your body its sight
-  line reaches and the cover it gives you. The names, with the cover a guard there sees you behind (cover_objects=1:
-  its eyes 1 m up to your six body points; 3-4 blocked Half, 5 Three-Quarters, 6 Total):
-  - statue, bookcase, brokenpillar: Total Cover - all six points blocked; the guard's middle slices cut at the
-    obstacle (about 2.2, 2.5 and 2.3 m).
+  line reaches and the cover it gives you. The names, with the cover a guard there (an orc: its eyes 1.6 m up) sees
+  you behind, standing / crouched (hiding) - cover_objects=1; your seven body points, 4 blocked Half, 5-6
+  Three-Quarters, 7 Total:
+  - statue, bookcase: Total Cover either way; the guard's middle slices cut at the obstacle.
+  - brokenpillar: Three-Quarters standing (your head shows over it), Total crouched; the slices cut at it.
   - door_closed: Total Cover - the engine's own sight line (a shut door).
-  - table, table_dim (the table in dim light), bench, rubble, crate, barrel: no cover - at most your feet are blocked
-    (each is under 1 m tall, below the waist point); the slices aren't cut.
+  - On the mark, 2.25 m back from a low obstacle, it covers little (the guard looks over it): table, table_dim (the
+    table in dim light), crate, barrel, bench, rubble - no cover, standing or crouched; the slices aren't cut.
+  - Step up against the low obstacle and crouch (hide): crate Three-Quarters (unseen while hiding; Half a step
+    back), table Half (+2 AC and Dexterity saves; still seen), barrel, bench and rubble none (the barrel is too
+    narrow: your shoulders show). Standing there: none (a 0.9 m table covers up to about 0.85 m of you - just under
+    half).
   - door_open, portcullis: no cover (the session of 2026-11-23: clear).
 - The Spell & Attack Bench's Play in game stands you on the area's mark first.
 

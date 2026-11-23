@@ -758,6 +758,7 @@ test_commands.los_clear | generated | {points} clear
 test_commands.los_blocked | generated | {points} blocked by {blocker}
 test_commands.los_tileset | generated | the tileset
 test_commands.los_feet | generated | feet
+test_commands.los_knees | generated | knees
 test_commands.los_waist | generated | waist
 test_commands.los_chest | generated | chest
 test_commands.los_head | generated | head

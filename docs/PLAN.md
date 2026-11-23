@@ -6972,6 +6972,34 @@ that location isn't included in the area of effect. To block a line, an obstruct
 such a creature is still in the area (the engine's shapes see through placeables) and saves at +5; leaving it out
 would need the area scripts; (3) an AI attacker refused by Total Cover tries again each round (it
 doesn't move to find a line).
+*Decided (owner, 2026-11-23):* "Your recommendations are good except 2, for the area spell shouldn't it matter the
+direction? An obstacle would block a cone of cold as it comes from the enemy's position, but not an area effect that
+comes from above, right?" - (1) low cover, realistic: nwn5e's own sight and cover lines from the observer's real eye
+height by size, the target's body points spread over its full height by size and lowered to a crouch in stealth mode;
+(2) areas from each shape's point of origin (SRD 5.2.1, Areas of Effect: "An area of effect has a point of origin, a
+location from which the effect's energy erupts... If all straight lines extending from the point of origin to a
+location in the area of effect are blocked, that location isn't included in the area of effect. To block a line, an
+obstruction must provide Total Cover."; Cylinder: "a point of origin located at the center of the circular top or
+bottom of the Cylinder") - a cone or a line from its caster, a sphere from its centre, a cylinder that comes down from
+the centre of its top, a cube from the face it's placed on; Total Cover from the origin leaves a creature out of
+nwn5e's own area spells; (3) an AI attacker refused by Total Cover moves (sideways for a clear shot, round the
+obstacle for melee) instead of trying again in place.
+*Built (decision 1, low cover):* rules/los_probe: seven body points, a Medium creature standing (1.8 m) - feet 0.15,
+knees 0.5, waist 0.95, chest 1.3, head 1.65, shoulders 0.25 m to either side at 1.45 - scaled by its size's height
+(Tiny 0.6, Small 1.0, Medium 1.8, Large 3.0, Huge 5.0 m; appearance.2da's HEIGHT isn't a height - Human 2, Hill Giant
+1 - so by size) and, in stealth mode, its heights by the crouch (0.61: Medium 1.1 m; the shoulders' width kept).
+rules::EyeHeight: Tiny 0.3, Small 0.9, Medium 1.6, Large 2.5, Huge 4 m - nwn5e's own lines only (cover, !los, the
+cones' slices); the engine's perception line stays at 1 m. The thresholds by the count, faithful to "at least half" /
+"at least three-quarters": Half from half the points rounded up, Three-Quarters from three-quarters rounded to the
+nearest (halves up), Total all - six points gave 3 / 5 / 6 as before; seven give 4 / 5 / 7. The slices: from the real
+eyes to a crouched hider's shoulders (Medium 0.89 m) - the cover rule's own line to the body's three-quarters point,
+so a slice is cut where a hider would be behind about Three-Quarters Cover, and a cut slice and an unseen hider agree.
+What it gives (an orc's eyes, 1.6 m, 5 m from the mark): from the mark, 2.25 m back from a low obstacle, a 0.9 m table
+or a crate covers little (the orc looks over it: 2-3 of 7, none); right against it and crouched, the crate gives
+Three-Quarters (6 of 7: unseen while hiding) and the table Half (4); the barrel is too narrow (3: none); standing
+against the table: none - it covers about 0.85 m of 1.8, just under half. The tall ones: statue and bookcase Total,
+the broken pillar Three-Quarters standing (the head over it) and Total crouched. Tests LosProbeBodyBySizeAndCrouch,
+CoverDegreesFromBlockedPoints (the counts, the eyes, the slices' end).
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms
