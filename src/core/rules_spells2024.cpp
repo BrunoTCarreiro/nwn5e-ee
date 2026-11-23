@@ -156,6 +156,7 @@
 #include "script_hooks.h"
 #include "spell_cast_listeners.h"
 #include "spell_impact.h"
+#include "spell_mask.h"
 #include "staple_actions.h"
 #include "target_window.h"
 #include "weapon_cantrips.h"
@@ -727,13 +728,6 @@ void Attack(uint32_t self, void* caster, const rules::Spell2024& spell, int slot
              std::to_string(dealt) + " Acid";
     }
     if (spell.row == rules::kIceKnife) {
-      std::string code = kExplosion;
-      Replace(&code, "$TARGET", hit.target);
-      Replace(&code, "$RADIUS", Float(rules::FeetToMetres(rules::kIceKnifeExplosionFeet) + 2.0f * kSlack));
-      Run(code, self, spell.script);
-      const int dice = rules::IceKnifeExplosionDice(slot);
-      const int cold = RollEngineDice(dice, rules::kIceKnifeExplosionDie);
-      log += "; the explosion " + Dice(dice, rules::kIceKnifeExplosionDie) + " = " + std::to_string(cold) + " Cold:";
       // #166: the burst's point of origin is the creature it struck (a 5-foot sphere's centre).
       void* struck = CreatureById(ParseId(hit.target));
       const float burst[3] = {struck ? Field<float>(struck, ee::kObjectPositionX) : 0.0f,
@@ -742,7 +736,15 @@ void Attack(uint32_t self, void* caster, const rules::Spell2024& spell, int slot
       std::unique_ptr<ScopedAreaOrigin> burst_origin;
       if (struck) {
         burst_origin.reset(new ScopedAreaOrigin(burst, rules::AreaOrigin::kCentre, rules::kIceKnifeExplosionFeet));
+        SetSpellMaskNow(caster, spell.row);  // #184: its burst's look masked from there, before it plays
       }
+      std::string code = kExplosion;
+      Replace(&code, "$TARGET", hit.target);
+      Replace(&code, "$RADIUS", Float(rules::FeetToMetres(rules::kIceKnifeExplosionFeet) + 2.0f * kSlack));
+      Run(code, self, spell.script);
+      const int dice = rules::IceKnifeExplosionDice(slot);
+      const int cold = RollEngineDice(dice, rules::kIceKnifeExplosionDie);
+      log += "; the explosion " + Dice(dice, rules::kIceKnifeExplosionDie) + " = " + std::to_string(cold) + " Cold:";
       for (const Entry& other : Entries(caster)) {
         if (struck && other.target != hit.target && LeftOutOfArea(caster, spell.row, ParseId(other.target))) {
           log += " 0x" + other.target + " left out (Total Cover)";

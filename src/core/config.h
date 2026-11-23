@@ -106,6 +106,11 @@ struct Config {
   // isn't seen by it, attacks get +2 / +5 AC (Total: no attack), Dexterity saves +2 / +5 from the effect's origin
   // (object_cover.cpp). Faithful only. 0: NWN's sight - placeables block nothing, cover only from creatures.
   bool cover_objects = true;
+  // #184 (owner, 2026-11-23: "wire it, lets test it out"): the area spells' particles masked - not drawn past the walls
+  // round their point of origin, nor behind a placeable from it - as their area is (the cover rule's origin and boxes):
+  // their looks served as masked copies built from the game (dataows' *.if_spellmask.txt), each mask measured as the
+  // spell takes effect and sent to the players in its area (spell_mask.cpp). Faithful only. 0: the game's looks, whole.
+  bool spell_mask = true;
   // #9 / #33 T3 (owner, 2026-11-23: "yes to both, go with your recommendations"): the 2024 Hide ends right after the
   // hider's attack roll (made hidden: its Advantage) - weapon, spell (Spiritual Weapon's Strike, Flame Blade's) - or
   // its cast of a spell with a Verbal component (hidden through the cast's impact); a spell without one keeps it;

@@ -15,8 +15,10 @@
 //   n5_pmaskc), and the control - a plain flame column on the ground 1 m past the widest box's far side, on the line
 //   from the origin through its centre, drawn with the game's own particle shader (1849, n5_pmaskt). The flames behind
 //   the box and past the walls should vanish, the plain one stay.
-// - "!maskproof off": scriptableVec1 back to zero (every uniform's default): the mask off, the ball whole again - the
-//   shader then draws exactly as the game's own.
+// - Sent as a spell's mask is (spell_mask.cpp's registry: to every player in the area, held 20 s, logged "spell mask:
+//   set for the proof").
+// - "!maskproof off": its masks dropped - the clients shown the next mask up there, else the mask off (scriptableVec1 back
+//   to zero, every uniform's default): the ball whole again, the shader drawing exactly as the game's own.
 // The detail in nwn5e.log ("mask proof: ..."): the walls and boxes, the origin, the script's result.
 
 #include <math.h>
@@ -47,6 +49,7 @@ constexpr float kOriginHeight = 1.2f;  // n5_pmaskc's emitter over its spot
 constexpr float kReach = 6.0f;         // the ball's flames reach about 4.5 m
 constexpr float kNearMetres = 8.0f;    // boxes listed this near (a box's near side within the reach)
 constexpr float kPlainPast = 1.0f;     // the control's distance past the box's far side
+constexpr int kHoldMs = 20000;         // the ball's 20 s
 
 std::string Trimmed(std::string s) {
   while (!s.empty() && s.front() == ' ') s.erase(s.begin());
@@ -67,8 +70,8 @@ std::vector<std::string> MaskProofCommand(void* creature, const std::string& arg
   const std::string arg = Trimmed(args);
   const uint32_t self = Field<uint32_t>(creature, ee::kObjectId);
   if (arg == "off") {
-    const int ran = RunScriptChunk("SetShaderUniformVec(OBJECT_SELF, SHADER_UNIFORM_1, 0.0, 0.0, 0.0, 0.0);", self);
-    Log("mask proof: 0x%08X off - scriptableVec1 zero (script %d)", self, ran);
+    DropProofMasks(creature);  // the registry's: the clients there shown the next mask up, or the mask off
+    Log("mask proof: 0x%08X off - its masks dropped", self);
     return {PlayerText("test_commands.maskproof_cleared")};
   }
   if (!arg.empty()) return {PlayerText("test_commands.maskproof_usage")};
@@ -99,7 +102,6 @@ std::vector<std::string> MaskProofCommand(void* creature, const std::string& arg
   for (const NearObjectBox& one : nearby) {
     if (one.box.centre[0] == box.centre[0] && one.box.centre[1] == box.centre[1]) pick = &one;
   }
-  const std::vector<rules::MaskVec> uniforms = rules::PackParticleMask(mask);
   // The control: on the ground, on the line from the origin through the widest box's centre, 1 m past its far side.
   float dx = box.centre[0] - mask.origin[0], dy = box.centre[1] - mask.origin[1];
   const float length = hypotf(dx, dy);
@@ -118,7 +120,8 @@ std::vector<std::string> MaskProofCommand(void* creature, const std::string& arg
             "ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(%d), Location(a, Vector(%.3f, %.3f, %.3f), 0.0));"
             "ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(%d), Location(a, Vector(%.3f, %.3f, %.3f), 0.0));",
             kFireVfx, px, py, pz, kPlainVfx, plain[0], plain[1], pz);
-  const int ran = RunScriptChunk((MaskUniformScript("OBJECT_SELF", uniforms) + effects).c_str(), self);
+  SetProofMask(creature, mask, kHoldMs);  // shown to the players in the area, as a spell's mask (spell_mask.cpp)
+  const int ran = RunScriptChunk(effects, self);
   Log("mask proof: 0x%08X - %s; the widest %s (0x%08X) %.2f m away; walls %s (%d sight lines); plain flame at (%.2f, "
       "%.2f, %.2f) (script %d)",
       self, MaskWords(mask).c_str(), pick->name.c_str(), pick->id, pick->metres, walls ? "measured" : "NOT measured",

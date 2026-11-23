@@ -35,6 +35,13 @@ struct NearObjectBox {
   float metres = 0;
 };
 std::vector<NearObjectBox> ObjectBoxesNear(void* creature, float metres);
+// #184: the placeables' boxes in `area` whose footprint comes within `metres` of `at` across the ground, nearest first -
+// the cover's own list, listed through `lister` (a creature there; the list kept 3 s, so a lister gone since still
+// gets it). None when cover_objects is off.
+std::vector<NearObjectBox> ObjectBoxesAround(void* area, uint32_t lister, const float at[3], float metres);
+// #184: an effect's point of origin as the cover rule draws it - `origin_id` the caster or an area of effect,
+// ScopedAreaOrigin's spot when one is set: `at` (the area's metres) and its kind. False when it can't be placed.
+bool SpellOriginOf(uint32_t origin_id, int spell, float at[3], rules::AreaOrigin* kind);
 
 // One body point's line: clear, or blocked by the engine's line (walls, shut doors: `blocker` kObjectInvalid) or by
 // a placeable's box (`object` true, `blocker` its id).

@@ -78,6 +78,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.cone_walls = ReadBool(ini, L"cone_walls", g_config.cone_walls);
   g_config.cone_light = ReadBool(ini, L"cone_light", g_config.cone_light);
   g_config.cover_objects = ReadBool(ini, L"cover_objects", g_config.cover_objects);
+  g_config.spell_mask = ReadBool(ini, L"spell_mask", g_config.spell_mask);
   g_config.attack_ends_hiding = ReadBool(ini, L"attack_ends_hiding", g_config.attack_ends_hiding);
   g_config.emergency_search = ReadBool(ini, L"emergency_search", g_config.emergency_search);
   g_config.emergency_search_glance_ms =
@@ -239,10 +240,10 @@ void ConfigLoad(const wchar_t* directory) {
   Log("config: spellcasting=%s radial=%s", VariantName(g_config.spellcasting), VariantName(g_config.radial));
   if (g_config.perception == rules::RuleVariant::kFaithful) {
     Log("config: hiding_needs_15=%d found_up_close=%d alert_creatures_search=%d hiders_need_search=%d vision_cone=%d "
-        "cone_walls=%d found_ends_hiding=%d cover_objects=%d attack_ends_hiding=%d emergency_search=%d (%d ms, %d m, "
-        "%d s)",
+        "cone_walls=%d found_ends_hiding=%d cover_objects=%d spell_mask=%d attack_ends_hiding=%d emergency_search=%d (%d "
+        "ms, %d m, %d s)",
         g_config.hiding_needs_15, g_config.found_up_close, g_config.alert_creatures_search, g_config.hiders_need_search,
-        g_config.vision_cone, g_config.cone_walls, g_config.found_ends_hiding, g_config.cover_objects,
+        g_config.vision_cone, g_config.cone_walls, g_config.found_ends_hiding, g_config.cover_objects, g_config.spell_mask,
         g_config.attack_ends_hiding, g_config.emergency_search, g_config.emergency_search_glance_ms,
         g_config.emergency_search_alert_metres, g_config.emergency_search_fade_seconds);
   }

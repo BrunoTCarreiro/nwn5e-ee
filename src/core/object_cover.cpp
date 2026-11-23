@@ -21,8 +21,9 @@
 //   neither moves.
 // - Uses: !los (los_command.cpp), the cones' slices (stealth_watch.cpp), a hider behind Three-Quarters or Total Cover
 //   unseen (rules_perception.cpp), attacks' AC and Total Cover's refusal (rules_cover.cpp, action_order.cpp), and
-//   Dexterity saves from the effect's origin (here: SaveCoverBonus, from rules_save_roll.cpp); #184's spike: the
-//   boxes near a creature for !maskproof's particle mask (mask_proof.cpp, ObjectBoxesNear).
+//   Dexterity saves from the effect's origin (here: SaveCoverBonus, from rules_save_roll.cpp); #184: the boxes round a
+//   spell's point of origin, and the origin itself, for its particle mask (spell_mask.cpp: ObjectBoxesAround,
+//   SpellOriginOf; !maskproof's ObjectBoxesNear).
 
 #include "object_cover.h"
 
@@ -57,6 +58,7 @@
 #include "rules/los_probe.h"
 #include "rules/reposition.h"
 #include "rules/spells2024.h"
+#include "spell_mask.h"
 
 void* GameObjectById(uint32_t id);       // light_sources.cpp (the NWS object)
 bool HoldsRangedWeapon(void* creature);  // light_sources.cpp (baseitems.2da RangedWeapon)
@@ -376,6 +378,24 @@ std::vector<NearObjectBox> ObjectBoxesNear(void* creature, float metres) {
   return out;
 }
 
+std::vector<NearObjectBox> ObjectBoxesAround(void* area, uint32_t lister, const float at[3], float metres) {
+  std::vector<NearObjectBox> out;
+  if (!CoverObjectsOn() || !area) return out;
+  for (const Box& box : BoxesOf(area, lister)) {
+    if (!PlaceableById(box.id)) continue;
+    const float d = rules::BoxGroundDistance(at, box.box);
+    if (d > metres) continue;
+    NearObjectBox found;
+    found.id = box.id;
+    found.name = ObjectName(box.id);
+    found.box = box.box;
+    found.metres = d;
+    out.push_back(found);
+  }
+  std::sort(out.begin(), out.end(), [](const NearObjectBox& a, const NearObjectBox& b) { return a.metres < b.metres; });
+  return out;
+}
+
 bool ObjectsBlockLine(void* area, uint32_t self, const float a[3], const float b[3], uint32_t* blocker, float* t) {
   if (!CoverObjectsOn() || !area) return false;
   const uint64_t now = GetTickCount64();
@@ -665,6 +685,14 @@ ScopedAreaOrigin::~ScopedAreaOrigin() {
   for (int k = 0; k < 3; ++k) t_forced_at[k] = outer_at_[k];
   t_forced_kind = static_cast<rules::AreaOrigin>(outer_kind_);
   t_forced_feet = outer_feet_;
+}
+
+bool SpellOriginOf(uint32_t origin_id, int spell, float at[3], rules::AreaOrigin* kind) {
+  Origin origin;
+  if (!OriginOf(origin_id, spell, &origin)) return false;
+  for (int k = 0; k < 3; ++k) at[k] = origin.at[k];
+  if (kind) *kind = origin.kind;
+  return true;
 }
 
 bool LeftOutOfArea(void* caster, int spell, uint32_t target_id) {
