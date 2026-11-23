@@ -11,6 +11,7 @@ import build
 import erf
 import gamedata
 import gffjson
+import walkmesh
 
 fails = []
 
@@ -33,13 +34,15 @@ else:
     data = build.build(game_dir, os.path.join(here, "layout.json"))
     open(out, "wb").write(data)
     entries = {(r, t): b for r, t, b in erf.read_erf(data)}
-    areas = ["n5test_field", "n5test_hall", "n5test_dark"]
+    import json
+    layout = json.load(open(os.path.join(here, "layout.json"), encoding="utf-8"))
+    areas = [a["resref"] for a in layout["areas"]]
     needed = [("module", 2014), ("repute", 2038)] + [(a, t) for a in areas for t in (2012, 2023, 2046)]
     check("every file is in it", all(n in entries for n in needed), sorted(n for n in needed if n not in entries))
     ifo = gffjson.read_gff(entries[("module", 2014)])["root"]
     check("the entry is the field", ifo["Mod_Entry_Area"][1] == "n5test_field", ifo["Mod_Entry_Area"][1])
-    check("the module lists the three areas", [a["Area_Name"][1] for a in ifo["Mod_Area_list"][1]] == areas)
-    marks = {"n5test_field": "n5test_cast_field", "n5test_hall": "n5test_cast_hall", "n5test_dark": "n5test_cast_dark"}
+    check("the module lists the layout's areas", [a["Area_Name"][1] for a in ifo["Mod_Area_list"][1]] == areas)
+    marks = {a["resref"]: a["waypoints"][0]["tag"] for a in layout["areas"]}
     for area in areas:
         are = gffjson.read_gff(entries[(area, 2012)])["root"]
         w, h = are["Width"][1], are["Height"][1]
@@ -67,7 +70,8 @@ else:
                  if p["TemplateResRef"][1] not in ("plc_brazier",)]
     obstacles += [(d["TemplateResRef"][1], d["X"][1], d["Y"][1]) for d in hall["Door List"][1]]
     braziers = [(p["X"][1], p["Y"][1]) for p in hall["Placeable List"][1] if p["TemplateResRef"][1] == "plc_brazier"]
-    cover = [w for w in hall["WaypointList"][1] if w["Tag"][1].startswith("n5test_cast_cover_")]
+    cover = [w for w in hall["WaypointList"][1] if w["Tag"][1].startswith("n5test_cast_cover_")
+             and not w["Tag"][1].startswith("n5test_cast_cover_tile")]  # the tile stations: below
     # (#184: the 13th, "breakable" - a bookcase that isn't plot, among the lower hall's pillars, to break under a spell.)
     check("the hall: 13 cover marks", len(cover) == 13, [w["Tag"][1] for w in cover])
     import math
@@ -87,6 +91,74 @@ else:
                 math.cos(math.radians(45)) * math.hypot(o["XPosition"][1] - gx, o["YPosition"][1] - gy)]
         check("%s: its guard's cone holds no other mark" % tag, not seen, seen)
         check("%s: a name !go takes" % tag, len(tag) - len("n5test_cast_") <= 20)
+
+    # #166 tile blockers, step 1 (owner, 2026-11-23: "plan the tile blockers" - "do steps 1 and 2"): the tile
+    # stations (n5test_cast_cover_tile*) - an obstacle in a tile's own walkmesh, tall (walkmesh.features: the Cells'
+    # feature tiles, each at its spot as laid out) or flat (walkmesh.footprints: the hall's wall columns); each mark
+    # facing one's centre 2-2.5 m ahead, the mark and its guard's spot (5 m ahead) on walkable floor, the obstacle
+    # between them (seen from above, the guard's line crosses it), a brazier within 4 m, a name !go takes.
+    game = gamedata.Game(game_dir)
+    materials = walkmesh.surfacemat(game.resource("surfacemat", 2017).decode("latin1"))
+    tile_areas = [a for a in layout["areas"]
+                  if a.get("features") or any(w["tag"].startswith("n5test_cast_cover_tile") for w in a["waypoints"])]
+    for area in tile_areas:
+        tileset = gamedata.read_set(game.resource(area["tileset"], gamedata.SET).decode("latin1"))
+        are = gffjson.read_gff(entries[(area["resref"], 2012)])["root"]
+        width = are["Width"][1]
+        blocking, walkable, centres, obstacles = [], [], [], []
+        for i, t in enumerate(are["Tile_List"][1]):
+            tx, ty, k = i % width, i // width, t["Tile_Orientation"][1]
+            model = tileset["tiles"][t["Tile_ID"][1]]["model"]
+            wanted = [f for f in area.get("features", []) if f["tile"] == [tx, ty]]
+            if wanted:
+                check("%s: %s at %d,%d" % (area["resref"], wanted[0]["model"], tx, ty),
+                      model.lower() == wanted[0]["model"].lower() and k == wanted[0].get("orientation", 0), (model, k))
+            raw = game.resource(model, walkmesh.WOK)
+            faces = walkmesh.parse_wok(raw.decode("latin1")) if raw else []
+            for m, tri in faces:
+                at = tuple(walkmesh.placed(p, tx, ty, k) for p in tri)
+                if materials.get(m, (1, 1)) == (1, 0):
+                    blocking.append(at)
+                elif materials.get(m, (1, 1))[1] == 1:
+                    walkable.append(at)
+            found = walkmesh.features(faces, materials)
+            if wanted:
+                check("%s: %s has a feature in its walkmesh" % (area["resref"], model), len(found) >= 1, len(found))
+            for f in found + walkmesh.footprints(faces, materials):
+                b = f["box"]
+                centres.append(walkmesh.placed(((b[0] + b[1]) / 2, (b[2] + b[3]) / 2, 0.0), tx, ty, k))
+                obstacles.append([walkmesh.placed(p, tx, ty, k) for tri in f["faces"] for p in tri])
+
+        def on_floor(px, py):
+            for (x0, y0, _), (x1, y1, _), (x2, y2, _) in walkable:
+                d = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+                if abs(d) < 1e-9:
+                    continue
+                a = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) / d
+                b = ((y2 - y0) * (px - x2) + (x0 - x2) * (py - y2)) / d
+                if a >= -1e-6 and b >= -1e-6 and a + b <= 1 + 1e-6:
+                    return True
+            return False
+
+        git = gffjson.read_gff(entries[(area["resref"], 2023)])["root"]
+        lights = [(p["X"][1], p["Y"][1]) for p in git["Placeable List"][1] if p["TemplateResRef"][1] == "plc_brazier"]
+        stations = [w for w in git["WaypointList"][1] if w["Tag"][1].startswith("n5test_cast_cover_tile")]
+        if area.get("features"):
+            check("%s: a cover mark for each feature tile" % area["resref"], len(stations) == len(area["features"]),
+                  [w["Tag"][1] for w in stations])
+        for w in stations:
+            tag, x, y = w["Tag"][1], w["XPosition"][1], w["YPosition"][1]
+            fx, fy = w["XOrientation"][1], w["YOrientation"][1]
+            ahead = [c for c in centres if 2.0 <= (c[0] - x) * fx + (c[1] - y) * fy <= 2.5
+                     and abs(-(c[0] - x) * fy + (c[1] - y) * fx) <= 0.3]
+            check("%s: a feature's centre 2-2.5 m ahead" % tag, len(ahead) == 1, ahead)
+            gx, gy = x + 5 * fx, y + 5 * fy
+            check("%s: the mark and its guard's spot on walkable floor" % tag, on_floor(x, y) and on_floor(gx, gy))
+            check("%s: the obstacle between the guard and the mark" % tag,
+                  any(walkmesh.crosses_2d((gx, gy, 0.0), (x, y, 0.0),
+                                          [tuple(o[i:i + 3]) for i in range(0, len(o), 3)]) for o in obstacles))
+            check("%s: bright (a brazier within 4 m)" % tag, min(math.hypot(bx - x, by - y) for bx, by in lights) <= 4.0)
+            check("%s: a name !go takes" % tag, len(tag) - len("n5test_cast_") <= 20)
     doors = [(d["TemplateResRef"][1], d["AnimationState"][1]) for d in hall["Door List"][1]]
     check("the hall: a wooden door shut, one open, a portcullis shut",
           sorted(doors) == [("nw_door_grate", 0), ("nw_door_normal", 0), ("nw_door_normal", 1)], doors)
@@ -97,9 +169,7 @@ else:
 
     # The final review's finds (2026-11-10). A mark needs room: the bench's formations go round it ("around": 9 m at the
     # default distance) and up to 30 m ahead - at least 10 m of floor behind and to each side, 30 m ahead.
-    import json
-    layout = json.load(open(os.path.join(here, "layout.json"), encoding="utf-8"))
-    for area in layout["areas"]:
+    for area in [a for a in layout["areas"] if a.get("bench_mark", True)]:
         w, h = len(area["corners"][0]) - 1, len(area["corners"]) - 1
         walled = len({c for row in area["corners"] for c in row}) > 1  # a room: its border tiles are half wall
         x0, y0, x1, y1 = (5, 5, 10 * w - 5, 10 * h - 5) if walled else (0, 0, 10 * w, 10 * h)

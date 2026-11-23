@@ -7168,6 +7168,48 @@ lookup made to follow the 2024 rule for NWN's own area spells now) or B (each sp
   (not for a lasting area under areas_fill_around). Only creatures, never the caster. Half and Three-Quarters stay in
   (+2 / +5 on a Dexterity save); Total Cover's +5 is gone there. Logged once a cast ("cover: 0x... left out of Fireball
   (58)'s area - Total Cover from its point of origin (plc_statue1; ...)") and both told ("... it doesn't reach you").
+*Later refinement, not built (owner, 2026-11-23: "the base of the statue might be wider, but the statue itself is quite
+thinner so that is a bit odd"):* one box per placeable overstates a statue's figure over its plinth - a better fit,
+boxes per height band or per model part, comes later.
+
+**Tile blockers.** *Decided (owner, 2026-11-23):* "will we eventually get to including tile meshes in the blocking of
+spells? like columns and so" - after a Cone of Cold cast from beyond one of the hall's pillars hit them (plc_pillar1, a
+placeable: its box is narrower than all seven points, and the save is Constitution's, so Half or Three-Quarters adds
+nothing) - then "plan the tile blockers", then "do steps 1 and 2". The plan: (1) feature-tile stations in the Test
+Grounds; (2) the check - predict, then test, whether the engine's own sight line already stops at a tile's built-in
+obstacle; (3) only then, tile blockers of nwn5e's own where it doesn't.
+*Built (step 1, tools/testmodule):* the builder places a feature tile - a tile with an obstacle built into its own
+walkmesh - by its model at its grid spot (layout `features`: tile, model, orientation; tiler.place_features checks it
+fits the spot's corners), and walkmesh.py reads a tile's .wok from the game (ASCII: an aabb node's verts and faces,
+each face's surfacemat.2da material), in tile space and placed by the tile's orientation: its features (non-walkable,
+sight-blocking faces - LineOfSight 1, Walk 0 - joined by shared vertices, at least 1 m over the floor, inside the tile)
+and its flat footprints (non-walkable islands in the floor, under 0.3 m of rise). The castle interior (tic01, the
+hall's tileset) has three tiles with a tall feature, all jail tiles (no floor tile of the hall's Stone has one): two in
+a new area, The Cells (n5test_cells, `!go cells`), two jail rooms - tic01_o06_01 (a block 2.3 x 2.6 m, 3 m tall, in its
+north-west quarter: `!go cover_tile1`) and tic01_h11_02 (a block 4.6 x 2.2 m, 4 m tall, across its middle: `!go
+cover_tile2`); the third, tic01_h11_01, is 6 m across - a guard 5 m ahead would stand in it. And the hall's own walls
+carry a flat footprint every 10 m (tic01_j01_01 / tic01_j02_01: 1.9 x 1.0 m out from the wall, at the floor - a wall
+feature drawn as a hole in the walkmesh): `!go cover_tile3`, on the west wall. Each mark faces its obstacle's centre
+2.25 m ahead, a brazier within 4 m, room for `!spawn nw_orcb`'s guard 5 m ahead on walkable floor beyond it;
+check_build.py proves each (the tile at its spot, its feature in the walkmesh, the centre ahead, both spots on
+walkable floor, the obstacle between them, bright, a name !go takes), check_tiler.py the placing and its refusals.
+*Step 2, the prediction (read from the walkmesh, before the test):* CNWSArea::ClearLineOfSight tests each tile the line
+crosses against the tile's surface mesh (read from nwmain, 89.8193.37: CNWSTile::ClearLineOfSight), where a face of a
+material whose surfacemat.2da LineOfSight is 1 blocks - the hall's walls are material 2 (Obscuring: LineOfSight 1, Walk
+0, 3 m tall) and they cut the cones. tile1's and tile2's blocks are the same material, 3 and 4 m tall: every line from
+the guard (perception's, 1 m to 1 m; !los's, its eyes at 1.6 m to the seven points, standing or crouched) meets them -
+**the engine's sight is blocked**: Total Cover by the tileset, and so out of Cone of Cold's and Fireball's areas. tile3's
+footprint is flat, at the floor (material 7, Nonwalk: LineOfSight 1, but no height) - every line passes over it -
+**not blocked**: creatures walk round it and see and cast through it. Rows TB-1 to TB-6.
+*Step 3, tile blockers of nwn5e's own (not built):* at install, as the placeables' bounds, read each tileset's tiles'
+walkmeshes: their tall sight-blocking shapes need nothing (the engine stops at them); each flat footprint would be
+raised to the height of the tile model's own geometry over it (its drawn meshes' vertices inside the footprint, through
+mdlmesh) - a box per footprint, in tile space, into a table beside placeable_bounds.txt; the DLL would place each area's
+boxes by its tiles' positions and orientations and add them to its own sight test beside the placeables' (the same
+segment test, the same cost cap). How many: of the 10,731 tiles of 21 common tilesets (tic01, tcn01, tdc01, tde01,
+tdm01, tin01, ttr01, ttf01, tsw01, tni01, tno01, tcm02, trm02, trs02, tss13, ttz01, tts01, tts02, twc03, tdr01, tdt01),
+543 have a tall sight-blocking obstacle in their walkmesh and 1,294 only a flat footprint (tic01: 3 and 48 - the
+hall's wall features among them).
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms

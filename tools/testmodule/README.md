@@ -8,6 +8,7 @@ A module for repeatable tests: the same light, the same ground and the same dist
 | **The Field** | rural (`ttr01`) | Flat grass, always day, bright sun. Flags 10, 20 and 30 m ahead of the mark. |
 | **The Hall** | castle interior (`tic01`) | A lit stone hall: two rows of pillars, two groups of crates, four braziers; past them the cover zone (#166): twelve obstacles to look through. |
 | **The Dark Wing** | dungeon (`tde01`) | A long room with no light at all, for light-based stealth and light spells. |
+| **The Cells** | castle interior (`tic01`) | Two jail rooms, each round a tile with a block built into its walkmesh (#166's tile obstacles). |
 
 Each area has a cast mark: a waypoint tagged `n5test_cast_field`, `n5test_cast_hall` or `n5test_cast_dark`. The module
 starts on the Field's mark.
@@ -46,6 +47,13 @@ In the game: **New Game → Other Modules → nwn5e Test Grounds**.
     narrow: your shoulders show). Standing there: none (a 0.9 m table covers up to about 0.85 m of you - just under
     half).
   - door_open, portcullis: no cover (the session of 2026-11-23: clear).
+- Tile obstacles (#166's tile blockers): obstacles built into a tile's own walkmesh, not placeables, each with a cover
+  mark set up as the others (the obstacle 2.25 m ahead, a guard's room 5 m ahead):
+  - `!go cover_tile1` and `!go cover_tile2`, in The Cells (`!go cells`, two jail rooms): tic01_o06_01's block (2.3 x
+    2.6 m, 3 m tall) and tic01_h11_02's (4.6 x 2.2 m, 4 m tall). Their walkmesh blocks sight (material Obscuring):
+    the engine's line stops at them - Total Cover by the tileset.
+  - `!go cover_tile3`, in the hall on its west wall: the wall feature there, drawn in the walkmesh as a flat hole in the
+    floor (1.9 x 1.0 m) - creatures walk round it, but sight and spells pass over it.
   - breakable (#184): in the lower hall among the pillars, a bookcase that isn't plot (15 HP) - to break under a spell
     or a weapon: cover from it drops at once, and a lasting spell's look (a Fog Cloud) fills in behind it.
 - The Spell & Attack Bench's Play in game stands you on the area's mark first.

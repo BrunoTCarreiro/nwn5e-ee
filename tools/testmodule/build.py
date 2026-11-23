@@ -178,6 +178,7 @@ def build(game_dir, layout_path):
         tileset = gamedata.read_set(game.resource(area["tileset"], gamedata.SET).decode("latin1"))
         corners = [[area["terrain"][c] for c in row] for row in area["corners"]]
         tiles = tiler.tile_grid(tileset, corners, area["resref"])
+        tiler.place_features(tileset, corners, tiles, area.get("features", []), area["resref"])
         entries += [(area["resref"], ARE, are_file(area, tiles)), (area["resref"], GIT, git_file(game, area)),
                     (area["resref"], GIC, gic_file(area))]
     return erf.write_erf("MOD ", entries)

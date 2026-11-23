@@ -39,6 +39,7 @@
                 "tile_main": [3, 2], "tile_src": [1, 1]},
       "placeables": [
         {"template": "plc_brazier", "x": 8, "y": 8, "bearing": 0},
+        {"template": "plc_brazier", "x": 8.5, "y": 11, "bearing": 0},
         {"template": "plc_brazier", "x": 52, "y": 8, "bearing": 0},
         {"template": "plc_brazier", "x": 8, "y": 32, "bearing": 0},
         {"template": "plc_brazier", "x": 52, "y": 32, "bearing": 0},
@@ -100,7 +101,8 @@
         {"tag": "n5test_cast_cover_table_dim", "name": "Cover mark: table dim", "x": 8, "y": 77, "facing": 0},
         {"tag": "n5test_cast_cover_crate", "name": "Cover mark: crate", "x": 28, "y": 77, "facing": 0},
         {"tag": "n5test_cast_cover_barrel", "name": "Cover mark: barrel", "x": 48, "y": 77, "facing": 0},
-        {"tag": "n5test_cast_cover_breakable", "name": "Cover mark: breakable bookcase", "x": 36, "y": 20, "facing": 0}
+        {"tag": "n5test_cast_cover_breakable", "name": "Cover mark: breakable bookcase", "x": 36, "y": 20, "facing": 0},
+        {"tag": "n5test_cast_cover_tile3", "name": "Cover mark: the west wall's column", "x": 6, "y": 12.75, "facing": 90}
       ]
     },
     {
@@ -116,6 +118,31 @@
                 "tile_main": [0, 0], "tile_src": [0, 0]},
       "placeables": [],
       "waypoints": [{"tag": "n5test_cast_dark", "name": "Cast mark: the dark wing", "x": 20, "y": 15, "facing": 90}]
+    },
+    {
+      "resref": "n5test_cells",
+      "name": "The Cells",
+      "_": "#166 tile blockers, step 1 (owner, 2026-11-23: \"plan the tile blockers\" - \"do steps 1 and 2\"): two jail rooms, each round a feature tile - an obstacle built into the tile's own walkmesh, not a placeable - with a cover station. tile1: tic01_o06_01's block (2.3 x 2.6 m, 3 m tall) in its north-west quarter; tile2: tic01_h11_02's block (4.6 x 2.2 m, 4 m tall) across the tile's middle. Not the bench's: bench_mark false (its rooms are 20 m across).",
+      "tileset": "tic01",
+      "terrain": {"#": "Wall", "j": "Jail"},
+      "corners": ["########", "#jj#jj##", "#jj#jj##", "########"],
+      "features": [{"tile": [1, 1], "model": "tic01_o06_01", "orientation": 0},
+                   {"tile": [4, 1], "model": "tic01_h11_02", "orientation": 0}],
+      "bench_mark": false,
+      "flags": 1,
+      "light": {"is_night": 1, "day_night": 0, "lighting_scheme": 13, "shadow_opacity": 60, "sun_shadows": 0,
+                "sun_ambient": 0, "sun_diffuse": 0, "sun_fog": 0, "sun_fog_color": 0,
+                "moon_ambient": 6316128, "moon_diffuse": 13158600, "moon_fog": 0, "moon_fog_color": 0,
+                "tile_main": [3, 2], "tile_src": [1, 1]},
+      "placeables": [
+        {"template": "plc_brazier", "x": 11.6, "y": 13.6, "bearing": 0},
+        {"template": "plc_brazier", "x": 41.5, "y": 12.75, "bearing": 0}
+      ],
+      "waypoints": [
+        {"tag": "n5test_cast_cells", "name": "Cast mark: the cells", "x": 48, "y": 19, "facing": 180},
+        {"tag": "n5test_cast_cover_tile1", "name": "Cover mark: tile block (o06)", "x": 11.6, "y": 17.1, "facing": 0},
+        {"tag": "n5test_cast_cover_tile2", "name": "Cover mark: tile block (h11)", "x": 45, "y": 12.75, "facing": 90}
+      ]
     }
   ]
 }

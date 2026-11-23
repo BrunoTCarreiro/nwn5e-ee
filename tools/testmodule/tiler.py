@@ -24,3 +24,22 @@ def tile_grid(tileset, corners, area=""):
                 raise ValueError("%s: no tile for %d,%d with corners %s (tl, tr, br, bl)" % (area, x, y, ", ".join(want)))
             out.append(pick)
     return out
+
+
+def place_features(tileset, corners, tiles, features, area=""):
+    """#166 tile blockers, step 1: a feature tile - one with a built-in obstacle (a column, a block) - at its grid spot
+    instead of the plain one tile_grid picked: `features` [{"tile": [x, y], "model": <its .set model>, "orientation":
+    k}]. The tile must fit the spot's corners turned k quarter turns, as tile_grid's. `tiles` changed in place."""
+    width = len(corners[0]) - 1
+    for f in features:
+        x, y = f["tile"]
+        k = f.get("orientation", 0)
+        want = (corners[y + 1][x], corners[y + 1][x + 1], corners[y][x + 1], corners[y][x])
+        match = [t for t in tileset["tiles"] if t["model"].lower() == f["model"].lower()]
+        if not match:
+            raise ValueError("%s: no tile %s in the tileset" % (area, f["model"]))
+        if rotate(match[0]["corners"], k) != want:
+            raise ValueError("%s: %s turned %d doesn't fit %d,%d (corners %s, the spot %s)" % (
+                area, f["model"], k, x, y, ", ".join(rotate(match[0]["corners"], k)), ", ".join(want)))
+        tiles[y * width + x] = (match[0]["id"], k)
+    return tiles

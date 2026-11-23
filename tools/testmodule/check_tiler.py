@@ -42,6 +42,20 @@ try:
 except ValueError as e:
     check("an untileable grid names the tile", "hall" in str(e) and "0,0" in str(e), e)
 
+# #166 tile blockers, step 1: a feature tile at its spot - by its model, turned - and one that doesn't fit refused.
+feature = {"terrains": [W, F], "tiles": synthetic["tiles"] + [tile(4, F, F, F, F)]}
+grid = [[F, F, F], [F, F, F]]  # 2 x 1 tiles of floor
+picks = tiler.tile_grid(feature, grid, "floor")
+tiler.place_features(feature, grid, picks, [{"tile": [1, 0], "model": "t4", "orientation": 2}], "floor")
+check("a feature tile at its spot, turned as asked", picks == [(1, 0), (4, 2)], picks)
+for bad, what, why in (({"tile": [0, 0], "model": "t0", "orientation": 0}, "that doesn't fit its spot", "doesn't fit"),
+                       ({"tile": [0, 0], "model": "nope", "orientation": 0}, "the tileset hasn't", "no tile")):
+    try:
+        tiler.place_features(feature, grid, list(picks), [bad], "floor")
+        check("a feature tile %s is refused" % what, False, "no error")
+    except ValueError as e:
+        check("a feature tile %s is refused" % what, why in str(e), e)
+
 # The convention on a shipped area: every pair of neighbours agrees on its shared corners.
 args = sys.argv[1:]
 game_dir = gamedata.find_game(args[args.index("--game") + 1] if "--game" in args else None)
