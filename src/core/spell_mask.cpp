@@ -601,11 +601,19 @@ void InstallSpellMask() {
       std::ifstream file((rows + found.cFileName).c_str(), std::ios::binary);
       std::stringstream text;
       text << file.rdbuf();
-      std::string t = text.str();
+      // The rows' own lines only: a "#" comment line (the files' headers say "n5k_*") names no model.
+      std::string t;
+      for (std::string line; std::getline(text, line);) {
+        const size_t first = line.find_first_not_of(" \t");
+        if (first != std::string::npos && line[first] == '#') continue;
+        t += line;
+        t += '\n';
+      }
       for (char& c : t) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
       for (size_t at = t.find("n5k_"); at != std::string::npos; at = t.find("n5k_", at + 4)) {
-        size_t end = at;
+        size_t end = at + 4;
         while (end < t.size() && (isalnum(static_cast<unsigned char>(t[end])) || t[end] == '_')) ++end;
+        if (end == at + 4) continue;  // the bare prefix: no name
         const std::string name = t.substr(at, end - at);
         if (std::find(named.begin(), named.end(), name) != named.end()) continue;
         named.push_back(name);
