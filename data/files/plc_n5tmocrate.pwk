@@ -1,0 +1,8 @@
+#MAXDOOR ASCII
+# made by nwn5e-ee tools/data/composer/build.js from a Composer project - change it in the VFX Bench and save, not this file
+# model: plc_n5tmocrate_pwk
+node dummy n5tmocrate_pwk_use01
+  parent plc_n5tmocrate_pwk
+  position 0 -0.6 0
+  orientation 0 0 0 0
+endnode
