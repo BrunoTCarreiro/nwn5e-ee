@@ -66,3 +66,7 @@ __pycache__/
 # The particle mask's shader (#184's spike; tools/data/particle_mask.js): the game's fsparticle.shd with nwn5e's mask
 # added, built from the player's own game - the game's shader text, so never committed:
 /data/files/fsn5pmask.shd
+# The spells' masked looks (#184; tools/data/spell_mask.js): copies of the game's spell effect models (n5k_*) and the
+# materials naming the game's textures (n5x_*), built from the player's own game:
+/data/files/n5k_*
+/data/files/n5x_*

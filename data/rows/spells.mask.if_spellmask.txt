@@ -1,0 +1,12 @@
+# spells.2da - #184, the spells' masked looks (tools/data/spell_mask.js writes these rows: change it, not them):
+# each cone's cast effect named as its masked copy (n5k_*, built from your game at build time). Served with
+# spell_mask=1 in faithful (core/spell_mask.cpp), after the spells' own rows (this file sorts after theirs).
+CastHandVisual
+10 n5k_conefire
+24 n5k_conespar
+25 n5k_conecold
+135 n5k_conepris
+1269 n5k_coneacid01
+1270 n5k_conecold
+1271 n5k_conefire
+1273 n5k_conepois

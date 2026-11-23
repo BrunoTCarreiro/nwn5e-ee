@@ -1,0 +1,15 @@
+# vfx_persistent.2da - #184, the spells' masked looks (tools/data/spell_mask.js writes these rows: change it, not
+# them): nwn5e's own areas' models (105-115) named as their masked copies (n5k_*), nothing else of theirs. Served
+# with spell_mask=1 (after vfx_persistent.if_spells2024.txt: this file sorts after it).
+MODEL01 MODEL02 MODEL03 MODELMIN01 MODELMIN02 MODELMIN03
+105 n5k_entangle n5k_entangle n5k_entangle n5k_entangle_l n5k_entangle_l n5k_entangle_l
+106 n5k_grease n5k_grease n5k_grease n5k_grease_l n5k_grease_l n5k_grease_l
+107 n5k_fogmind n5k_fogmind n5k_fogmind n5k_fogmind_l n5k_fogmind_l n5k_fogmind_l
+108 n5k_fogmind n5k_fogmind n5k_fogmind n5k_fogmind_l n5k_fogmind_l n5k_fogmind_l
+109 n5k_fogmind n5k_fogmind n5k_fogmind n5k_fogmind_l n5k_fogmind_l n5k_fogmind_l
+110 n5k_fogmind n5k_fogmind n5k_fogmind n5k_fogmind_l n5k_fogmind_l n5k_fogmind_l
+111 n5k_fogmind n5k_fogmind n5k_fogmind n5k_fogmind_l n5k_fogmind_l n5k_fogmind_l
+112 n5k_fogmind n5k_fogmind n5k_fogmind n5k_fogmind_l n5k_fogmind_l n5k_fogmind_l
+113 n5k_fogmind n5k_fogmind n5k_fogmind n5k_fogmind_l n5k_fogmind_l n5k_fogmind_l
+114 n5k_fogmind n5k_fogmind n5k_fogmind n5k_fogmind_l n5k_fogmind_l n5k_fogmind_l
+115 n5k_fogmind n5k_fogmind n5k_fogmind n5k_fogmind_l n5k_fogmind_l n5k_fogmind_l

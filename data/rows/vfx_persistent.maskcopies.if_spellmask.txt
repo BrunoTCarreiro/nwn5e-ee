@@ -1,0 +1,12 @@
+# vfx_persistent.2da - #184, the spells' masked looks (tools/data/spell_mask.js writes these rows: change it,
+# not them): copies of the game's rows named in their comments - the label kept (it is the area's tag, which scripts
+# look for), their models (Web's: its DurationVFX effect) the masked copies. Served with spell_mask=1.
+# 120 from 1
+# 121 from 2
+# 122 from 3
+# 123 from 8
+LABEL SHAPE RADIUS WIDTH LENGTH ONENTER ONEXIT HEARTBEAT OrientWithGround DurationVFX MODEL01 MODEL02 MODEL03 NUMACT01 NUMACT02 NUMACT03 DURATION01 DURATION02 DURATION03 EDGEWGHT01 EDGEWGHT02 EDGEWGHT03 SoundImpact SoundDuration SoundCessation SoundOneShot SoundOneShotPercentage MODELMIN01 MODELMIN02 MODELMIN03
+120 VFX_PER_FOGFIRE C 5 **** **** NW_S0_IncCloudA NW_S0_IncCloudB NW_S0_IncCloudC 0 **** n5k_fogfire n5k_fogfire n5k_fogfire 5 5 5 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fogfire 0.3 n5k_fogfire_l n5k_fogfire_l n5k_fogfire_l
+121 VFX_PER_FOGSTINK C 6.7 **** **** NW_S0_StinkCldA **** NW_S0_StinkCldC 0 **** n5k_fogstink n5k_fogstink n5k_fogstink 5 5 5 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 n5k_fogstink_l n5k_fogstink_l n5k_fogstink_l
+122 VFX_PER_FOGKILL C 5 **** **** NW_S0_CloudKillA NW_S0_CloudKillB NW_S0_CloudKillC 0 **** n5k_fogkill n5k_fogkill n5k_fogkill 5 5 5 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 n5k_fogkill_l n5k_fogkill_l n5k_fogkill_l
+123 VFX_PER_WEB C 6.7 **** **** NW_S0_WebA NW_S0_WebB NW_S0_WebC 0 4209 **** **** **** **** **** **** **** **** **** **** **** **** **** **** **** **** **** **** **** ****

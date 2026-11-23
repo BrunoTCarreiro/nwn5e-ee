@@ -94,6 +94,33 @@ check("derive: the shader's name and bytes, or skipped with the reason", () => {
   assert.ok(M.derive({ res: () => Buffer.from("void main ()\n{\n}\n") }).skipped.includes("gl_FragColor"));
 });
 
+// #184: the spells' masked looks (spell_mask.js). The rows name only copies it makes, and every copy it makes is named.
+const S = require("./spell_mask.js");
+const fs = require("fs");
+const ROWS = path.join(__dirname, "..", "..", "data", "rows");
+check("the spells' masked copies: their names as long as the game's, the rows naming each and nothing else", () => {
+  for (const m of S.MODELS) {
+    const c = S.copyName(m);
+    assert.ok(/^n5k_/.test(c) && c.length === m.length, m + " -> " + c);
+  }
+  assert.strictEqual(S.copyName("plain"), "");
+  assert.strictEqual(S.materialName("fxpa_Smoke01a"), "n5x_smoke01a");
+  assert.strictEqual(S.materialName("Blood"), "n5x_blood");
+  const named = new Set();
+  for (const file of Object.values(S.FILES)) {
+    const text = fs.readFileSync(path.join(ROWS, file), "latin1");
+    for (const n of S.namedCopies(text)) named.add(n);
+    assert.ok(/\.if_spellmask\.txt$/.test(file), file + " isn't served with the spellmask flag alone");
+  }
+  const made = new Set(S.MODELS.map(S.copyName));
+  for (const n of named) assert.ok(made.has(n), "a row names " + n + ", which spell_mask.js doesn't make");
+  for (const n of made) assert.ok(named.has(n), n + " is made but no row names it");
+  // The rows files sort after the spells' own (if_spells2024) rows: theirs first, ours over them.
+  assert.ok("spells.mask.if_spellmask.txt" > "spells.if_spells2024.level1.txt" &&
+    "vfx_persistent.mask.if_spellmask.txt" > "vfx_persistent.if_spells2024.txt", "a mask rows file sorts first");
+  assert.ok(S.owns("n5k_conefire.mdl") && S.owns("N5X_SMOKE01A.mtr") && !S.owns("n5k_other.mdl") && !S.owns("var_conefire.mdl"));
+});
+
 // The player's own shader, when asked (in memory; nothing written).
 const argv = process.argv.slice(2);
 const option = (name) => {
@@ -106,6 +133,23 @@ if (option("game") && option("tools")) {
     const source = res(M.SOURCE, M.TYPE_SHD);
     assert.ok(source, "the game has no fsparticle.shd");
     checkPatched(source.toString("latin1"), "the game's");
+  });
+  check("the spells' masked rows are what spell_mask.js --rows makes from the game's tables now", () => {
+    const G = require(path.join(path.resolve(option("tools")), "spell_bench", "game_data.js"));
+    const game = path.resolve(option("game"));
+    const table = (name) => {
+      const t = G.gameTable(game, name);
+      for (const f of fs.readdirSync(ROWS).sort()) {
+        if (f.split(".")[0].toLowerCase() !== name || /\.if_spellmask\./i.test(f) || !f.endsWith(".txt")) continue;
+        G.applyRows(t, fs.readFileSync(path.join(ROWS, f), "latin1"));
+      }
+      return t;
+    };
+    const want = S.rowsText(table);
+    for (const [k, file] of Object.entries(S.FILES)) {
+      const have = fs.readFileSync(path.join(ROWS, file), "latin1").split(/\r?\n/).join("\n");
+      assert.strictEqual(have, want[k].split("\r\n").join("\n"), file + " differs - run node tools\\data\\spell_mask.js --rows");
+    }
   });
 }
 

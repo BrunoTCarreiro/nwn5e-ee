@@ -276,6 +276,17 @@ function main() {
   say(`build_derived: particle mask (tools/data/particle_mask.js): ${mask.skipped ? "skipped - " + mask.skipped
     : `${mask.name}, the game's ${PM.SOURCE}.shd with nwn5e's mask`}`);
   if (!mask.skipped) built.push({ gen: { label: "particle mask", owns: new Set([mask.name.toLowerCase()]) }, files: [{ name: mask.name, bytes: mask.bytes }] });
+  // #184: the spells' masked looks (tools/data/spell_mask.js) - copies of the area spells' effect models (n5k_*) whose
+  // emitters draw through the particle mask's materials (n5x_*.mtr), named by data\rows' *.if_spellmask.txt. Owned in
+  // --out by their names, as the shader is (only spell_mask.js makes those names; the game's models fix the bytes). A
+  // model it can't copy is skipped and said: core/spell_mask.cpp then serves none of the rows that name the copies.
+  const SM = require("./spell_mask.js");
+  const spellMask = SM.derive({ res, reader: pre.reader });
+  for (const { model, why } of spellMask.skipped) say(`build_derived: spell mask: skipped ${model} - ${why}`);
+  const materials = spellMask.files.filter((f) => /\.mtr$/i.test(f.name)).length;
+  say(`build_derived: spell mask (tools/data/spell_mask.js): ${spellMask.copies.length} of the spells' effect models copied, ` +
+    `${spellMask.copies.reduce((n, c) => n + c.masked, 0)} emitter headers on ${materials} masked materials`);
+  built.push({ gen: { label: "spell mask", owns: new Set(spellMask.files.map((f) => f.name.toLowerCase())) }, files: spellMask.files });
 
   // The files into --out, under the generators' ownership rule: a model or .pwk carrying its generator's mark, a texture
   // its made.txt lists in data\files, a baked texture by its name (files.js's "baked"), a shape's soft texture - or an

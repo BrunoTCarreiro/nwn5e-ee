@@ -40,7 +40,10 @@ remove the six files from main"**:
   the game's picture under our own name with its TXI minus `decal`, + `clamp 2`: the Floating Disk's README, "A library
   texture's copy"), the game's own art, so never committed;
 - the 16 one-burst models, each by its name (`plc_k02.mdl` and the rest: "One burst", below) - the game's own models,
-  changed, so never committed.
+  changed, so never committed;
+- the particle mask's shader `fsn5pmask.shd` (the game's `fsparticle.shd` with the mask added), the spells' masked
+  copies `n5k_*` (the game's effect models, their emitters retextured and the models renamed) and their materials
+  `n5x_*.mtr` (#184: "The particle mask", below).
 
 The generators' own runs (the VFX Bench's Save and build) still write them into `data\files`, where they stay,
 ignored. What's made from scratch stays committed: the `.pwk` files, `n5t_forcedisk.tga`, the rows, and the moving
@@ -85,12 +88,22 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
 - **The one-burst models** (`oneburst.js`, "One burst" below): the game's 16 placeable models whose looping "dead"
   re-fires a detonate, each without it, under its own name - owned in `--out` by that name. It says how many, and which
   it skipped.
-- **The particle mask's shader** (`particle_mask.js`, #184's research spike): `fsn5pmask.shd`, the game's own particle
+- **The particle mask's shader** (`particle_mask.js`, #184): `fsn5pmask.shd`, the game's own particle
   fragment shader (`fsparticle.shd`) with nwn5e's mask added before its `main` and one call before its last line -
   nothing else changed (`node tools\data\check_particle_mask.js [--game <folder> --tools <nwn5e-tools>]` checks it,
   the game's text back byte for byte once the added lines are out). Owned in `--out` by its name; git-ignored. The
-  material `data\files\n5_pmask.mtr` names it; `!maskproof` (`[debug] mask_proof=1`) tries it. Skipped, and said, when
-  the game's text hasn't one `void main` line and one `gl_FragColor = FragmentColor;` line.
+  materials `data\files\n5_pmask.mtr` (`!maskproof`'s, `[debug] mask_proof=1`) and the spells' `n5x_*.mtr` name it.
+  Skipped, and said, when the game's text hasn't one `void main` line and one `gl_FragColor = FragmentColor;` line.
+- **The spells' masked looks** (`spell_mask.js`, #184): a copy of each area spell's effect model (its `MODELS`: the
+  cones, the bursts, the lasting areas, each with its low-quality model) - the game's model with every emitter's
+  texture named as a masked material and the model renamed `n5k_<its name past the first four letters>` (as long as
+  the game's: `mdlmesh --mask`, `src\data\vfx_model.cpp` MaskedModelCopy; every other byte as it was) - and one
+  material a texture, `n5x_<the texture past fxpa_>.mtr` (the game's `vsparticle`, `fsn5pmask`, the game's texture by
+  name). Each copy is read back and checked (`mdlmesh --emitters`: the game's emitters in order, each with a texture
+  naming its material). Owned in `--out` by their names; git-ignored. A model the game hasn't, or one it can't copy
+  cleanly, is skipped and said. The rows that name the copies are committed: `data\rows`' `*.mask.if_spellmask.txt`
+  and `vfx_persistent.maskcopies.if_spellmask.txt`, written by `node tools\data\spell_mask.js --rows` from the game's
+  tables (served with `spell_mask=1` in faithful, when every copy they name was built: `src\core\spell_mask.cpp`).
 - **Spell meshes are skipped**, and it says so. Their drafts live in the VFX Bench's saved folder, and the dev layer
   writes their models when the game runs.
 - **A project never built is skipped**, and it says so. That's one with no `data\rows\placeables.<name>.txt` and no

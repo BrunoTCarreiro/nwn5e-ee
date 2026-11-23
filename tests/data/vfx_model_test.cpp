@@ -4666,3 +4666,136 @@ TEST(VfxBurstAtTheStartCarriesItsCountInItsGeometry) {
   model = WriteVfxModel(effect, "n5t");
   CHECK_EQ(Contains(GeometryOf(model, "0_own"), "  birthrate 4\n"), true);
 }
+
+// --- #184: a spell's masked copy.
+namespace {
+
+// A cone's shape (var_conefire's), built here: the model "vxx_testcone", its root and an emitter "Omen01" (a Fountain
+// drawing fxpa_Smoke01a), a chunk emitter "Chunks" (an Explosion, NULL) and "Sparks" (fxpa_flare); its animation
+// "cast01", with its own root and its own copy of Omen01 (its header naming the texture in lower case, as the game's
+// copies do). `places`: the name fields' offsets; `textures`: Omen01's two texture fields, then Sparks'.
+std::string ConeModel(std::vector<size_t>* places, std::vector<size_t>* textures) {
+  KfModel m("vxx_testcone");
+  const auto texture = [&](size_t node, const char* name) {
+    for (size_t i = 0; i < 64; ++i) m.b[node + 0x60 + 0x78 + i] = '\0';
+    m.Puts(node + 0x60 + 0x78, name);
+    textures->push_back(node + 0x60 + 0x78);
+  };
+  const size_t root = m.Node("vxx_testcone", 0x1, {{8, 3, {0}, {0, 0, 0}}});
+  const size_t omen = m.Node("Omen01", 0x5, {{88, 1, {0}, {20}}});
+  m.Emitter(omen);
+  texture(omen, "fxpa_Smoke01a");
+  const size_t chunks = m.Node("Chunks", 0x5, {{88, 1, {0}, {2}}});
+  m.Emitter(chunks);
+  m.Puts(chunks + 0x60 + 0x18, "Explosion");
+  for (size_t i = 0; i < 64; ++i) m.b[chunks + 0x60 + 0x78 + i] = '\0';
+  m.Puts(chunks + 0x60 + 0x78, "NULL");
+  const size_t sparks = m.Node("Sparks", 0x5, {{88, 1, {0}, {5}}});
+  m.Emitter(sparks);
+  m.Children(root, {omen, chunks, sparks});
+  m.Put32(KfModel::kBase + 0x48, static_cast<uint32_t>(root - 0x10 - KfModel::kBase));
+  const size_t anim_root = m.Node("vxx_testcone", 0x1, {});
+  const size_t anim_omen = m.Node("Omen01", 0x5, {{88, 1, {0, 0.5f}, {20, 0}}});
+  m.Emitter(anim_omen);
+  texture(anim_omen, "fxpa_smoke01a");
+  texture(sparks, "fxpa_flare");
+  m.Children(anim_root, {anim_omen});
+  m.Anim("cast01", 1.5f, 0.0f, anim_root);
+  m.Puts(m.anims.back() + 0x78, "vxx_testcone");
+  m.List();
+  *places = {KfModel::kBase + 8, root + 0x10, m.anims.back() + 0x78, anim_root + 0x10};
+  return m.b;
+}
+
+std::string FieldText(const std::string& b, size_t at, size_t max) {
+  std::string out;
+  for (size_t i = 0; i < max && b[at + i]; ++i) out += b[at + i];
+  return out;
+}
+
+}  // namespace
+
+// Every emitter header is found, the animation's copy too, in file order. Breaks caught: an animation's copy (or a
+// chunk emitter's NULL) left out; a header whose update word is the tail of a longer word taken; the texture read from
+// the wrong field.
+TEST(MaskedCopyReadsEveryEmitterHeader) {
+  std::vector<size_t> places, textures;
+  const std::string model = ConeModel(&places, &textures);
+  const std::vector<EmitterTexture> found = ReadEmitterTextures(model);
+  CHECK_EQ(found.size(), 4u);
+  std::string said;
+  for (const EmitterTexture& e : found) said += e.node + ":" + e.update + ":" + e.texture + " ";
+  CHECK_EQ(said == "Omen01:Fountain:fxpa_Smoke01a Chunks:Explosion:NULL Sparks:Fountain:fxpa_flare "
+                   "Omen01:Fountain:fxpa_smoke01a ",
+           true);
+  CHECK_EQ(found.size() == 4 && found[0].at == textures[0] && found[3].at == textures[1] && found[2].at == textures[2],
+           true);
+  std::string tail = model;
+  tail.replace(textures[2] - 0x78 + 0x18 - 1, 1, "x");  // "xFountain": Sparks' update isn't one
+  CHECK_EQ(ReadEmitterTextures(tail).size(), 3u);
+  CHECK_EQ(ReadEmitterTextures("#MAXMODEL ASCII\nnewmodel x\n").empty(), true);
+}
+
+// The copy: the materials named in place of their textures, the model renamed, nothing else changed. Breaks caught: the
+// animation's copy of an emitter left on the game's texture; the textures compared case-sensitively; a longer
+// texture's tail left after the material's name; a texture with no material (the chunk's NULL) touched; the header's,
+// the root's, the animation root's or its root node's name left; any other byte changed, or the length.
+TEST(MaskedCopyRetexturesAndRenames) {
+  std::vector<size_t> places, textures;
+  const std::string game = ConeModel(&places, &textures);
+  std::string copy = game;
+  std::string why;
+  const int changed = MaskedModelCopy(&copy, "n5k_testcone", {{"fxpa_smoke01a", "n5x_smoke01a"}, {"fxpa_flare", "n5x_flare"}}, &why);
+  CHECK_EQ(changed, 3);
+  CHECK_EQ(why.empty(), true);
+  CHECK_EQ(copy.size(), game.size());
+  CHECK_EQ(FieldText(copy, textures[0], 64) == "n5x_smoke01a" && FieldText(copy, textures[1], 64) == "n5x_smoke01a", true);
+  CHECK_EQ(FieldText(copy, textures[2], 64) == "n5x_flare", true);
+  for (size_t t : textures) {
+    bool zeroed = true;
+    for (size_t i = FieldText(copy, t, 64).size(); i < 64; ++i) zeroed = zeroed && copy[t + i] == '\0';
+    CHECK_EQ(zeroed, true);
+  }
+  for (size_t at : places) CHECK_EQ(FieldText(copy, at, 64) == "n5k_testcone", true);
+  CHECK_EQ(Contains(copy, std::string("vxx_testcone", 13)), false);
+  const std::vector<EmitterTexture> after = ReadEmitterTextures(copy);
+  CHECK_EQ(after.size() == 4 && after[1].texture == "NULL", true);
+  // Every other byte as the game's.
+  std::set<size_t> allowed;
+  for (size_t t : textures) for (size_t i = 0; i < 64; ++i) allowed.insert(t + i);
+  for (size_t at : places) for (size_t i = 0; i < 12; ++i) allowed.insert(at + i);
+  int other = 0;
+  for (size_t i = 0; i < game.size(); ++i) other += !allowed.count(i) && game[i] != copy[i];
+  CHECK_EQ(other, 0);
+}
+
+// Refused, nothing changed: not a compiled model; a name of another length; a material's name over 31; a name field
+// that isn't the model's (the animation's root another model's); the model's name somewhere else too. Breaks caught:
+// any of these copied anyway (a model the game would cache under the game's name, or a texture field overrun).
+TEST(MaskedCopyRefusesWhatItCantCopyCleanly) {
+  std::vector<size_t> places, textures;
+  const std::string game = ConeModel(&places, &textures);
+  const std::map<std::string, std::string> materials = {{"fxpa_smoke01a", "n5x_smoke01a"}};
+  const auto refused = [&](std::string bytes, const std::string& name, const std::map<std::string, std::string>& with) {
+    const std::string before = bytes;
+    std::string why;
+    const int r = MaskedModelCopy(&bytes, name, with, &why);
+    return r == -1 && !why.empty() && bytes == before;
+  };
+  CHECK_EQ(refused("#MAXMODEL ASCII\nnewmodel vxx_testcone\n", "n5k_testcone", materials), true);
+  CHECK_EQ(refused(game, "n5k_testcone1", materials), true);
+  CHECK_EQ(refused(game, "n5k_testcone", {{"fxpa_smoke01a", std::string(32, 'n')}}), true);
+  std::string other = game;
+  other.replace(places[2], 12, "vxx_othercon");
+  CHECK_EQ(refused(other, "n5k_testcone", materials), true);
+  std::string twice = game;
+  for (size_t i = 0; i < 64; ++i) twice[textures[2] + i] = '\0';
+  twice.replace(textures[2], 12, "vxx_testcone");  // a texture named as the model
+  CHECK_EQ(refused(twice, "n5k_testcone", materials), true);
+  std::string swapped = twice;  // the animation's root another model's, the model's name as often elsewhere
+  swapped.replace(places[2], 12, "vxx_othercon");
+  CHECK_EQ(refused(swapped, "n5k_testcone", materials), true);
+  std::string copy = game;
+  CHECK_EQ(MaskedModelCopy(&copy, "n5k_testcone", {}, nullptr), 0);  // no material: only renamed
+  CHECK_EQ(FieldText(copy, places[0], 64) == "n5k_testcone", true);
+}

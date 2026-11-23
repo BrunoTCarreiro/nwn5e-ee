@@ -1,0 +1,24 @@
+# visualeffects.2da - #184, the spells' masked looks (tools/data/spell_mask.js writes these rows: change it, not
+# them): each a copy of the game's row named in its comment, its models named as their masked copies (n5k_*).
+# core/spell_mask.cpp hands a spell's script the copy in place of the game's row. Served with spell_mask=1.
+# 4200 from 22
+# 4201 from 183
+# 4202 from 62
+# 4203 from 231
+# 4204 from 23
+# 4205 from 28
+# 4206 from 190
+# 4207 from 37
+# 4208 from 54
+# 4209 from 230
+Label Type_FD OrientWithGround Imp_HeadCon_Node Imp_Impact_Node Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node ProgFX_Impact SoundImpact ProgFX_Duration SoundDuration ProgFX_Cessation SoundCessastion Ces_HeadCon_Node Ces_Impact_Node Ces_Root_S_Node Ces_Root_M_Node Ces_Root_L_Node Ces_Root_H_Node ShakeType ShakeDelay ShakeDuration LowViolence LowQuality OrientWithObject NWN5E_Node NWN5E_NodeUpright
+4200 NWN5E_MASK_FNF_FIREBALL F 0 **** **** **** n5k_explfire **** **** **** sff_explfire **** **** **** **** **** **** **** **** **** **** 2 0 0.3 **** n5k_explfire_l 0 **** ****
+4201 NWN5E_MASK_FNF_SOUND_BURST F 0 **** **** **** n5k_explsonic **** **** **** sff_explsonic 328 **** 378 **** **** **** **** **** **** **** 2 0 2 **** n5k_explsonic_l 0 **** ****
+4202 NWN5E_MASK_IMP_FROST_L F 0 **** n5k_exp2frost **** **** **** **** **** sim_exp2frost **** **** **** **** **** **** **** **** **** **** **** **** **** **** **** 0 **** ****
+4203 NWN5E_MASK_FNF_ICESTORM F 0 **** **** **** n5k_rainice **** **** **** sff_rainice **** **** **** **** **** **** **** **** **** **** 2 0.7 1.4 **** n5k_rainice_l 0 **** ****
+4204 NWN5E_MASK_FNF_FIRESTORM F 0 **** **** **** n5k_rainfire **** **** **** sff_rainfire **** **** **** **** **** **** **** **** **** **** 2 0 3 **** n5k_rainfire_l 0 **** ****
+4205 NWN5E_MASK_FNF_METEOR_SWEARM F 0 **** **** **** n5k_rainmeteor **** **** **** sff_rainmeteor **** **** **** **** **** **** **** **** **** **** 2 0.1 3.4 **** n5k_rainmeteor_l 0 **** ****
+4206 NWN5E_MASK_FNF_LOS_HOLY_30 F 0 **** **** **** n5k_expdholy30 **** **** **** sff_expdholy30 **** **** **** **** **** **** **** **** **** **** 1 **** **** **** **** 0 **** ****
+4207 NWN5E_MASK_FNF_SUNBEAM F 0 **** **** **** n5k_explsun **** **** **** sff_explsun **** **** **** **** **** **** **** **** **** **** 2 0.5 1.2 **** n5k_explsun_l 0 **** ****
+4208 NWN5E_MASK_IMP_DIVINE_STRIKE_FIRE F 0 **** **** **** n5k_strkfire **** **** **** sim_strkfire **** **** **** **** **** **** **** **** **** **** 2 0.5 0.6 **** **** 0 **** ****
+4209 NWN5E_MASK_DUR_WEB_MASS D 0 **** **** **** n5k_webmass **** **** **** **** 400 **** **** **** **** **** **** **** **** **** **** **** **** **** **** 0 **** ****

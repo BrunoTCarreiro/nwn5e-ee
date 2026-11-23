@@ -21,6 +21,7 @@ const { spawnSync } = require("child_process");
 const F = require("./floatdisk/floatdisk.js");
 const P = require("./composer/project.js");
 const PM = require("./particle_mask.js");  // #184's spike: the masked particle shader's mark
+const SM = require("./spell_mask.js");     // #184: the spells' masked copies and materials, owned by their names
 const R = require("./floatdisk/reader.js");
 const O = require("./oneburst.js");
 
@@ -160,7 +161,8 @@ if (fs.existsSync(path.join(__dirname, "build_derived.js"))) put("tools/data/bui
 // code, the worktree's (spiritweapon\build.js and the debris build it borrows from), and its three drafts, HEAD's.
 for (const rel of ["tools/data/spiritweapon/build.js", "tools/data/spiritweapon/check.js", "tools/data/debris/build.js",
   "tools/data/placeable_bounds.js",  // (and #166 part 2's bounds, which build_derived.js requires)
-  "tools/data/particle_mask.js"]) {  // (and #184's particle mask, which build_derived.js requires too)
+  "tools/data/particle_mask.js",  // (and #184's particle mask, which build_derived.js requires too)
+  "tools/data/spell_mask.js"]) {  // (and #184's spells' masked looks, likewise)
   if (fs.existsSync(path.join(REPO, ...rel.split("/")))) put(rel, fs.readFileSync(path.join(REPO, ...rel.split("/"))));
 }
 for (const rel of headFiles("tools/data/vfx").filter((r) => /\/n5_swp_(idle|fly|hit)\.vfx$/.test(r))) put(rel, checkedOut(rel));
@@ -287,6 +289,15 @@ try {
       }
       assert.ok(ignored(name), `${name}: built, not committed at HEAD, and not git-ignored`);
       if (ONE_BURST.includes(name)) continue;  // the game's model, its "dead" changed: the one-burst checks below
+      // #184: a spell's masked copy (a copy of one of spell_mask.js's MODELS) or a material a built copy names.
+      if (SM.owns(name)) {
+        if (/\.mtr$/i.test(name)) {
+          const material = name.replace(/\.mtr$/i, "");
+          const by = NAMES.filter((m) => /^n5k_.*\.mdl$/i.test(m) && fs.readFileSync(path.join(OUT, m), "latin1").includes(material + "\0"));
+          assert.ok(by.length, name + ": no built masked copy names it");
+        }
+        continue;
+      }
       const got = fs.readFileSync(path.join(OUT, name));
       if (named(name)) {
         const by = NAMES.filter((m) => m.endsWith(".mdl") && fs.readFileSync(path.join(OUT, m), "latin1").includes(`\r\n  bitmap ${stem(name)}\r\n`));

@@ -2570,6 +2570,106 @@ int DropAnimationEvents(std::string* bytes, const std::string& anim, const std::
   return static_cast<int>(drop.size());
 }
 
+// --- A spell's masked copy (#184).
+std::vector<EmitterTexture> ReadEmitterTextures(const std::string& bytes) {
+  std::vector<EmitterTexture> out;
+  if (!IsCompiled(bytes) || bytes.size() < 0x200) return out;
+  const Bytes m{bytes};
+  std::vector<std::pair<size_t, std::string>> found;  // the update word's place, the word
+  for (const char* word : {"Fountain", "Single", "Explosion", "Lightning"}) {
+    const std::string needle(word, strlen(word) + 1);
+    for (size_t at = bytes.find(needle); at != std::string::npos; at = bytes.find(needle, at + 1)) {
+      if (at < 0x18 + 0x60 + kModelBase || bytes[at - 1] != 0) continue;
+      found.emplace_back(at, word);
+    }
+  }
+  std::sort(found.begin(), found.end());
+  for (const auto& f : found) {
+    const size_t emitter = f.first - 0x18, node = emitter - 0x60;
+    if (emitter + 0xB8 > bytes.size()) continue;
+    EmitterTexture e;
+    e.node = m.Str(node + 0x10, 32);
+    if (e.node.empty() || m.Str(emitter + 0x38, 32).empty()) continue;
+    e.update = f.second;
+    e.texture = m.Str(emitter + 0x78, 64);
+    e.at = emitter + 0x78;
+    out.push_back(e);
+  }
+  return out;
+}
+
+int MaskedModelCopy(std::string* bytes, const std::string& name, const std::map<std::string, std::string>& materials,
+                    std::string* why) {
+  std::string reason;
+  if (!why) why = &reason;
+  why->clear();
+  if (!bytes || !IsCompiled(*bytes) || bytes->size() < 0x200) {
+    *why = "not a compiled model";
+    return -1;
+  }
+  const Bytes m{*bytes};
+  const std::string own = m.Str(kModelBase + 8, 64);
+  if (own.empty() || own.size() != name.size()) {
+    *why = "its name \"" + own + "\" isn't as long as \"" + name + "\"";
+    return -1;
+  }
+  for (const auto& material : materials) {
+    if (material.second.empty() || material.second.size() > 31) {
+      *why = "the material \"" + material.second + "\" isn't 1 to 31 characters";
+      return -1;
+    }
+  }
+  // The name's places: the model header's, the root node's, each animation's root and its root node's.
+  std::vector<std::pair<size_t, size_t>> fields = {{kModelBase + 8, 64}};
+  const uint32_t root = m.U32(kModelBase + 0x48);
+  if (root == 0 || kModelBase + root + 0x40 > bytes->size()) {
+    *why = "no root node";
+    return -1;
+  }
+  fields.push_back({kModelBase + root + 0x20, 32});
+  std::vector<ModelAnimation> anims;
+  std::string error;
+  if (!ReadCompiledAnimations(*bytes, &anims, &error)) {
+    *why = error;
+    return -1;
+  }
+  for (const ModelAnimation& a : anims) {
+    fields.push_back({a.header + 0x78, 64});
+    const uint32_t anim_root = m.U32(a.header + 0x48);
+    if (anim_root == 0 || kModelBase + anim_root + 0x40 > bytes->size()) {
+      *why = "the animation \"" + a.name + "\" has no root node";
+      return -1;
+    }
+    fields.push_back({kModelBase + anim_root + 0x20, 32});
+  }
+  for (const auto& field : fields) {
+    if (m.Str(field.first, field.second) != own) {
+      *why = "a name field at " + std::to_string(field.first) + " isn't \"" + own + "\"";
+      return -1;
+    }
+  }
+  const std::string needle = own + std::string(1, '\0');
+  int places = 0;
+  for (size_t at = bytes->find(needle); at != std::string::npos; at = bytes->find(needle, at + 1)) ++places;
+  std::set<size_t> distinct;
+  for (const auto& field : fields) distinct.insert(field.first);
+  if (places != static_cast<int>(distinct.size())) {
+    *why = "\"" + own + "\" is in " + std::to_string(places) + " places, not the " + std::to_string(distinct.size()) +
+           " a model keeps it in";
+    return -1;
+  }
+  int changed = 0;
+  for (const EmitterTexture& e : ReadEmitterTextures(*bytes)) {
+    const auto found = materials.find(Lower(e.texture));
+    if (found == materials.end()) continue;
+    bytes->replace(e.at, 64, std::string(64, '\0'));
+    bytes->replace(e.at, found->second.size(), found->second);
+    ++changed;
+  }
+  for (size_t at : distinct) bytes->replace(at, name.size(), name);
+  return changed;
+}
+
 std::vector<uint8_t> TileFillLightsOff(int width, int height, const std::vector<TileLight>& lights, bool strict) {
   if (width <= 0 || height <= 0 || width > 64 || height > 64) return {};
   const size_t tiles = static_cast<size_t>(width) * height;

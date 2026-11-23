@@ -7,6 +7,7 @@
 // tools/data/death_save_marker.py and bleed_vfx.py), saved as a draft (key =
 // value text), read back from a draft or from an ASCII model of ours.
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -411,5 +412,33 @@ bool ReadModelAnimations(const std::string& bytes, std::vector<ModelAnimation>* 
 // lines stay). The number taken out: 0 when there's none (or `bytes` isn't a model ReadModelAnimations reads), nothing
 // changed.
 int DropAnimationEvents(std::string* bytes, const std::string& anim, const std::string& event);
+
+// --- A spell's masked copy (#184; the owner, 2026-11-23: "wire it, lets test it out"). tools/data/spell_mask.js builds,
+// from the player's game at build time, copies of the area spells' effect models whose emitters draw through nwn5e's
+// masked materials (n5x_*.mtr: the game's texture by name and the masked particle shader) under names of nwn5e's own
+// (n5k_*), through mdlmesh --emitters and --mask.
+
+// An emitter header of a compiled model - the geometry's and each animation's copy of the node carry one: the node's
+// name (+0x10 of the reader's node), its update (the header, at the node + 0x60, +0x18), its texture (+0x78, 64 bytes:
+// "" or "NULL" for none - a chunk emitter throws a model instead) and where that field is in the file.
+struct EmitterTexture {
+  std::string node;
+  std::string update;   // Fountain, Single, Explosion or Lightning
+  std::string texture;
+  size_t at = 0;
+};
+// Every emitter header of a compiled model, in file order (the renders and names printable, the update one of the
+// four, the byte before it 0). Empty for anything else.
+std::vector<EmitterTexture> ReadEmitterTextures(const std::string& bytes);
+
+// The masked copy of a compiled effect model, in place: every emitter header whose texture is a key of `materials`
+// (the keys lower case; the textures compared case-blind) names its value instead, the field's rest zeroed; and the
+// model's own name - the model header's (+0x08), the root node's, and each animation's root (its header's +0x78) and
+// its root node's - becomes `name`, which must be exactly as long (the fields keep their places; the game names an
+// effect's nodes and roots as its file, and caches a model by that name). -> the emitter headers changed; -1 with
+// `why`, nothing changed, when it isn't a compiled model, `name` isn't as long as the model's own, a material's name is
+// longer than 31, a name field isn't the model's name, or the name is anywhere else in the file too.
+int MaskedModelCopy(std::string* bytes, const std::string& name, const std::map<std::string, std::string>& materials,
+                    std::string* why);
 
 }  // namespace data

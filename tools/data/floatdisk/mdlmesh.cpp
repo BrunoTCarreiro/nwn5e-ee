@@ -23,7 +23,16 @@
 //                                         through its node and each parent's position and turn up to the root:
 //                                         "bounds <file> <x0> <x1> <y0> <y1> <z0> <z1> <meshes>"; "# model <file>
 //                                         nomesh" when nothing is drawn; "# model <file> unreadable <why>"
+//   mdlmesh --emitters <file.mdl>...      (#184: tools\data\spell_mask.js) each compiled model's emitter headers, the
+//                                         animations' copies too (ReadEmitterTextures): "# model <file> compiled", then
+//                                         "texture <node> <update> <texture>" ("-" for none); "# model <file> ascii"
+//                                         for an ASCII one (none read); "# model <file> unreadable <why>"
+//   mdlmesh --mask <in.mdl> <out.mdl> <name> [<texture>=<material>]...
+//                                         (#184) the masked copy (MaskedModelCopy: those emitters' textures named as
+//                                         the materials, the model renamed, every other byte as it was), written to
+//                                         out.mdl: "masked <emitter headers changed>"; refused: the reason, exit 1
 // A mode with the wrong number of arguments, or an option it doesn't know: the usage line, exit 2.
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -135,12 +144,14 @@ int main(int argc, char** argv) {
   const std::string mode = argc >= 2 ? argv[1] : "";
   const bool usage = argc < 2 || (mode == "--model" && argc != 4) || (mode == "--anims" && argc < 3) ||
                      (mode == "--drop-events" && argc != 6) || (mode == "--bounds" && argc < 3) ||
+                     (mode == "--emitters" && argc < 3) || (mode == "--mask" && argc < 5) ||
                      (mode.rfind("--", 0) == 0 && mode != "--model" && mode != "--anims" && mode != "--drop-events" &&
-                      mode != "--bounds");
+                      mode != "--bounds" && mode != "--emitters" && mode != "--mask");
   if (usage) {
     std::fprintf(stderr,
                  "usage: mdlmesh <file.mdl> | mdlmesh --model <draft.vfx> <name> | mdlmesh --anims <file.mdl>... | "
-                 "mdlmesh --drop-events <anim> <event> <in.mdl> <out.mdl> | mdlmesh --bounds <file.mdl>...\n");
+                 "mdlmesh --drop-events <anim> <event> <in.mdl> <out.mdl> | mdlmesh --bounds <file.mdl>... | "
+                 "mdlmesh --emitters <file.mdl>... | mdlmesh --mask <in.mdl> <out.mdl> <name> [<texture>=<material>]...\n");
     return 2;
   }
   if (mode == "--model") {
@@ -210,6 +221,56 @@ int main(int argc, char** argv) {
       std::printf("bounds %s %.3f %.3f %.3f %.3f %.3f %.3f %d\n", argv[i], lo[0], hi[0], lo[1], hi[1], lo[2], hi[2],
                   meshes);
     }
+    return 0;
+  }
+  if (mode == "--emitters") {
+    for (int i = 2; i < argc; ++i) {
+      std::string bytes;
+      if (!ReadFile(argv[i], &bytes)) {
+        std::printf("# model %s unreadable can't open it\n", argv[i]);
+        continue;
+      }
+      if (bytes.size() < 4 || bytes.compare(0, 4, std::string(4, '\0')) != 0) {
+        std::printf("# model %s ascii\n", argv[i]);
+        continue;
+      }
+      std::printf("# model %s compiled\n", argv[i]);
+      for (const data::EmitterTexture& e : data::ReadEmitterTextures(bytes)) {
+        std::printf("texture %s %s %s\n", e.node.c_str(), e.update.c_str(), e.texture.empty() ? "-" : e.texture.c_str());
+      }
+    }
+    return 0;
+  }
+  if (mode == "--mask") {
+    std::string bytes;
+    if (!ReadFile(argv[2], &bytes)) {
+      std::fprintf(stderr, "can't open %s\n", argv[2]);
+      return 1;
+    }
+    std::map<std::string, std::string> materials;
+    for (int i = 5; i < argc; ++i) {
+      const std::string pair = argv[i];
+      const size_t eq = pair.find('=');
+      if (eq == std::string::npos || eq == 0 || eq + 1 == pair.size()) {
+        std::fprintf(stderr, "not <texture>=<material>: %s\n", argv[i]);
+        return 2;
+      }
+      std::string texture = pair.substr(0, eq);
+      for (char& c : texture) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+      materials[texture] = pair.substr(eq + 1);
+    }
+    std::string why;
+    const int changed = data::MaskedModelCopy(&bytes, argv[4], materials, &why);
+    if (changed < 0) {
+      std::fprintf(stderr, "%s: not copied - %s\n", argv[2], why.c_str());
+      return 1;
+    }
+    std::ofstream out(argv[3], std::ios::binary);
+    if (!out || !out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()))) {
+      std::fprintf(stderr, "can't write %s\n", argv[3]);
+      return 1;
+    }
+    std::printf("masked %d\n", changed);
     return 0;
   }
   if (mode == "--drop-events") {
